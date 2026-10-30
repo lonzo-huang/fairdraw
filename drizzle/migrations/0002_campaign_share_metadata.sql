@@ -1,0 +1,3 @@
+ALTER TABLE public.campaigns ADD COLUMN share_language text NOT NULL DEFAULT 'zh' CHECK (share_language IN ('zh','en')), ADD COLUMN share_duration integer NOT NULL DEFAULT 3 CHECK (share_duration BETWEEN 1 AND 3), ADD COLUMN share_image_path text;
+CREATE POLICY "Owners upload campaign share images" ON storage.objects FOR INSERT TO authenticated WITH CHECK (bucket_id = 'campaign-share' AND EXISTS (SELECT 1 FROM public.campaigns c WHERE c.id::text = (storage.foldername(name))[1] AND c.owner_id = auth.uid()));
+CREATE POLICY "Owners read campaign share images" ON storage.objects FOR SELECT TO authenticated USING (bucket_id = 'campaign-share' AND EXISTS (SELECT 1 FROM public.campaigns c WHERE c.id::text = (storage.foldername(name))[1] AND c.owner_id = auth.uid()));

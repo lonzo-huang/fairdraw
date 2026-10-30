@@ -1,0 +1,265 @@
+@import "tailwindcss" source(none);
+@source "../src";
+@import "tw-animate-css";
+
+@custom-variant dark (&:is(.dark *));
+
+/*
+ * Design system definition.
+ *
+ * The @theme inline block maps CSS custom properties to Tailwind utility
+ * classes (e.g. --color-primary -> bg-primary, text-primary).
+ *
+ * The :root and .dark blocks define the actual color values using oklch.
+ * All colors MUST use oklch format.
+ *
+ * To add a new semantic color:
+ * 1. Add the variable to :root (light value) and .dark (dark value)
+ * 2. Register it in @theme inline as --color-<name>: var(--<name>)
+ */
+
+@theme inline {
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --radius-2xl: calc(var(--radius) + 8px);
+  --radius-3xl: calc(var(--radius) + 12px);
+  --radius-4xl: calc(var(--radius) + 16px);
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-ring-offset-background: var(--background);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+  --color-success: var(--success);
+  --color-success-foreground: var(--success-foreground);
+  --color-prize: var(--prize);
+  --color-cyber: var(--cyber);
+  --color-paper: var(--paper);
+  --color-paper-foreground: var(--paper-foreground);
+  --font-serif: "IBM Plex Sans", "Noto Sans SC", system-ui, sans-serif;
+  --font-sans: "IBM Plex Sans", "Noto Sans SC", system-ui, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, monospace;
+  --shadow-glow: var(--shadow-glow);
+  --shadow-neon: var(--shadow-neon);
+}
+
+:root {
+  --radius: 0.5rem;
+  --background: oklch(0.163 0.014 264);
+  --foreground: oklch(0.96 0.005 250);
+  --card: oklch(0.205 0.017 264);
+  --card-foreground: var(--foreground);
+  --popover: oklch(0.23 0.017 264);
+  --popover-foreground: var(--foreground);
+  --primary: oklch(0.685 0.161 242);
+  --primary-foreground: oklch(0.99 0 0);
+  --secondary: oklch(0.26 0.04 290);
+  --secondary-foreground: oklch(0.8 0.12 290);
+  --muted: oklch(0.24 0.015 264);
+  --muted-foreground: oklch(0.67 0.023 255);
+  --accent: oklch(0.27 0.04 170);
+  --accent-foreground: oklch(0.87 0.18 158);
+  --destructive: oklch(0.65 0.2 27);
+  --destructive-foreground: oklch(0.98 0 0);
+  --success: oklch(0.88 0.2 158);
+  --success-foreground: oklch(0.18 0.035 165);
+  --prize: oklch(0.84 0.16 85);
+  --cyber: oklch(0.55 0.25 300);
+  --border: oklch(0.3 0.02 264);
+  --input: oklch(0.35 0.025 264);
+  --ring: var(--primary);
+  --paper: oklch(0.22 0.018 264);
+  --paper-foreground: var(--foreground);
+  --chart-1: oklch(0.8 0.13 82);
+  --chart-2: oklch(0.75 0.14 155);
+  --chart-3: oklch(0.6 0.08 200);
+  --chart-4: oklch(0.7 0.1 60);
+  --chart-5: oklch(0.6 0.1 30);
+  --sidebar: oklch(0.22 0.03 165);
+  --sidebar-foreground: oklch(0.95 0.02 90);
+  --sidebar-primary: oklch(0.8 0.13 82);
+  --sidebar-primary-foreground: oklch(0.2 0.03 165);
+  --sidebar-accent: oklch(0.3 0.035 165);
+  --sidebar-accent-foreground: oklch(0.95 0.02 90);
+  --sidebar-border: oklch(0.38 0.035 165);
+  --sidebar-ring: oklch(0.8 0.13 82);
+  --shadow-glow: 0 0 24px -4px color-mix(in oklab, var(--primary) 65%, transparent), 0 0 55px -10px color-mix(in oklab, var(--cyber) 40%, transparent);
+  --shadow-neon: 0 0 24px -8px color-mix(in oklab, var(--success) 55%, transparent);
+  --shadow-cta-rest: 0 0 24px -10px color-mix(in oklab, var(--success) 65%, transparent), inset 0 1px 0 color-mix(in oklab, var(--foreground) 45%, transparent);
+  --shadow-cta-pulse: 0 0 42px -9px color-mix(in oklab, var(--success) 80%, transparent), inset 0 1px 0 color-mix(in oklab, var(--foreground) 45%, transparent);
+}
+
+@layer base {
+  * {
+    border-color: var(--color-border);
+  }
+
+  body {
+    background-color: var(--color-background);
+    color: var(--color-foreground);
+    font-family: var(--font-sans);
+    letter-spacing: 0;
+  }
+  h1, h2, h3 { font-family: var(--font-serif); letter-spacing: 0; }
+}
+
+.cyber-hero { position: relative; isolation: isolate; min-height: 630px; overflow: hidden; background: linear-gradient(110deg, var(--background) 8%, transparent 70%); }
+.cyber-hero::before { content: ""; position: absolute; inset: -120px; z-index: -2; background: repeating-linear-gradient(90deg, transparent 0 119px, color-mix(in oklab, var(--primary) 11%, transparent) 120px), repeating-linear-gradient(0deg, transparent 0 119px, color-mix(in oklab, var(--primary) 8%, transparent) 120px); mask-image: linear-gradient(90deg, transparent, var(--foreground)); animation: grid-drift 22s linear infinite; }
+@keyframes grid-drift { to { transform: translate3d(120px, 120px, 0); } }
+.draw-scene { position: absolute; inset: 0; z-index: -1; }
+.draw-scene canvas { display: block; width: 100%; height: 100%; }
+.hero-copy { pointer-events: none; }
+.hero-copy a { pointer-events: auto; }
+.hero-type { background: linear-gradient(100deg, var(--foreground) 15%, var(--success) 40%, var(--primary) 65%, var(--foreground) 85%); background-size: 250% 100%; background-clip: text; color: transparent; animation: text-flow 9s linear infinite; text-shadow: 0 0 45px color-mix(in oklab, var(--success) 8%, transparent); }
+@keyframes text-flow { to { background-position: 250% 0; } }
+.hero-brand { font-size: 88px; line-height: 1.05; font-weight: 600; }
+.hero-copy { max-width: 1180px; }
+.hero-copy > p:first-child { font-size: 11px; }
+.hero-copy > .hero-type { font-size: 42px; line-height: 1.35; }
+.hero-annotation { position: absolute; right: 9%; top: 16%; border-left: 1px solid var(--primary); padding-left: 16px; font-family: var(--font-mono); font-size: 9px; color: var(--muted-foreground); }
+.hero-annotation::before { content: ""; position: absolute; left: -3px; top: 0; width: 5px; height: 5px; background: var(--success); box-shadow: var(--shadow-neon); }
+.hero-coordinate { position: absolute; bottom: 35px; left: 32px; writing-mode: vertical-rl; font-family: var(--font-mono); font-size: 9px; color: var(--muted-foreground); }
+.hero-cta { height: 48px; position: relative; overflow: hidden; box-shadow: var(--shadow-cta-rest); animation: cta-breathe 3.6s ease-in-out infinite; transition: transform 220ms, box-shadow 220ms; }
+.hero-cta:hover { transform: perspective(600px) rotateX(5deg) translateY(-2px); box-shadow: var(--shadow-cta-pulse); animation: none; }
+.hero-cta svg:last-child { transition: transform 250ms cubic-bezier(0.22, 1, 0.36, 1); }
+.hero-cta:hover svg:last-child, .hero-cta:focus-visible svg:last-child { transform: translate(3px, -3px); }
+@keyframes cta-breathe { 0%, 100% { box-shadow: var(--shadow-cta-rest); } 50% { box-shadow: var(--shadow-cta-pulse); } }
+.hero-cta::after { content: ""; position: absolute; top: -50%; left: -40%; width: 30%; height: 200%; transform: rotate(25deg); background: linear-gradient(90deg, transparent, color-mix(in oklab, var(--foreground) 45%, transparent), transparent); animation: cta-shine 5s infinite; }
+@keyframes cta-shine { 60%, 100% { left: 140%; } }
+.motion-surface { --tilt-x: 0deg; --tilt-y: 0deg; --pointer-x: 50%; --pointer-y: 50%; perspective: 1000px; min-width: 0; }
+.motion-surface > article, .motion-surface > .cyber-panel { transform: perspective(1000px) rotateX(var(--tilt-x)) rotateY(var(--tilt-y)); transition: transform 250ms ease-out; }
+.motion-surface:hover > article::after { opacity: 1; }
+.campaign-tile { position: relative; overflow: hidden; background: linear-gradient(145deg, color-mix(in oklab, var(--primary) 8%, var(--card)), var(--background)); }
+.campaign-tile::after { content: ""; pointer-events: none; position: absolute; inset: 0; border-radius: inherit; background: radial-gradient(350px circle at var(--pointer-x) var(--pointer-y), color-mix(in oklab, var(--primary) 16%, transparent), transparent 70%); opacity: 0; transition: opacity 220ms; }
+.campaign-tile::before { content: ""; position: absolute; inset: 0; padding: 1px; pointer-events: none; border-radius: inherit; background: linear-gradient(130deg, var(--success), transparent 30%, var(--primary) 60%, var(--cyber)); background-size: 250% 250%; mask: linear-gradient(var(--foreground) 0 0) content-box, linear-gradient(var(--foreground) 0 0); mask-composite: exclude; opacity: 0.45; transition: opacity 250ms; animation: border-flow 6s linear infinite; }
+.campaign-tile:hover::before { opacity: 1; }
+@keyframes border-flow { to { background-position: 250% 250%; } }
+.animated-progress { margin-top: 8px; height: 5px; overflow: hidden; border-radius: 4px; background: var(--muted); }
+.animated-progress-fill { height: 100%; display: block; background: linear-gradient(90deg, var(--primary), var(--success)); box-shadow: var(--shadow-neon); transition: width 1200ms cubic-bezier(0.22, 1, 0.36, 1); }
+.animated-progress.motion-off .animated-progress-fill { transition: none; }
+.animated-progress-heat .animated-progress-fill { background: linear-gradient(90deg, var(--prize), var(--success)); box-shadow: 0 0 14px color-mix(in oklab, var(--prize) 55%, transparent); }
+.host-avatar { display: grid; place-items: center; width: 26px; height: 26px; flex-shrink: 0; border-radius: 9999px; border: 1px solid color-mix(in oklab, var(--primary) 40%, transparent); background: linear-gradient(135deg, color-mix(in oklab, var(--primary) 30%, var(--card)), color-mix(in oklab, var(--cyber) 25%, var(--card))); font-family: var(--font-mono, monospace); font-size: 11px; font-weight: 600; color: var(--primary); }
+.tile-badge { display: inline-flex; align-items: center; gap: 2px; border-radius: 9999px; border: 1px solid color-mix(in oklab, var(--prize) 45%, transparent); background: color-mix(in oklab, var(--prize) 12%, transparent); padding: 2px 7px; font-size: 9px; line-height: 1.4; color: var(--prize); white-space: nowrap; }
+.tile-badge-cyber { border-color: color-mix(in oklab, var(--cyber) 45%, transparent); background: color-mix(in oklab, var(--cyber) 12%, transparent); color: var(--cyber); }
+.tile-badge-success { border-color: color-mix(in oklab, var(--success) 45%, transparent); background: color-mix(in oklab, var(--success) 12%, transparent); color: var(--success); }
+.ending-soon { animation: ending-heartbeat 2.8s ease-in-out infinite; }
+.ending-soon:hover { animation-play-state: paused; }
+.ending-soon .my-4 { color: var(--prize); }
+@keyframes ending-heartbeat { 0%, 40%, 100% { box-shadow: 0 0 8px -3px color-mix(in oklab, var(--prize) 15%, transparent); } 12%, 25% { box-shadow: 0 0 25px -4px color-mix(in oklab, var(--prize) 45%, transparent); border-color: color-mix(in oklab, var(--prize) 65%, var(--border)); } }
+@keyframes border-pulse { to { border-top-color: var(--success); border-right-color: color-mix(in oklab, var(--cyber) 65%, transparent); } }
+.campaign-art { position: relative; height: 125px; overflow: hidden; margin: -20px -20px 20px; border-bottom: 1px solid var(--border); }
+.campaign-art img { width: 300%; max-width: none; height: 100%; object-fit: cover; transition: transform 700ms; }
+.campaign-art[data-art="1"] img { margin-left: -100%; }
+.campaign-art[data-art="2"] img { margin-left: -200%; }
+.campaign-tile:hover .campaign-art img { transform: scale(1.06); }
+.campaign-art::after { content: ""; position: absolute; inset: 0; background: linear-gradient(0deg, var(--card), transparent 65%); }
+.campaign-tile:hover { border-color: var(--primary); box-shadow: 0 0 25px -12px var(--primary); }
+.proof-terminal { position: relative; box-shadow: 0 0 70px -45px var(--primary); }
+.proof-terminal::after { content: ""; position: absolute; inset: 40px 0 0; pointer-events: none; background: repeating-linear-gradient(0deg, transparent 0 3px, color-mix(in oklab, var(--background) 20%, transparent) 4px); }
+.terminal-cursor { animation: live-pulse 1s steps(2) infinite; }
+.ticker-strip { overflow: hidden; background: transparent; mask-image: linear-gradient(90deg, transparent, #000 10%, #000 90%, transparent); }
+.ticker-strip .metrics-track { padding: 8px 0; }
+.metrics-strip { overflow: hidden; border-bottom: 1px solid var(--border); background: color-mix(in oklab, var(--card) 50%, transparent); mask-image: linear-gradient(90deg, transparent, #000 14%, #000 86%, transparent); }
+.metrics-track { width: max-content; display: flex; gap: 50px; padding: 15px 0; animation: metrics-scroll 30s linear infinite; }
+.metrics-track > span { display: flex; align-items: center; gap: 10px; font-size: 10px; color: var(--muted-foreground); }
+@keyframes metrics-scroll { to { transform: translateX(-50%); } }
+.cyber-panel { background: color-mix(in oklab, var(--card) 80%, transparent); backdrop-filter: blur(20px); }
+.campaign-tile { transition: transform 220ms, border-color 220ms, box-shadow 220ms; }
+.campaign-tile:hover { border-color: var(--primary); box-shadow: var(--shadow-glow); }
+.live-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--success); box-shadow: 0 0 8px var(--success); animation: live-pulse 2.5s infinite; }
+@keyframes live-pulse { 50% { opacity: 0.5; } }
+.signal-line { background: linear-gradient(90deg, transparent, var(--success), var(--primary), transparent); height: 1px; }
+.terminal-grid { background-image: linear-gradient(color-mix(in oklab, var(--primary) 5%, transparent) 1px, transparent 1px), linear-gradient(90deg, color-mix(in oklab, var(--primary) 5%, transparent) 1px, transparent 1px); background-size: 32px 32px; }
+@media (max-width: 700px) {
+  .cyber-hero { min-height: 725px; }
+  .draw-scene { top: 395px; bottom: 0; }
+  .hero-copy { padding-top: 35px; }
+  .hero-brand { font-size: 62px; }
+  .hero-copy > .hero-type { font-size: 30px; }
+  .hero-annotation, .hero-coordinate { display: none; }
+}
+@media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; } }
+
+@utility ticket {
+  background: var(--paper);
+  color: var(--paper-foreground);
+  border-radius: var(--radius);
+  position: relative;
+  -webkit-mask: radial-gradient(circle 10px at 0 50%, transparent 98%, #000) left / 51% 100% no-repeat,
+    radial-gradient(circle 10px at 100% 50%, transparent 98%, #000) right / 51% 100% no-repeat;
+  mask: radial-gradient(circle 10px at 0 50%, transparent 98%, #000) left / 51% 100% no-repeat,
+    radial-gradient(circle 10px at 100% 50%, transparent 98%, #000) right / 51% 100% no-repeat;
+}
+@utility perforation {
+  border-top: 2px dashed color-mix(in oklab, var(--paper-foreground) 25%, transparent);
+}
+
+.sponsor-title { display: flex; align-items: center; justify-content: center; gap: 0.4rem; font-size: 0.65rem; font-weight: 700; letter-spacing: 0; color: var(--prize); }
+.sponsor-title::before, .sponsor-title::after { content: ""; height: 1px; width: 2.5rem; background: linear-gradient(90deg, transparent, var(--prize)); }
+.sponsor-title::after { transform: scaleX(-1); }
+.sponsor-avatar { display: grid; place-items: center; border-radius: 9999px; border: 2px solid var(--prize); background: var(--muted); font-weight: 700; color: var(--prize); box-shadow: 0 0 18px color-mix(in oklab, var(--prize) 45%, transparent); }
+.exposure-box { position: relative; overflow: hidden; border-radius: 0.35rem; border: 1px solid color-mix(in oklab, var(--prize) 30%, transparent); padding: 0.5rem; background-color: color-mix(in oklab, var(--background) 70%, var(--card)); background-image: linear-gradient(125deg, transparent 20%, color-mix(in oklab, var(--prize) 9%, transparent) 48%, transparent 75%), linear-gradient(color-mix(in oklab, var(--foreground) 4%, transparent) 1px, transparent 1px), linear-gradient(90deg, color-mix(in oklab, var(--foreground) 4%, transparent) 1px, transparent 1px); background-size: 100% 100%, 10px 10px, 10px 10px; box-shadow: inset 0 1px 0 color-mix(in oklab, var(--prize) 15%, transparent); }
+.metric-signal { position: absolute; top: 7px; right: 7px; width: 9px; height: 9px; color: var(--success); animation: live-pulse 2.5s infinite; }
+.metric-signal.live-dot { width: 4px; height: 4px; }
+.condition-slot { height: 88px; flex-shrink: 0; overflow-y: auto; line-height: 13px; }
+.winner-slot { height: 66px; flex-shrink: 0; }
+.compact-tile { min-height: 444px; }
+.compact-tile > div:first-child { height: 140px; flex-shrink: 0; }
+.compact-tile .exposure-box { padding: 6px; }
+.compact-tile .condition-slot { height: 80px; }
+.compact-tile .animated-progress { margin-top: 5px; }
+.compact-tile .winner-slot { height: 60px; }
+.campaign-grid { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 10px; align-items: stretch; }
+.hub-nav { background: color-mix(in oklab, var(--background) 92%, transparent); backdrop-filter: blur(20px); }
+.rank-panel { background: linear-gradient(140deg, color-mix(in oklab, var(--prize) 5%, var(--card)), var(--background)); }
+.ranking-table { min-width: 580px; }
+.ranking-table th { padding: 14px 12px; font-weight: 500; }
+.ranking-table td { padding: 13px 12px; }
+.ranking-table tbody tr { transition: background 180ms; }
+.ranking-table tbody tr:hover { background: color-mix(in oklab, var(--prize) 5%, transparent); }
+.ranking-rows { height: 246px; overflow-y: auto; scrollbar-width: thin; scrollbar-color: var(--border) transparent; }
+.ranking-rows.ranking-full { height: 360px; }
+.rank-row { display: grid; grid-template-columns: 14px minmax(0, 1fr) max-content; gap: 8px; align-items: center; min-height: 41px; padding: 6px 14px; border-bottom: 1px solid color-mix(in oklab, var(--border) 35%, transparent); }
+.rank-row:hover { background: color-mix(in oklab, var(--prize) 5%, transparent); }
+.rank-amount { max-width: 110px; overflow-wrap: anywhere; }
+:root { --shadow-ambient: 0 8px 24px -10px color-mix(in oklab, var(--prize) 55%, transparent), 0 0 30px -15px color-mix(in oklab, var(--success) 45%, transparent); }
+.motion-surface:hover > .campaign-tile { transform: perspective(1000px) rotateX(var(--tilt-x)) rotateY(var(--tilt-y)) translateY(-2px); border-color: color-mix(in oklab, var(--prize) 65%, var(--border)); box-shadow: var(--shadow-ambient); }
+.tile-actions a { transition: transform 200ms, box-shadow 200ms, border-color 200ms; }
+.tile-actions a:hover, .tile-actions a:focus-visible { transform: translateY(-2px); box-shadow: var(--shadow-ambient); border-color: var(--prize); }
+.leader-name { color: var(--prize); background: linear-gradient(110deg, var(--prize) 15%, var(--foreground) 45%, var(--prize) 55%, var(--prize) 85%); background-size: 250% 100%; background-clip: text; color: transparent; animation: text-flow 5s linear infinite; }
+.hero-annotation { right: 7%; top: 10%; border-left-color: var(--prize); }
+.coin-profile-link { position: absolute; z-index: 2; transform: translate(-50%, -50%); border-radius: 50%; cursor: pointer; }
+.coin-profile-link:focus-visible { outline: 2px solid var(--prize); outline-offset: 4px; }
+@media (max-width: 950px) { .campaign-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+@media (max-width: 620px) { .campaign-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; } .hub-nav { top: 60px; } .hub-nav button { font-size: 10px; padding-inline: 6px; } .rank-row { padding-inline: 12px; } .hero-annotation { display: block; right: 6%; top: auto; bottom: 25px; } }
+@media (max-width: 350px) { .campaign-grid { grid-template-columns: minmax(0, 1fr); } }
+@media (prefers-reduced-motion: reduce) { .motion-surface:hover > .campaign-tile, .tile-actions a:hover { transform: none; } }
