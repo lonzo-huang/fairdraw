@@ -87,6 +87,10 @@ function AuthPage() {
   const google = () => oauth("google");
   const twitter = () => oauth("twitter");
 
+  // Email sign-in hidden for now — OAuth-only launch. See SUPABASE_SETUP.md
+  // "Re-enable email sign-in" to turn it back on.
+  const EMAIL_AUTH_ENABLED = false;
+
   return (
     <div className="mx-auto max-w-md px-4 py-16">
       <div className="rounded-xl border border-border bg-card p-8 shadow-[var(--shadow-glow)]">
@@ -97,6 +101,8 @@ function AuthPage() {
         <Button variant="outline" className="mt-2 w-full" onClick={twitter}>
           {t("auth.x")}
         </Button>
+        {EMAIL_AUTH_ENABLED && (
+          <>
         <div className="my-5 flex items-center gap-3 text-xs text-muted-foreground">
           <div className="h-px flex-1 bg-border" />
           {t("auth.or")}
@@ -118,6 +124,8 @@ function AuthPage() {
         <button className="mt-4 w-full text-sm text-muted-foreground hover:text-foreground" onClick={() => setMode(mode === "in" ? "up" : "in")}>
           {mode === "in" ? t("auth.toSignup") : t("auth.toSignin")}
         </button>
+          </>
+        )}
       </div>
     </div>
   );

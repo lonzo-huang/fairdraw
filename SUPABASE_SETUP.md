@@ -56,6 +56,18 @@ Dashboard → **Authentication → URL Configuration**:
 X sign-in also powers winner verification: the verified X username from the
 OAuth identity must match the winning handle at claim time.
 
+### Re-enable email sign-in
+
+Email/password sign-in is intentionally hidden — the sign-in page is
+OAuth-only (Google + X). To restore it:
+
+1. `src/routes/auth.tsx`: set `EMAIL_AUTH_ENABLED` to `true`.
+2. Supabase → Authentication → Providers → Email stays enabled; optionally
+   toggle "Confirm email" under Email settings.
+
+No other code change needed — the handler (`submit`) and i18n strings are
+still in place.
+
 ## 5. Environment variables
 
 `.env` (safe to commit — public keys only):
