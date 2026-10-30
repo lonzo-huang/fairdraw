@@ -2,7 +2,6 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
-import { lovable } from "@/integrations/lovable/index";
 import { useAuth } from "@/hooks/use-auth";
 import { useI18n } from "@/lib/i18n";
 import { Button } from "@/components/ui/button";
@@ -76,17 +75,17 @@ function AuthPage() {
     }
   }
 
-  async function google() {
+  async function oauth(provider: "google" | "twitter") {
     sessionStorage.setItem("fd-after-auth", target);
-    const r = await lovable.auth.signInWithOAuth("google", { redirect_uri: window.location.origin + "/auth" });
-    if (r.error) toast.error(String(r.error.message ?? r.error));
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider,
+      options: { redirectTo: window.location.origin + "/auth" },
+    });
+    if (error) toast.error(error.message);
   }
 
-  async function twitter() {
-    sessionStorage.setItem("fd-after-auth", target);
-    const r = await lovable.auth.signInWithOAuth("twitter", { redirect_uri: window.location.origin + "/auth" });
-    if (r.error) toast.error(String(r.error.message ?? r.error));
-  }
+  const google = () => oauth("google");
+  const twitter = () => oauth("twitter");
 
   return (
     <div className="mx-auto max-w-md px-4 py-16">
