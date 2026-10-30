@@ -1,0 +1,305 @@
+import { createServerFn } from "@tanstack/react-start";
+import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { feeAmount } from "@/lib/fees";
+import { chainConfig, stripeSupports, toMinorUnits } from "@/lib/payments";
+import type { Json } from "@/integrations/supabase/types";
+
+/** Local copy — chain.server.ts must not be imported at top level here (client bundle). */
+function isValidAddress(value: string): boolean {
+  return /^0x[0-9a-fA-F]{40}$/.test(value.trim());
+}
+
+async function loadCampaign(supabase: any, campaignId: string, userId: string) {
+  const { data: c, error } = await supabase
+    .from("campaigns")
+    .select("id, owner_id, status, title, prize_amount, currency, escrow_status, payment_method, winners_count")
+    .eq("id", campaignId)
+    .single();
+  if (error || !c) throw new Error("Campaign not found");
+  if (c.owner_id !== userId) throw new Error("Forbidden");
+  return c;
+}
+
+async function requireAdmin(supabaseAdmin: any, userId: string) {
+  const { data } = await supabaseAdmin
+    .from("user_roles")
+    .select("role")
+    .eq("user_id", userId)
+    .eq("role", "admin")
+    .maybeSingle();
+  if (!data) throw new Error("Admins only");
+}
+
+/** Pool + tiered platform fee, in the campaign's own currency. */
+async function fundingTotals(supabaseAdmin: any, c: { prize_amount: number | null; currency: string }) {
+  const pool = Number(c.prize_amount ?? 0);
+  if (!(pool > 0)) throw new Error("Campaign has no prize pool amount");
+  const { data: tiers } = await supabaseAdmin.from("fee_tiers").select("min_amount, rate_percent");
+  const fee = feeAmount(tiers ?? [], pool);
+  return { pool, fee, total: pool + fee };
+}
+
+/** Creates a Stripe Checkout Session to fund the pool + fee. Returns the hosted checkout URL. */
+export const startStripeCheckout = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: { campaignId: string; origin: string }) => input)
+  .handler(async ({ data, context }) => {
+    const { supabase, userId } = context;
+    const c = await loadCampaign(supabase, data.campaignId, userId);
+    if (c.payment_method !== "stripe") throw new Error("Campaign is not set to Stripe funding");
+    if (!stripeSupports(c.currency)) throw new Error(`Stripe cannot charge ${c.currency} — use on-chain USDT funding`);
+    if (c.escrow_status === "funded" || c.escrow_status === "preauthorized" || c.escrow_status === "charged")
+      throw new Error("Pool already funded");
+
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { stripe } = await import("@/lib/stripe.server");
+    const { pool, fee, total } = await fundingTotals(supabaseAdmin, c);
+    const units = toMinorUnits(total);
+    if (!units) throw new Error("Invalid amount");
+
+    const origin = data.origin.replace(/\/$/, "");
+    const session = await stripe().checkout.sessions.create({
+      mode: "payment",
+      line_items: [
+        {
+          quantity: 1,
+          price_data: {
+            currency: c.currency.toLowerCase(),
+            unit_amount: units,
+            product_data: {
+              name: `FairDraw pool + fee — ${c.title}`,
+              description: `Pool ${pool} + platform fee ${fee} ${c.currency}`,
+            },
+          },
+        },
+      ],
+      metadata: { campaign_id: c.id, pool: String(pool), fee: String(fee), currency: c.currency },
+      success_url: `${origin}/manage/${c.id}?funded=1`,
+      cancel_url: `${origin}/manage/${c.id}`,
+    });
+
+    await supabaseAdmin.from("payments").insert({
+      campaign_id: c.id,
+      user_id: userId,
+      provider: "stripe",
+      kind: "pool",
+      status: "pending",
+      amount: total,
+      currency: c.currency,
+      external_ref: session.id,
+      meta: { pool, fee } as unknown as Json,
+    });
+    return { url: session.url };
+  });
+
+/**
+ * Confirms an on-chain funding tx: the organizer sent pool+fee in the configured
+ * token to the platform wallet via MetaMask. Verified against the chain receipt —
+ * the tx hash alone is never trusted.
+ */
+export const confirmChainPayment = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: { campaignId: string; txHash: string }) => input)
+  .handler(async ({ data, context }) => {
+    const { supabase, userId } = context;
+    const c = await loadCampaign(supabase, data.campaignId, userId);
+    if (c.escrow_status === "funded" || c.escrow_status === "charged") throw new Error("Pool already funded");
+    const cfg = chainConfig();
+    if (!cfg.receiverAddress) throw new Error("Platform wallet is not configured");
+
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { pool, fee, total } = await fundingTotals(supabaseAdmin, c);
+    const { verifyTokenTransfer } = await import("@/lib/chain.server");
+    const tx = await verifyTokenTransfer(data.txHash as `0x${string}`, cfg.receiverAddress, total);
+
+    await supabaseAdmin.from("payments").upsert(
+      {
+        campaign_id: c.id,
+        user_id: userId,
+        provider: "chain",
+        kind: "pool",
+        status: "confirmed",
+        amount: total,
+        currency: cfg.tokenSymbol,
+        external_ref: data.txHash,
+        meta: { pool, fee, from: tx.from, chain_id: cfg.chainId } as unknown as Json,
+      },
+      { onConflict: "provider,external_ref" },
+    );
+    const { error } = await supabaseAdmin
+      .from("campaigns")
+      .update({ escrow_status: "funded" })
+      .eq("id", c.id)
+      .eq("escrow_status", "awaiting");
+    if (error) throw new Error(error.message);
+    return { ok: true, from: tx.from, amount: tx.amount };
+  });
+
+/** Links a MetaMask address to the account via a personal-sign challenge. */
+export const linkWallet = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: { address: string; message: string; signature: string }) => input)
+  .handler(async ({ data, context }) => {
+    const { userId } = context;
+    if (!isValidAddress(data.address)) throw new Error("Invalid address");
+    if (!data.message.includes(data.address)) throw new Error("Challenge message must contain the address");
+
+    const { verifyMessage } = await import("viem");
+    const ok = await verifyMessage({
+      address: data.address as `0x${string}`,
+      message: data.message,
+      signature: data.signature as `0x${string}`,
+    });
+    if (!ok) throw new Error("Signature verification failed");
+
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { error } = await supabaseAdmin
+      .from("wallets")
+      .upsert({ user_id: userId, address: data.address.toLowerCase() }, { onConflict: "user_id,address" });
+    if (error) throw new Error(error.message);
+    return { ok: true };
+  });
+
+/**
+ * Records an on-chain payout: verifies the tx actually transferred the winner's
+ * share to their wallet, then marks the payout paid with the tx hash as proof.
+ * Owner or admin may submit (whoever's wallet sent the funds).
+ */
+export const recordChainPayout = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: { payoutId: string; txHash: string; walletAddress: string }) => input)
+  .handler(async ({ data, context }) => {
+    const { supabase, userId } = context;
+    if (!isValidAddress(data.walletAddress)) throw new Error("Invalid winner address");
+
+    const { data: p, error } = await supabase
+      .from("payouts")
+      .select("id, campaign_id, winner_handle, status")
+      .eq("id", data.payoutId)
+      .single();
+    if (error || !p) throw new Error("Payout not found");
+    if (p.status === "paid") throw new Error("Already paid");
+
+    const { data: c } = await supabase
+      .from("campaigns")
+      .select("id, owner_id, prize_amount, currency, winners_count")
+      .eq("id", p.campaign_id)
+      .single();
+    if (!c) throw new Error("Campaign not found");
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data: role } = await supabaseAdmin
+      .from("user_roles")
+      .select("role")
+      .eq("user_id", userId)
+      .eq("role", "admin")
+      .maybeSingle();
+    if (c.owner_id !== userId && !role) throw new Error("Forbidden");
+
+    const cfg = chainConfig();
+    const share = c.prize_amount && c.winners_count > 0 ? Number(c.prize_amount) / c.winners_count : 0;
+    const { verifyTokenTransfer } = await import("@/lib/chain.server");
+    const tx = await verifyTokenTransfer(
+      data.txHash as `0x${string}`,
+      data.walletAddress as `0x${string}`,
+      share > 0 ? share : undefined,
+    );
+
+    const proof = cfg.explorerTx ? cfg.explorerTx + data.txHash : data.txHash;
+    await supabaseAdmin
+      .from("payouts")
+      .update({
+        status: "paid",
+        proof,
+        tx_hash: data.txHash,
+        wallet_address: data.walletAddress.toLowerCase(),
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", p.id);
+    await supabaseAdmin.from("payments").upsert(
+      {
+        campaign_id: c.id,
+        user_id: userId,
+        provider: "chain",
+        kind: "payout",
+        status: "confirmed",
+        amount: Number(tx.amount),
+        currency: cfg.tokenSymbol,
+        external_ref: data.txHash,
+        meta: { winner: p.winner_handle, to: tx.to, from: tx.from, chain_id: cfg.chainId } as unknown as Json,
+      },
+      { onConflict: "provider,external_ref" },
+    );
+    return { ok: true, amount: tx.amount };
+  });
+
+/**
+ * Admin-only: refunds a chain-funded pool by verifying a transfer back to the
+ * original funder's address (recorded in the funding payment's meta.from).
+ */
+export const refundChainEscrow = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: { campaignId: string; txHash: string }) => input)
+  .handler(async ({ data, context }) => {
+    const { userId } = context;
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    await requireAdmin(supabaseAdmin, userId);
+
+    const { data: c } = await supabaseAdmin
+      .from("campaigns")
+      .select("id, status, escrow_status, prize_amount")
+      .eq("id", data.campaignId)
+      .single();
+    if (!c) throw new Error("Campaign not found");
+    if (c.status === "drawn") throw new Error("Already drawn");
+    if (c.escrow_status !== "funded") throw new Error("No funded pool to refund");
+
+    const { data: funding } = await supabaseAdmin
+      .from("payments")
+      .select("meta")
+      .eq("campaign_id", c.id)
+      .eq("provider", "chain")
+      .eq("kind", "pool")
+      .eq("status", "confirmed")
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    const funder = (funding?.meta as { from?: string } | null)?.from;
+    if (!funder) throw new Error("Original funder address unknown");
+
+    const { verifyTokenTransfer } = await import("@/lib/chain.server");
+    const cfg = chainConfig();
+    const tx = await verifyTokenTransfer(data.txHash as `0x${string}`, funder as `0x${string}`, Number(c.prize_amount ?? 0));
+
+    await supabaseAdmin.from("payments").upsert(
+      {
+        campaign_id: c.id,
+        user_id: userId,
+        provider: "chain",
+        kind: "refund",
+        status: "confirmed",
+        amount: Number(tx.amount),
+        currency: cfg.tokenSymbol,
+        external_ref: data.txHash,
+        meta: { to: tx.to, from: tx.from, chain_id: cfg.chainId } as unknown as Json,
+      },
+      { onConflict: "provider,external_ref" },
+    );
+    await supabaseAdmin.from("campaigns").update({ escrow_status: "refunded" }).eq("id", c.id);
+    return { ok: true, amount: tx.amount };
+  });
+
+/** Public config for the funding UI (no secrets). */
+export const getPaymentConfig = createServerFn({ method: "GET" }).handler(async () => {
+  const cfg = chainConfig();
+  return {
+    chain: {
+      chainId: cfg.chainId,
+      tokenAddress: cfg.tokenAddress,
+      tokenDecimals: cfg.tokenDecimals,
+      tokenSymbol: cfg.tokenSymbol,
+      receiverAddress: cfg.receiverAddress,
+      explorerTx: cfg.explorerTx,
+    },
+    stripeEnabled: !!process.env["STRIPE_SECRET_KEY"],
+  };
+});

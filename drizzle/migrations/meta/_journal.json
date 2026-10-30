@@ -36,6 +36,13 @@
       "when": 1793293681910,
       "tag": "0004_fee_tiers_admin",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1794000000000,
+      "tag": "0005_payments_wallets",
+      "breakpoints": true
     }
   ]
 }

@@ -129,7 +129,7 @@ function CampaignPage() {
         ) : mine ? (
           <p className="rounded-xl border border-success/40 bg-success/10 p-4 text-center text-success">{t("c.entered")}</p>
         ) : (
-          <EntryForm campaignId={c.id} userId={user.id} questions={questions} onDone={() => qc.invalidateQueries({ queryKey: ["campaign", slug] })} />
+          <EntryForm campaignId={c.id} userId={user.id} questions={questions} acceptsCrypto={c.currency === "USDT" && Number(c.prize_amount) > 0} onDone={() => qc.invalidateQueries({ queryKey: ["campaign", slug] })} />
         )}
         <Button variant="ghost" className="w-full" onClick={() => { navigator.clipboard.writeText(window.location.href); toast.success(t("c.copied")); }}>
           {t("c.share")}
@@ -139,15 +139,21 @@ function CampaignPage() {
   );
 }
 
-function EntryForm({ campaignId, userId, questions, onDone }: { campaignId: string; userId: string; questions: string[]; onDone: () => void }) {
+function EntryForm({ campaignId, userId, questions, acceptsCrypto, onDone }: { campaignId: string; userId: string; questions: string[]; acceptsCrypto: boolean; onDone: () => void }) {
   const { t } = useI18n();
   const [handle, setHandle] = useState("");
   const [post, setPost] = useState("");
+  const [wallet, setWallet] = useState("");
   const [answers, setAnswers] = useState<string[]>(questions.map(() => ""));
   const [busy, setBusy] = useState(false);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
+    const addr = wallet.trim();
+    if (addr && !/^0x[0-9a-fA-F]{40}$/.test(addr)) {
+      toast.error(t("c.walletBad"));
+      return;
+    }
     setBusy(true);
     const { error } = await supabase.from("entries").insert({
       campaign_id: campaignId,
@@ -155,6 +161,7 @@ function EntryForm({ campaignId, userId, questions, onDone }: { campaignId: stri
       handle: handle.trim().slice(0, 60),
       post_url: post.trim(),
       platform: detectPlatform(post.trim()),
+      payout_address: addr || null,
       answers: questions.map((q, i) => `${q} — ${answers[i]?.trim() ?? ""}`),
     });
     setBusy(false);
@@ -170,6 +177,13 @@ function EntryForm({ campaignId, userId, questions, onDone }: { campaignId: stri
       <p className="font-serif text-xl font-semibold">{t("c.enter")}</p>
       <div className="space-y-1.5"><Label>{t("c.handle")}</Label><Input required value={handle} onChange={(e) => setHandle(e.target.value)} /></div>
       <div className="space-y-1.5"><Label>{t("c.post")}</Label><Input required type="url" placeholder="https://x.com/…" value={post} onChange={(e) => setPost(e.target.value)} /></div>
+      {acceptsCrypto && (
+        <div className="space-y-1.5">
+          <Label>{t("c.wallet")}</Label>
+          <Input placeholder="0x…" value={wallet} onChange={(e) => setWallet(e.target.value)} className="font-mono text-xs" />
+          <p className="text-xs text-muted-foreground">{t("c.walletHint")}</p>
+        </div>
+      )}
       {questions.map((q, i) => (
         <div key={i} className="space-y-1.5">
           <Label>{q}</Label>

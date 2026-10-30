@@ -5,6 +5,7 @@ export type ShareCampaign = {
   title: string; prize: string; slug: string; winners_count: number;
   prize_amount?: number | null; currency?: string | null;
   share_language?: string; share_duration?: number; conditions?: unknown; requirement?: string;
+  escrow_status?: string | null;
 };
 
 export function shareModel(c: ShareCampaign) {
@@ -14,8 +15,8 @@ export function shareModel(c: ShareCampaign) {
     days: Math.min(3, Math.max(1, c.share_duration ?? 3)),
     amountEach: c.prize_amount && c.prize_amount > 0 ? c.prize_amount / Math.max(1, Math.floor(c.winners_count)) : null,
     conditions: parseConditions(c.conditions),
-    // Existing escrow labels are simulations, not payment-provider evidence.
-    prepaid: false,
+    // Only real funding states count — "awaiting"/legacy labels are not payment evidence.
+    prepaid: c.escrow_status === "funded" || c.escrow_status === "charged",
     sameVerifiedUsersCompletedAllActions: false,
   };
 }

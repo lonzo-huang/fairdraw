@@ -6,7 +6,12 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useI18n } from "@/lib/i18n";
 import { checkCampaignConditions, checkEntries, drawCampaign, refundEscrow } from "@/lib/campaign.functions";
+import { confirmChainPayment, recordChainPayout, refundChainEscrow, startStripeCheckout } from "@/lib/payment.functions";
 import { parseConditions, type ConditionCheck } from "@/lib/conditions";
+import { chainConfig } from "@/lib/payments";
+import { feeAmount } from "@/lib/fees";
+import { useFeeTiers } from "@/hooks/use-fee-tiers";
+import { hasEthereum, sendTokenTransfer } from "@/lib/wallet";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { StatusBadge, EntryBadge } from "@/components/status-badge";
@@ -143,11 +148,19 @@ function Manage() {
         <span className="rounded-full border border-border bg-card px-3 py-1 font-mono">
           {t(`escrow.${c.escrow_status}` as Parameters<typeof t>[0])}
           {c.prize_amount ? ` · ${c.prize_amount} ${c.currency}` : ""}
+          {c.prize_amount ? ` · ${t(`pay.${c.payment_method}` as Parameters<typeof t>[0])}` : ""}
         </span>
-        {open && c.escrow_status === "preauthorized" && new Date(c.ends_at).getTime() < Date.now() && (
+        {open && (c.escrow_status === "preauthorized" || (c.escrow_status === "funded" && c.payment_method !== "chain")) && new Date(c.ends_at).getTime() < Date.now() && (
           <Button variant="outline" size="sm" disabled={busy} onClick={doRefund}>{t("m.refund")}</Button>
         )}
       </div>
+
+      {c.escrow_status === "awaiting" && c.prize_amount && c.prize_amount > 0 && (
+        <FundingPanel c={c} busy={busy} setBusy={setBusy} onDone={refresh} />
+      )}
+      {open && c.escrow_status === "funded" && c.payment_method === "chain" && new Date(c.ends_at).getTime() < Date.now() && (
+        <ChainRefund campaignId={c.id} busy={busy} setBusy={setBusy} onDone={refresh} />
+      )}
 
       <section className="mt-8 rounded-xl border border-border bg-card p-5">
         <div className="flex flex-wrap items-center justify-between gap-3">
@@ -242,7 +255,9 @@ function Manage() {
         <section className="mt-10">
           <h2 className="text-2xl font-semibold">{t("m.payouts")}</h2>
           <div className="mt-4 space-y-3">
-            {payouts.map((p) => <PayoutRow key={p.id} p={p} onDone={refresh} />)}
+            {payouts.map((p) => (
+              <PayoutRow key={p.id} p={p} share={c.prize_amount && c.winners_count > 0 ? Number(c.prize_amount) / c.winners_count : null} currency={c.currency} onDone={refresh} />
+            ))}
           </div>
         </section>
       )}
@@ -250,19 +265,144 @@ function Manage() {
   );
 }
 
-function PayoutRow({ p, onDone }: { p: { id: string; winner_handle: string; status: string; proof: string | null }; onDone: () => void }) {
+function FundingPanel({ c, busy, setBusy, onDone }: { c: { id: string; prize_amount: number | null; currency: string; payment_method: string }; busy: boolean; setBusy: (b: boolean) => void; onDone: () => void }) {
   const { t } = useI18n();
+  const { data: fees = [] } = useFeeTiers();
+  const checkout = useServerFn(startStripeCheckout);
+  const confirmChain = useServerFn(confirmChainPayment);
+  const [txHash, setTxHash] = useState("");
+  const cfg = chainConfig();
+  const total = (c.prize_amount ?? 0) + feeAmount(fees, c.prize_amount ?? 0);
+
+  async function payStripe() {
+    setBusy(true);
+    try {
+      const r = await checkout({ data: { campaignId: c.id, origin: window.location.origin } });
+      if (r.url) window.location.href = r.url;
+    } catch (e) {
+      toast.error((e as Error).message);
+      setBusy(false);
+    }
+  }
+  async function payChain() {
+    if (!hasEthereum()) { toast.error(t("m.noMetaMask")); return; }
+    if (!cfg.receiverAddress) { toast.error(t("m.noReceiver")); return; }
+    setBusy(true);
+    try {
+      const hash = await sendTokenTransfer(cfg.receiverAddress, total);
+      await confirmChain({ data: { campaignId: c.id, txHash: hash } });
+      toast.success(t("pay.funded"));
+      onDone();
+    } catch (e) {
+      toast.error((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+  async function confirmManual() {
+    setBusy(true);
+    try {
+      await confirmChain({ data: { campaignId: c.id, txHash: txHash.trim() } });
+      toast.success(t("pay.funded"));
+      onDone();
+    } catch (e) {
+      toast.error((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <section className="mt-6 rounded-xl border border-primary/40 bg-primary/5 p-5">
+      <h2 className="text-xl font-semibold">{t("m.funding")}</h2>
+      <p className="mt-1 text-sm text-muted-foreground">
+        {t("m.fundNeed")}: <span className="font-mono font-semibold text-foreground">{total.toFixed(2)} {c.currency}</span>
+        {c.payment_method === "chain" && cfg.receiverAddress && (
+          <span className="mt-1 block break-all font-mono text-xs">→ {cfg.receiverAddress}</span>
+        )}
+      </p>
+      <div className="mt-4 flex flex-wrap gap-2">
+        {c.payment_method === "stripe" && <Button size="sm" disabled={busy} onClick={payStripe}>{t("m.fundStripe")}</Button>}
+        {c.payment_method === "chain" && <Button size="sm" disabled={busy} onClick={payChain}>{t("m.fundChain")}</Button>}
+        {c.payment_method === "manual" && <p className="text-sm text-muted-foreground">{t("m.manualFund")}</p>}
+      </div>
+      {c.payment_method === "chain" && (
+        <div className="mt-3 flex flex-col gap-2 sm:flex-row">
+          <Input placeholder={t("m.txHash")} value={txHash} onChange={(e) => setTxHash(e.target.value)} />
+          <Button size="sm" variant="secondary" disabled={busy || !txHash.trim()} onClick={confirmManual}>{t("m.confirmTx")}</Button>
+        </div>
+      )}
+    </section>
+  );
+}
+
+function ChainRefund({ campaignId, busy, setBusy, onDone }: { campaignId: string; busy: boolean; setBusy: (b: boolean) => void; onDone: () => void }) {
+  const { t } = useI18n();
+  const refundChain = useServerFn(refundChainEscrow);
+  const [txHash, setTxHash] = useState("");
+  async function run() {
+    setBusy(true);
+    try {
+      await refundChain({ data: { campaignId, txHash: txHash.trim() } });
+      toast.success(t("escrow.refunded"));
+      onDone();
+    } catch (e) {
+      toast.error((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+  return (
+    <div className="mt-3 flex flex-col gap-2 rounded-xl border border-border bg-card p-4 sm:flex-row">
+      <Input placeholder={`${t("m.chainRefund")} · tx hash`} value={txHash} onChange={(e) => setTxHash(e.target.value)} />
+      <Button size="sm" variant="outline" disabled={busy || !txHash.trim()} onClick={run}>{t("m.chainRefund")}</Button>
+    </div>
+  );
+}
+
+function PayoutRow({ p, share, currency, onDone }: { p: { id: string; winner_handle: string; status: string; proof: string | null; wallet_address?: string | null }; share: number | null; currency: string; onDone: () => void }) {
+  const { t } = useI18n();
+  const record = useServerFn(recordChainPayout);
   const [proof, setProof] = useState(p.proof ?? "");
+  const [wallet, setWallet] = useState(p.wallet_address ?? "");
+  const [busy, setBusy] = useState(false);
+  const canChainPay = currency === "USDT" && share !== null && share > 0 && p.status !== "paid";
+
   async function save() {
     const { error } = await supabase.from("payouts").update({ proof, status: proof ? "paid" : "pending", updated_at: new Date().toISOString() }).eq("id", p.id);
     if (error) toast.error(error.message);
     onDone();
   }
+  async function payChain() {
+    if (!hasEthereum()) { toast.error(t("m.noMetaMask")); return; }
+    if (!/^0x[0-9a-fA-F]{40}$/.test(wallet.trim())) { toast.error(t("m.winnerWallet")); return; }
+    setBusy(true);
+    try {
+      const hash = await sendTokenTransfer(wallet.trim() as `0x${string}`, share!);
+      await record({ data: { payoutId: p.id, txHash: hash, walletAddress: wallet.trim() } });
+      toast.success(t("r.paid"));
+      onDone();
+    } catch (e) {
+      toast.error((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
   return (
-    <div className="flex flex-col gap-2 rounded-xl border border-border bg-card p-4 sm:flex-row sm:items-center">
-      <span className="w-40 font-mono">{p.winner_handle}</span>
-      <Input placeholder={t("m.proof")} value={proof} onChange={(e) => setProof(e.target.value)} />
-      <Button size="sm" onClick={save}>{p.status === "paid" ? t("common.save") : t("m.markPaid")}</Button>
+    <div className="flex flex-col gap-2 rounded-xl border border-border bg-card p-4">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+        <span className="w-40 font-mono">{p.winner_handle}</span>
+        <Input placeholder={t("m.proof")} value={proof} onChange={(e) => setProof(e.target.value)} />
+        <Button size="sm" onClick={save}>{p.status === "paid" ? t("common.save") : t("m.markPaid")}</Button>
+      </div>
+      {canChainPay && (
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+          <Input placeholder={t("m.winnerWallet")} value={wallet} onChange={(e) => setWallet(e.target.value)} className="font-mono text-xs" />
+          <Button size="sm" variant="secondary" disabled={busy} onClick={payChain}>
+            {t("m.payOnchain")}{share !== null ? ` · ${share.toFixed(2)} USDT` : ""}
+          </Button>
+        </div>
+      )}
     </div>
   );
 }

@@ -25,6 +25,7 @@ export type Database = {
           escrow_status: string
           id: string
           owner_id: string
+          payment_method: string
           prize: string
           prize_amount: number | null
           questions: Json
@@ -49,6 +50,7 @@ export type Database = {
           escrow_status?: string
           id?: string
           owner_id: string
+          payment_method?: string
           prize: string
           prize_amount?: number | null
           questions?: Json
@@ -73,6 +75,7 @@ export type Database = {
           escrow_status?: string
           id?: string
           owner_id?: string
+          payment_method?: string
           prize?: string
           prize_amount?: number | null
           questions?: Json
@@ -169,6 +172,7 @@ export type Database = {
           fetched_meta: Json | null
           handle: string
           id: string
+          payout_address: string | null
           platform: string
           post_url: string
           user_id: string
@@ -183,6 +187,7 @@ export type Database = {
           fetched_meta?: Json | null
           handle: string
           id?: string
+          payout_address?: string | null
           platform?: string
           post_url: string
           user_id: string
@@ -197,6 +202,7 @@ export type Database = {
           fetched_meta?: Json | null
           handle?: string
           id?: string
+          payout_address?: string | null
           platform?: string
           post_url?: string
           user_id?: string
@@ -233,6 +239,59 @@ export type Database = {
         }
         Relationships: []
       }
+      payments: {
+        Row: {
+          amount: number
+          campaign_id: string
+          created_at: string
+          currency: string
+          external_ref: string | null
+          id: string
+          kind: string
+          meta: Json
+          provider: string
+          status: string
+          updated_at: string
+          user_id: string | null
+        }
+        Insert: {
+          amount: number
+          campaign_id: string
+          created_at?: string
+          currency?: string
+          external_ref?: string | null
+          id?: string
+          kind: string
+          meta?: Json
+          provider: string
+          status?: string
+          updated_at?: string
+          user_id?: string | null
+        }
+        Update: {
+          amount?: number
+          campaign_id?: string
+          created_at?: string
+          currency?: string
+          external_ref?: string | null
+          id?: string
+          kind?: string
+          meta?: Json
+          provider?: string
+          status?: string
+          updated_at?: string
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "payments_campaign_id_fkey"
+            columns: ["campaign_id"]
+            isOneToOne: false
+            referencedRelation: "campaigns"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       payouts: {
         Row: {
           campaign_id: string
@@ -240,7 +299,9 @@ export type Database = {
           note: string | null
           proof: string | null
           status: string
+          tx_hash: string | null
           updated_at: string
+          wallet_address: string | null
           winner_handle: string
         }
         Insert: {
@@ -249,7 +310,9 @@ export type Database = {
           note?: string | null
           proof?: string | null
           status?: string
+          tx_hash?: string | null
           updated_at?: string
+          wallet_address?: string | null
           winner_handle: string
         }
         Update: {
@@ -258,7 +321,9 @@ export type Database = {
           note?: string | null
           proof?: string | null
           status?: string
+          tx_hash?: string | null
           updated_at?: string
+          wallet_address?: string | null
           winner_handle?: string
         }
         Relationships: [
@@ -303,6 +368,30 @@ export type Database = {
         Update: {
           plan?: string
           updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      wallets: {
+        Row: {
+          address: string
+          chain: string
+          created_at: string
+          id: string
+          user_id: string
+        }
+        Insert: {
+          address: string
+          chain?: string
+          created_at?: string
+          id?: string
+          user_id: string
+        }
+        Update: {
+          address?: string
+          chain?: string
+          created_at?: string
+          id?: string
           user_id?: string
         }
         Relationships: []

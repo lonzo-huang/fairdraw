@@ -82,12 +82,21 @@ function AuthPage() {
     if (r.error) toast.error(String(r.error.message ?? r.error));
   }
 
+  async function twitter() {
+    sessionStorage.setItem("fd-after-auth", target);
+    const r = await lovable.auth.signInWithOAuth("twitter", { redirect_uri: window.location.origin + "/auth" });
+    if (r.error) toast.error(String(r.error.message ?? r.error));
+  }
+
   return (
     <div className="mx-auto max-w-md px-4 py-16">
       <div className="rounded-xl border border-border bg-card p-8 shadow-[var(--shadow-glow)]">
         <h1 className="text-3xl font-semibold">{t("auth.title")}</h1>
         <Button variant="outline" className="mt-6 w-full" onClick={google}>
           {t("auth.google")}
+        </Button>
+        <Button variant="outline" className="mt-2 w-full" onClick={twitter}>
+          {t("auth.x")}
         </Button>
         <div className="my-5 flex items-center gap-3 text-xs text-muted-foreground">
           <div className="h-px flex-1 bg-border" />

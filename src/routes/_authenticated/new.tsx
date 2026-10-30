@@ -10,6 +10,7 @@ import { Download } from "lucide-react";
 import { feeAmount, feeRate } from "@/lib/fees";
 import { useFeeTiers } from "@/hooks/use-fee-tiers";
 import { CURRENCIES, DURATIONS, endsAtFromDays } from "@/lib/plans";
+import { PAYMENT_METHODS, stripeSupports, type PaymentMethod } from "@/lib/payments";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -46,6 +47,7 @@ function NewCampaign() {
     questions: "",
     target_url: "",
     tweet_url: "",
+    payment_method: "manual" as PaymentMethod,
     keyword: "",
     min_likes: "",
     min_replies: "",
@@ -80,8 +82,9 @@ function NewCampaign() {
         prize: amount && amount > 0 ? generatedPrize : f.prize.trim(),
         prize_amount: amount,
         currency: f.currency.trim() || "USDT",
-        // Pre-authorize the pool at creation; it stays locked until draw (charge) or refund.
-        escrow_status: amount && amount > 0 ? "preauthorized" : "none",
+        // Declared pools await real funding (Stripe checkout or on-chain transfer) before the draw.
+        escrow_status: amount && amount > 0 ? "awaiting" : "none",
+        payment_method: f.payment_method,
         winners_count: winners,
         share_language: lang,
         share_duration: Number(f.days),
@@ -117,7 +120,18 @@ function NewCampaign() {
           <Field label={t("f.currency")}><select className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm" value={f.currency} onChange={set("currency")}>{CURRENCIES.map((c) => <option key={c} value={c}>{c}</option>)}</select></Field>
         </div>
         {f.prize_amount && Number(f.prize_amount) > 0 && (
-          <p className="rounded-lg border border-primary/30 bg-primary/5 p-3 text-sm text-muted-foreground">{t("fee.estimate")}: {feeRate(fees, Number(f.prize_amount))}% · {feeAmount(fees, Number(f.prize_amount))} {f.currency}<br />{t("f.escrowNote")}</p>
+          <div className="space-y-3 rounded-lg border border-primary/30 bg-primary/5 p-3">
+            <p className="text-sm text-muted-foreground">{t("fee.estimate")}: {feeRate(fees, Number(f.prize_amount))}% · {feeAmount(fees, Number(f.prize_amount))} {f.currency}<br />{t("f.escrowNote")}</p>
+            <Field label={t("f.paymentMethod")}>
+              <select className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm" value={f.payment_method} onChange={set("payment_method")}>
+                {PAYMENT_METHODS.map((m) => (
+                  <option key={m} value={m} disabled={(m === "stripe" && !stripeSupports(f.currency)) || (m === "chain" && f.currency !== "USDT")}>
+                    {t(`pay.${m}` as Parameters<typeof t>[0])}
+                  </option>
+                ))}
+              </select>
+            </Field>
+          </div>
         )}
 
         <div className="grid gap-5 sm:grid-cols-2">
