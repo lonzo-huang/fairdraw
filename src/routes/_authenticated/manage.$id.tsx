@@ -223,7 +223,7 @@ function Manage() {
         ) : (
           <div className="mt-4 divide-y divide-border rounded-xl border border-border bg-card">
             {entries.map((e) => {
-              const meta = e.fetched_meta as { author_name?: string; text?: string } | null;
+              const meta = e.fetched_meta as { author_name?: string; text?: string; handle_match?: boolean | null } | null;
               const answers = (e.answers as string[]) ?? [];
               return (
                 <div key={e.id} className="flex flex-col gap-2 p-4 sm:flex-row sm:items-start sm:justify-between">
@@ -232,6 +232,7 @@ function Manage() {
                       <span className="font-mono">{e.handle}</span>
                       <EntryBadge status={e.eligibility_status} />
                       <span className="text-xs uppercase text-muted-foreground">{e.platform}</span>
+                      {meta?.handle_match === false && <span className="text-xs text-destructive">⚠ {t("m.handleMismatch")}</span>}
                     </div>
                     <a href={e.post_url} target="_blank" rel="noreferrer" className="block truncate text-sm text-primary hover:underline">{e.post_url}</a>
                     {meta && <p className="mt-1 text-sm text-muted-foreground">{meta.author_name}: {meta.text}</p>}

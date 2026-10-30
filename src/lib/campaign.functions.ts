@@ -88,7 +88,7 @@ export const checkEntries = createServerFn({ method: "POST" })
     // RLS: owners only see entries of their own campaigns.
     const { data: entries } = await supabase
       .from("entries")
-      .select("id, post_url, platform")
+      .select("id, post_url, platform, handle")
       .in("id", data.entryIds);
     const { fetchTweetStats } = await import("@/lib/x-stats.server");
     let found = 0;
@@ -118,7 +118,18 @@ export const checkEntries = createServerFn({ method: "POST" })
       } catch {
         meta = null;
       }
-      if (meta) found++;
+      if (meta) {
+        found++;
+        // Does the post's author match the handle the entrant declared?
+        // A mismatch usually means they pasted someone else's post.
+        const m = /^https?:\/\/(www\.)?(x|twitter)\.com\/([A-Za-z0-9_]+)/.exec(
+          (meta as { author_url?: string | null }).author_url ?? "",
+        );
+        meta = {
+          ...(meta as Record<string, unknown>),
+          handle_match: m?.[3] ? m[3].toLowerCase() === e.handle.trim().toLowerCase().replace(/^@/, "") : null,
+        };
+      }
       await supabase
         .from("entries")
         .update({

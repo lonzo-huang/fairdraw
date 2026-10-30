@@ -312,6 +312,7 @@ const dict = {
   "m.payStripe": { zh: "Stripe 转账派奖", en: "Pay via Stripe transfer" },
   "m.awaitingClaim": { zh: "等待中奖者在开奖页完成 Stripe 收款认证后可转账", en: "Available once the winner finishes Stripe onboarding on the result page" },
   "m.claimInfo": { zh: "中奖者收款方式", en: "Winner payout info" },
+  "m.handleMismatch": { zh: "帖子作者与填写账号不符", en: "post author ≠ declared handle" },
   "m.chainRefund": { zh: "链上退款（管理员）", en: "On-chain refund (admin)" },
   "m.delete": { zh: "删除活动", en: "Delete campaign" },
   "st.unverified": { zh: "未验证", en: "Unverified" },

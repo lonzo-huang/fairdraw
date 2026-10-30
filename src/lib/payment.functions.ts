@@ -20,6 +20,19 @@ async function loadCampaign(supabase: any, campaignId: string, userId: string) {
   return c;
 }
 
+const normHandle = (h: string) => h.trim().toLowerCase().replace(/^@/, "");
+
+/**
+ * The caller's verified X handle from their OAuth identity, or null when the
+ * account never signed in with X. Supabase-verified — cannot be forged.
+ */
+async function boundXHandle(supabase: any): Promise<string | null> {
+  const { data } = await supabase.auth.getUser();
+  const idt = (data.user?.identities ?? []).find((i: any) => i.provider === "twitter");
+  const raw = idt?.identity_data?.user_name ?? idt?.identity_data?.preferred_username ?? idt?.identity_data?.screen_name;
+  return typeof raw === "string" && raw ? normHandle(raw) : null;
+}
+
 async function requireAdmin(supabaseAdmin: any, userId: string) {
   const { data } = await supabaseAdmin
     .from("user_roles")
@@ -319,6 +332,12 @@ export const submitPayoutInfo = createServerFn({ method: "POST" })
       .maybeSingle();
     if (!mine) throw new Error("This prize does not belong to your account");
 
+    // If the account is X-linked, its verified handle must equal the winning
+    // handle — blocks claiming a prize drawn for someone else's X account.
+    const bound = await boundXHandle(supabase);
+    if (bound && bound !== normHandle(p.winner_handle))
+      throw new Error("Your X account does not match the winning handle");
+
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { error: upErr } = await supabaseAdmin
       .from("payouts")
@@ -364,6 +383,10 @@ export const claimStripePayout = createServerFn({ method: "POST" })
       .eq("handle", p.winner_handle)
       .maybeSingle();
     if (!mine) throw new Error("This prize does not belong to your account");
+
+    const bound = await boundXHandle(supabase);
+    if (bound && bound !== normHandle(p.winner_handle))
+      throw new Error("Your X account does not match the winning handle");
 
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { stripe } = await import("@/lib/stripe.server");
