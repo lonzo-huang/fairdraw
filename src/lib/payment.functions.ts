@@ -28,7 +28,7 @@ const normHandle = (h: string) => h.trim().toLowerCase().replace(/^@/, "");
  */
 async function boundXHandle(supabase: any): Promise<string | null> {
   const { data } = await supabase.auth.getUser();
-  const idt = (data.user?.identities ?? []).find((i: any) => i.provider === "twitter");
+  const idt = (data.user?.identities ?? []).find((i: any) => i.provider === "x" || i.provider === "twitter");
   const raw = idt?.identity_data?.user_name ?? idt?.identity_data?.preferred_username ?? idt?.identity_data?.screen_name;
   return typeof raw === "string" && raw ? normHandle(raw) : null;
 }

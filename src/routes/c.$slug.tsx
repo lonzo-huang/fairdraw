@@ -150,7 +150,7 @@ function EntryForm({ campaignId, userId, questions, acceptsCrypto, onDone }: { c
   // Prefill with the verified X handle when the account is X-linked.
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => {
-      const tw = data.user?.identities?.find((i) => i.provider === "twitter");
+      const tw = data.user?.identities?.find((i) => i.provider === "x" || i.provider === "twitter");
       const raw = tw?.identity_data?.["user_name"] ?? tw?.identity_data?.["preferred_username"] ?? tw?.identity_data?.["screen_name"];
       if (typeof raw === "string" && raw) setHandle((h) => h || raw);
     });

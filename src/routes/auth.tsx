@@ -75,7 +75,7 @@ function AuthPage() {
     }
   }
 
-  async function oauth(provider: "google" | "twitter") {
+  async function oauth(provider: "google" | "x") {
     sessionStorage.setItem("fd-after-auth", target);
     const { error } = await supabase.auth.signInWithOAuth({
       provider,
@@ -85,7 +85,7 @@ function AuthPage() {
   }
 
   const google = () => oauth("google");
-  const twitter = () => oauth("twitter");
+  const twitter = () => oauth("x");
 
   // Email sign-in hidden for now — OAuth-only launch. See SUPABASE_SETUP.md
   // "Re-enable email sign-in" to turn it back on.
