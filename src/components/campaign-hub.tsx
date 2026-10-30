@@ -73,6 +73,8 @@ function CampaignCard({ c, now, index, hostName, metrics, progress, winners }: {
   if (conds.min_likes) rows.push({ key: "cond.likes", cur: metrics?.likes ?? null, target: conds.min_likes });
   if (conds.min_replies) rows.push({ key: "cond.replies", cur: metrics?.replies ?? null, target: conds.min_replies });
   if (conds.min_reposts) rows.push({ key: "cond.reposts", cur: metrics?.reposts ?? null, target: conds.min_reposts });
+  if (conds.min_quotes) rows.push({ key: "cond.quotes", cur: metrics?.quotes ?? null, target: conds.min_quotes });
+  if (conds.min_views) rows.push({ key: "cond.views", cur: metrics?.views ?? null, target: conds.min_views });
   if (conds.min_participants) rows.push({ key: "cond.participants", cur: metrics?.participants ?? null, target: conds.min_participants });
   if (conds.min_verified) rows.push({ key: "cond.verified", cur: metrics?.verified ?? null, target: conds.min_verified });
   return <MotionSurface delay={Math.min(index, 4) * 0.05}><article className={`campaign-tile cyber-panel compact-tile flex min-w-0 flex-col overflow-hidden rounded-lg border border-border ${ending ? "ending-soon" : ""}`}>

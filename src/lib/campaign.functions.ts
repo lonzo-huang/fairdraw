@@ -163,7 +163,7 @@ export const checkCampaignConditions = createServerFn({ method: "POST" })
     if (c.owner_id !== userId) throw new Error("Forbidden");
 
     const conditions = parseConditions(c.conditions);
-    const metrics: Metrics = { likes: null, replies: null, reposts: null, keyword_found: null, participants: 0, verified: 0 };
+    const metrics: Metrics = { likes: null, replies: null, reposts: null, quotes: null, views: null, keyword_found: null, participants: 0, verified: 0 };
 
     if (c.tweet_url) {
       // Real X stats first (API → public syndication); oEmbed remains the keyword fallback.
@@ -174,6 +174,8 @@ export const checkCampaignConditions = createServerFn({ method: "POST" })
           metrics.likes = stats.likes;
           metrics.replies = stats.replies;
           metrics.reposts = stats.reposts;
+          metrics.quotes = stats.quotes;
+          metrics.views = stats.views;
           if (conditions.keyword && stats.text) {
             metrics.keyword_found = stats.text.toLowerCase().includes(conditions.keyword.toLowerCase());
           }

@@ -5,6 +5,8 @@ export type Conditions = {
   min_likes?: number;
   min_replies?: number;
   min_reposts?: number;
+  min_quotes?: number;
+  min_views?: number;
   min_participants?: number;
   min_verified?: number;
 };
@@ -14,6 +16,8 @@ export type Metrics = {
   likes: number | null;
   replies: number | null;
   reposts: number | null;
+  quotes?: number | null;
+  views?: number | null;
   keyword_found: boolean | null;
   participants: number;
   verified: number;
@@ -34,7 +38,7 @@ export function parseConditions(raw: unknown): Conditions {
   const num = (v: unknown) => (typeof v === "number" && v > 0 ? Math.floor(v) : undefined);
   const out: Conditions = {};
   if (typeof o["keyword"] === "string" && o["keyword"].trim()) out.keyword = o["keyword"].trim();
-  const fields = ["min_likes", "min_replies", "min_reposts", "min_participants", "min_verified"] as const;
+  const fields = ["min_likes", "min_replies", "min_reposts", "min_quotes", "min_views", "min_participants", "min_verified"] as const;
   for (const k of fields) {
     const v = num(o[k]);
     if (v !== undefined) out[k] = v;
@@ -42,8 +46,8 @@ export function parseConditions(raw: unknown): Conditions {
   return out;
 }
 
-function checkNum(current: number | null, target: number): ConditionCheck["state"] {
-  if (current === null) return "unknown";
+function checkNum(current: number | null | undefined, target: number): ConditionCheck["state"] {
+  if (current === null || current === undefined) return "unknown";
   return current >= target ? "met" : "unmet";
 }
 
@@ -62,6 +66,8 @@ export function computeProgress(conditions: Conditions, metrics: Metrics): { che
   if (conditions.min_likes) checks.push({ key: "min_likes", label: "likes", target: conditions.min_likes, current: metrics.likes, state: checkNum(metrics.likes, conditions.min_likes) });
   if (conditions.min_replies) checks.push({ key: "min_replies", label: "replies", target: conditions.min_replies, current: metrics.replies, state: checkNum(metrics.replies, conditions.min_replies) });
   if (conditions.min_reposts) checks.push({ key: "min_reposts", label: "reposts", target: conditions.min_reposts, current: metrics.reposts, state: checkNum(metrics.reposts, conditions.min_reposts) });
+  if (conditions.min_quotes) checks.push({ key: "min_quotes", label: "quotes", target: conditions.min_quotes, current: metrics.quotes ?? null, state: checkNum(metrics.quotes, conditions.min_quotes) });
+  if (conditions.min_views) checks.push({ key: "min_views", label: "views", target: conditions.min_views, current: metrics.views ?? null, state: checkNum(metrics.views, conditions.min_views) });
   if (conditions.min_participants) checks.push({ key: "min_participants", label: "participants", target: conditions.min_participants, current: metrics.participants, state: checkNum(metrics.participants, conditions.min_participants) });
   if (conditions.min_verified) checks.push({ key: "min_verified", label: "verified", target: conditions.min_verified, current: metrics.verified, state: checkNum(metrics.verified, conditions.min_verified) });
 

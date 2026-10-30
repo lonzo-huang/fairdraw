@@ -32,7 +32,7 @@ export function prizeSummary(c: ShareCampaign, language?: Lang) {
 export function conditionSummary(c: ShareCampaign) {
   const m = shareModel(c);
   const parts: string[] = [];
-  const fields = [ ["min_likes", "share.likes"], ["min_replies", "share.replies"], ["min_reposts", "share.reposts"], ["min_participants", "share.participants"], ["min_verified", "share.verified"] ] as const;
+  const fields = [ ["min_likes", "share.likes"], ["min_replies", "share.replies"], ["min_reposts", "share.reposts"], ["min_quotes", "share.quotes"], ["min_views", "share.views"], ["min_participants", "share.participants"], ["min_verified", "share.verified"] ] as const;
   for (const [field, key] of fields) {
     const count = m.conditions[field];
     if (count) parts.push(translate(m.language, key, { count }));

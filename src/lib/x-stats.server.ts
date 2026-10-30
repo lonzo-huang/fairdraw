@@ -11,6 +11,7 @@ export type TweetStats = {
   likes: number | null;
   replies: number | null;
   reposts: number | null;
+  quotes: number | null;
   views: number | null;
   text: string | null;
   author_handle: string | null;
@@ -44,6 +45,7 @@ async function fromXApi(id: string): Promise<TweetStats | null> {
     likes: num(m["like_count"]),
     replies: num(m["reply_count"]),
     reposts: num(m["retweet_count"]),
+    quotes: num(m["quote_count"]),
     views: num(m["impression_count"]),
     text: j.data.text ?? null,
     author_handle: j.includes?.users?.[0]?.username ?? null,
@@ -67,6 +69,7 @@ async function fromSyndication(id: string): Promise<TweetStats | null> {
     likes,
     replies,
     reposts,
+    quotes: num(j["quote_count"]),
     views: null,
     text: typeof j["text"] === "string" ? j["text"] : null,
     author_handle: typeof j.user?.["screen_name"] === "string" ? j.user["screen_name"] : null,
