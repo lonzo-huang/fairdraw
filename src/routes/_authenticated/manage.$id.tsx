@@ -360,12 +360,12 @@ function ChainRefund({ campaignId, busy, setBusy, onDone }: { campaignId: string
   );
 }
 
-function PayoutRow({ p, share, currency, paymentMethod, onDone }: { p: { id: string; winner_handle: string; status: string; proof: string | null; wallet_address?: string | null; stripe_account_id?: string | null }; share: number | null; currency: string; paymentMethod: string; onDone: () => void }) {
+function PayoutRow({ p, share, currency, paymentMethod, onDone }: { p: { id: string; winner_handle: string; status: string; proof: string | null; wallet_address?: string | null; stripe_account_id?: string | null; claim_info?: string | null }; share: number | null; currency: string; paymentMethod: string; onDone: () => void }) {
   const { t } = useI18n();
   const record = useServerFn(recordChainPayout);
   const payStripe = useServerFn(payoutViaStripe);
   const [proof, setProof] = useState(p.proof ?? "");
-  const [wallet, setWallet] = useState(p.wallet_address ?? "");
+  const [wallet, setWallet] = useState(p.wallet_address ?? (/^0x[0-9a-fA-F]{40}$/.test(p.claim_info ?? "") ? p.claim_info!.trim() : ""));
   const [busy, setBusy] = useState(false);
   const canChainPay = currency === "USDT" && share !== null && share > 0 && p.status !== "paid";
   const canStripePay = paymentMethod === "stripe" && share !== null && share > 0 && p.status !== "paid";
@@ -409,6 +409,11 @@ function PayoutRow({ p, share, currency, paymentMethod, onDone }: { p: { id: str
         <Input placeholder={t("m.proof")} value={proof} onChange={(e) => setProof(e.target.value)} />
         <Button size="sm" onClick={save}>{p.status === "paid" ? t("common.save") : t("m.markPaid")}</Button>
       </div>
+      {p.claim_info && p.status !== "paid" && (
+        <p className="break-all text-xs text-muted-foreground">
+          {t("m.claimInfo")}: <span className="font-mono text-foreground">{p.claim_info}</span>
+        </p>
+      )}
       {canChainPay && (
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
           <Input placeholder={t("m.winnerWallet")} value={wallet} onChange={(e) => setWallet(e.target.value)} className="font-mono text-xs" />

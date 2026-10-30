@@ -295,6 +295,7 @@ export type Database = {
       payouts: {
         Row: {
           campaign_id: string
+          claim_info: string | null
           id: string
           note: string | null
           proof: string | null
@@ -307,6 +308,7 @@ export type Database = {
         }
         Insert: {
           campaign_id: string
+          claim_info?: string | null
           id?: string
           note?: string | null
           proof?: string | null
@@ -319,6 +321,7 @@ export type Database = {
         }
         Update: {
           campaign_id?: string
+          claim_info?: string | null
           id?: string
           note?: string | null
           proof?: string | null

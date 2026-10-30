@@ -6,7 +6,7 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useI18n } from "@/lib/i18n";
 import { useAuth } from "@/hooks/use-auth";
-import { claimStripePayout } from "@/lib/payment.functions";
+import { claimStripePayout, submitPayoutInfo } from "@/lib/payment.functions";
 import { runDraw, type Candidate } from "@/lib/draw";
 import { Button } from "@/components/ui/button";
 
@@ -98,8 +98,14 @@ function ResultPage() {
                     </span>
                   )}
                 </span>
-                {p && p.status !== "paid" && c.payment_method === "stripe" && myHandles.includes(w.handle) && (
-                  <StripeClaim payoutId={p.id} onboarded={!!p.stripe_account_id} onDone={refetch} />
+                {p && p.status !== "paid" && myHandles.includes(w.handle) && (
+                  <ClaimInfo
+                    payoutId={p.id}
+                    claimInfo={p.claim_info}
+                    stripe={c.payment_method === "stripe"}
+                    onboarded={!!p.stripe_account_id}
+                    onDone={refetch}
+                  />
                 )}
               </li>
             );
@@ -132,11 +138,28 @@ function ResultPage() {
   );
 }
 
-function StripeClaim({ payoutId, onboarded, onDone }: { payoutId: string; onboarded: boolean; onDone: () => void }) {
+function ClaimInfo({ payoutId, claimInfo, stripe, onboarded, onDone }: { payoutId: string; claimInfo: string | null; stripe: boolean; onboarded: boolean; onDone: () => void }) {
   const { t } = useI18n();
+  const submit = useServerFn(submitPayoutInfo);
   const claim = useServerFn(claimStripePayout);
+  const [info, setInfo] = useState(claimInfo ?? "");
+  const [open, setOpen] = useState(!claimInfo);
   const [busy, setBusy] = useState(false);
-  async function run() {
+
+  async function save() {
+    setBusy(true);
+    try {
+      await submit({ data: { payoutId, info } });
+      toast.success(t("r.claimInfoSaved"));
+      setOpen(false);
+      onDone();
+    } catch (e) {
+      toast.error((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+  async function stripeOnboard() {
     setBusy(true);
     try {
       const r = await claim({ data: { payoutId, origin: window.location.origin } });
@@ -150,12 +173,34 @@ function StripeClaim({ payoutId, onboarded, onDone }: { payoutId: string; onboar
       setBusy(false);
     }
   }
+
   return (
-    <span>
-      {onboarded && <span className="mr-2 text-xs opacity-70">{t("r.claimedInfo")}</span>}
-      <Button size="sm" variant="secondary" disabled={busy} onClick={run}>
-        {onboarded ? t("r.claimAgain") : t("r.claim")}
-      </Button>
+    <span className="flex w-full flex-col gap-2 border-t border-white/10 pt-2 font-sans">
+      {open ? (
+        <span className="flex flex-col gap-2 sm:flex-row">
+          <input
+            className="h-9 flex-1 rounded-md border border-input bg-background px-3 font-mono text-xs"
+            placeholder={t("r.claimInfoPlaceholder")}
+            value={info}
+            maxLength={200}
+            onChange={(e) => setInfo(e.target.value)}
+          />
+          <Button size="sm" disabled={busy || !info.trim()} onClick={save}>{t("r.claimInfoSubmit")}</Button>
+        </span>
+      ) : (
+        <span className="flex items-center gap-2 text-xs">
+          <span className="break-all opacity-80">{claimInfo}</span>
+          <button className="shrink-0 underline opacity-70" onClick={() => setOpen(true)}>{t("common.edit")}</button>
+        </span>
+      )}
+      {stripe && (
+        <span className="flex items-center gap-2">
+          {onboarded && <span className="text-xs opacity-70">{t("r.claimedInfo")}</span>}
+          <Button size="sm" variant="ghost" className="h-7 px-2 text-xs" disabled={busy} onClick={stripeOnboard}>
+            {onboarded ? t("r.claimAgain") : t("r.claim")}
+          </Button>
+        </span>
+      )}
     </span>
   );
 }

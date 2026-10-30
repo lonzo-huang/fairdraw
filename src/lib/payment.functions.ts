@@ -289,6 +289,47 @@ export const refundChainEscrow = createServerFn({ method: "POST" })
   });
 
 /**
+ * Winner side: declares how they want to be paid (PayPal email, USDT address,
+ * bank hint, ...). Verifies the caller owns the winning entry. The organiser
+ * sees this on the manage page and pays out-of-band — no KYC required.
+ */
+export const submitPayoutInfo = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: { payoutId: string; info: string }) => input)
+  .handler(async ({ data, context }) => {
+    const { supabase, userId } = context;
+    const info = data.info.trim();
+    if (!info || info.length > 200) throw new Error("Payout info must be 1–200 characters");
+
+    const { data: p, error } = await supabase
+      .from("payouts")
+      .select("id, campaign_id, winner_handle, status")
+      .eq("id", data.payoutId)
+      .single();
+    if (error || !p) throw new Error("Payout not found");
+    if (p.status === "paid") throw new Error("Already paid");
+
+    // Only the account that owns the winning entry may claim.
+    const { data: mine } = await supabase
+      .from("entries")
+      .select("id")
+      .eq("campaign_id", p.campaign_id)
+      .eq("user_id", userId)
+      .eq("handle", p.winner_handle)
+      .maybeSingle();
+    if (!mine) throw new Error("This prize does not belong to your account");
+
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { error: upErr } = await supabaseAdmin
+      .from("payouts")
+      .update({ claim_info: info, updated_at: new Date().toISOString() })
+      .eq("id", p.id)
+      .eq("status", "pending");
+    if (upErr) throw new Error(upErr.message);
+    return { ok: true };
+  });
+
+/**
  * Winner side: claims a Stripe-funded prize. Verifies the caller owns the
  * winning entry, creates/reuses a Stripe Express connected account, and
  * returns the hosted onboarding URL (KYC handled by Stripe).

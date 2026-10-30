@@ -50,6 +50,13 @@
       "when": 1794000001000,
       "tag": "0006_stripe_connect",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1794500000000,
+      "tag": "0007_payout_claim_info",
+      "breakpoints": true
     }
   ]
 }
