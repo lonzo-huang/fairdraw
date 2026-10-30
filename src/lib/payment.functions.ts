@@ -288,6 +288,160 @@ export const refundChainEscrow = createServerFn({ method: "POST" })
     return { ok: true, amount: tx.amount };
   });
 
+/**
+ * Winner side: claims a Stripe-funded prize. Verifies the caller owns the
+ * winning entry, creates/reuses a Stripe Express connected account, and
+ * returns the hosted onboarding URL (KYC handled by Stripe).
+ */
+export const claimStripePayout = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: { payoutId: string; origin: string }) => input)
+  .handler(async ({ data, context }) => {
+    const { supabase, userId } = context;
+    const { data: p, error } = await supabase
+      .from("payouts")
+      .select("id, campaign_id, winner_handle, status, stripe_account_id")
+      .eq("id", data.payoutId)
+      .single();
+    if (error || !p) throw new Error("Payout not found");
+    if (p.status === "paid") throw new Error("Already paid");
+
+    const { data: c } = await supabase
+      .from("campaigns")
+      .select("id, slug, payment_method")
+      .eq("id", p.campaign_id)
+      .single();
+    if (!c) throw new Error("Campaign not found");
+    if (c.payment_method !== "stripe") throw new Error("This campaign does not pay out via Stripe");
+
+    // Only the account that owns the winning entry may claim.
+    const { data: mine } = await supabase
+      .from("entries")
+      .select("id")
+      .eq("campaign_id", c.id)
+      .eq("user_id", userId)
+      .eq("handle", p.winner_handle)
+      .maybeSingle();
+    if (!mine) throw new Error("This prize does not belong to your account");
+
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { stripe } = await import("@/lib/stripe.server");
+
+    let accountId = p.stripe_account_id;
+    if (!accountId) {
+      const account = await stripe().accounts.create({
+        type: "express",
+        capabilities: { transfers: { requested: true } },
+        metadata: { campaign_id: c.id, payout_id: p.id, winner: p.winner_handle },
+      });
+      accountId = account.id;
+      await supabaseAdmin
+        .from("payouts")
+        .update({ stripe_account_id: accountId, updated_at: new Date().toISOString() })
+        .eq("id", p.id);
+    }
+
+    const origin = data.origin.replace(/\/$/, "");
+    const link = await stripe().accountLinks.create({
+      account: accountId,
+      type: "account_onboarding",
+      refresh_url: `${origin}/r/${c.slug}`,
+      return_url: `${origin}/r/${c.slug}?claimed=1`,
+    });
+    return { url: link.url };
+  });
+
+/**
+ * Organiser side: transfers the winner's share from the platform Stripe
+ * balance to the winner's onboarded Express account. Stripe then pays it
+ * out to their bank automatically.
+ */
+export const payoutViaStripe = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: { payoutId: string }) => input)
+  .handler(async ({ data, context }) => {
+    const { supabase, userId } = context;
+    const { data: p, error } = await supabase
+      .from("payouts")
+      .select("id, campaign_id, winner_handle, status, stripe_account_id")
+      .eq("id", data.payoutId)
+      .single();
+    if (error || !p) throw new Error("Payout not found");
+    if (p.status === "paid") throw new Error("Already paid");
+    if (!p.stripe_account_id) throw new Error("Winner has not claimed via Stripe yet");
+
+    const { data: c } = await supabase
+      .from("campaigns")
+      .select("id, owner_id, prize_amount, currency, winners_count, payment_method, escrow_status")
+      .eq("id", p.campaign_id)
+      .single();
+    if (!c) throw new Error("Campaign not found");
+    if (c.owner_id !== userId) throw new Error("Forbidden");
+    if (c.payment_method !== "stripe") throw new Error("Campaign is not Stripe-funded");
+    if (c.escrow_status !== "charged" && c.escrow_status !== "funded")
+      throw new Error("Pool is not funded");
+
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { stripe } = await import("@/lib/stripe.server");
+
+    const account = await stripe().accounts.retrieve(p.stripe_account_id);
+    if (!account.details_submitted) throw new Error("Winner has not finished Stripe onboarding");
+
+    const share = c.prize_amount && c.winners_count > 0 ? Number(c.prize_amount) / c.winners_count : 0;
+    const units = toMinorUnits(share);
+    if (!units) throw new Error("Invalid amount");
+
+    // Tie the transfer to the funding charge so it succeeds even while the
+    // charge is still settling into the platform balance.
+    let sourceTransaction: string | undefined;
+    const { data: funding } = await supabaseAdmin
+      .from("payments")
+      .select("external_ref")
+      .eq("campaign_id", c.id)
+      .eq("provider", "stripe")
+      .eq("kind", "pool")
+      .eq("status", "paid")
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (funding?.external_ref) {
+      const session = await stripe().checkout.sessions.retrieve(funding.external_ref);
+      const pi = typeof session.payment_intent === "string" ? session.payment_intent : session.payment_intent?.id;
+      if (pi) {
+        const intent = await stripe().paymentIntents.retrieve(pi);
+        const charge = typeof intent.latest_charge === "string" ? intent.latest_charge : intent.latest_charge?.id;
+        if (charge) sourceTransaction = charge;
+      }
+    }
+
+    const transfer = await stripe().transfers.create({
+      amount: units,
+      currency: c.currency.toLowerCase(),
+      destination: p.stripe_account_id,
+      source_transaction: sourceTransaction,
+      description: `FairDraw prize — ${p.winner_handle}`,
+      metadata: { campaign_id: c.id, payout_id: p.id },
+    });
+
+    await supabaseAdmin
+      .from("payouts")
+      .update({ status: "paid", proof: `stripe:transfer:${transfer.id}`, updated_at: new Date().toISOString() })
+      .eq("id", p.id)
+      .eq("status", "pending");
+    await supabaseAdmin.from("payments").insert({
+      campaign_id: c.id,
+      user_id: userId,
+      provider: "stripe",
+      kind: "payout",
+      status: "confirmed",
+      amount: share,
+      currency: c.currency,
+      external_ref: transfer.id,
+      meta: { winner: p.winner_handle, destination: p.stripe_account_id } as unknown as Json,
+    });
+    return { ok: true, transferId: transfer.id };
+  });
+
 /** Public config for the funding UI (no secrets). */
 export const getPaymentConfig = createServerFn({ method: "GET" }).handler(async () => {
   const cfg = chainConfig();

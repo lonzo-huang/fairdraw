@@ -6,7 +6,7 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useI18n } from "@/lib/i18n";
 import { checkCampaignConditions, checkEntries, drawCampaign, refundEscrow } from "@/lib/campaign.functions";
-import { confirmChainPayment, recordChainPayout, refundChainEscrow, startStripeCheckout } from "@/lib/payment.functions";
+import { confirmChainPayment, payoutViaStripe, recordChainPayout, refundChainEscrow, startStripeCheckout } from "@/lib/payment.functions";
 import { parseConditions, type ConditionCheck } from "@/lib/conditions";
 import { chainConfig } from "@/lib/payments";
 import { feeAmount } from "@/lib/fees";
@@ -256,7 +256,7 @@ function Manage() {
           <h2 className="text-2xl font-semibold">{t("m.payouts")}</h2>
           <div className="mt-4 space-y-3">
             {payouts.map((p) => (
-              <PayoutRow key={p.id} p={p} share={c.prize_amount && c.winners_count > 0 ? Number(c.prize_amount) / c.winners_count : null} currency={c.currency} onDone={refresh} />
+              <PayoutRow key={p.id} p={p} share={c.prize_amount && c.winners_count > 0 ? Number(c.prize_amount) / c.winners_count : null} currency={c.currency} paymentMethod={c.payment_method} onDone={refresh} />
             ))}
           </div>
         </section>
@@ -360,13 +360,15 @@ function ChainRefund({ campaignId, busy, setBusy, onDone }: { campaignId: string
   );
 }
 
-function PayoutRow({ p, share, currency, onDone }: { p: { id: string; winner_handle: string; status: string; proof: string | null; wallet_address?: string | null }; share: number | null; currency: string; onDone: () => void }) {
+function PayoutRow({ p, share, currency, paymentMethod, onDone }: { p: { id: string; winner_handle: string; status: string; proof: string | null; wallet_address?: string | null; stripe_account_id?: string | null }; share: number | null; currency: string; paymentMethod: string; onDone: () => void }) {
   const { t } = useI18n();
   const record = useServerFn(recordChainPayout);
+  const payStripe = useServerFn(payoutViaStripe);
   const [proof, setProof] = useState(p.proof ?? "");
   const [wallet, setWallet] = useState(p.wallet_address ?? "");
   const [busy, setBusy] = useState(false);
   const canChainPay = currency === "USDT" && share !== null && share > 0 && p.status !== "paid";
+  const canStripePay = paymentMethod === "stripe" && share !== null && share > 0 && p.status !== "paid";
 
   async function save() {
     const { error } = await supabase.from("payouts").update({ proof, status: proof ? "paid" : "pending", updated_at: new Date().toISOString() }).eq("id", p.id);
@@ -388,6 +390,18 @@ function PayoutRow({ p, share, currency, onDone }: { p: { id: string; winner_han
       setBusy(false);
     }
   }
+  async function transferStripe() {
+    setBusy(true);
+    try {
+      await payStripe({ data: { payoutId: p.id } });
+      toast.success(t("r.paid"));
+      onDone();
+    } catch (e) {
+      toast.error((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
   return (
     <div className="flex flex-col gap-2 rounded-xl border border-border bg-card p-4">
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
@@ -401,6 +415,17 @@ function PayoutRow({ p, share, currency, onDone }: { p: { id: string; winner_han
           <Button size="sm" variant="secondary" disabled={busy} onClick={payChain}>
             {t("m.payOnchain")}{share !== null ? ` · ${share.toFixed(2)} USDT` : ""}
           </Button>
+        </div>
+      )}
+      {canStripePay && (
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+          {p.stripe_account_id ? (
+            <Button size="sm" variant="secondary" disabled={busy} onClick={transferStripe}>
+              {t("m.payStripe")}{share !== null ? ` · ${share.toFixed(2)} ${currency}` : ""}
+            </Button>
+          ) : (
+            <p className="text-xs text-muted-foreground">{t("m.awaitingClaim")}</p>
+          )}
         </div>
       )}
     </div>

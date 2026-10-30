@@ -299,6 +299,7 @@ export type Database = {
           note: string | null
           proof: string | null
           status: string
+          stripe_account_id: string | null
           tx_hash: string | null
           updated_at: string
           wallet_address: string | null
@@ -310,6 +311,7 @@ export type Database = {
           note?: string | null
           proof?: string | null
           status?: string
+          stripe_account_id?: string | null
           tx_hash?: string | null
           updated_at?: string
           wallet_address?: string | null
@@ -321,6 +323,7 @@ export type Database = {
           note?: string | null
           proof?: string | null
           status?: string
+          stripe_account_id?: string | null
           tx_hash?: string | null
           updated_at?: string
           wallet_address?: string | null

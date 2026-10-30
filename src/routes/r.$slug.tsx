@@ -1,8 +1,12 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
+import { useServerFn } from "@tanstack/react-start";
 import { useState } from "react";
+import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useI18n } from "@/lib/i18n";
+import { useAuth } from "@/hooks/use-auth";
+import { claimStripePayout } from "@/lib/payment.functions";
 import { runDraw, type Candidate } from "@/lib/draw";
 import { Button } from "@/components/ui/button";
 
@@ -23,8 +27,9 @@ export const Route = createFileRoute("/r/$slug")({
 function ResultPage() {
   const { slug } = Route.useParams();
   const { t } = useI18n();
+  const { user } = useAuth();
   const [verdict, setVerdict] = useState<null | boolean>(null);
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, refetch } = useQuery({
     queryKey: ["result", slug],
     queryFn: async () => {
       const { data: c } = await supabase.from("campaigns").select("*").eq("slug", slug).maybeSingle();
@@ -34,6 +39,18 @@ function ResultPage() {
         supabase.from("payouts").select("*").eq("campaign_id", c.id),
       ]);
       return { c, d, payouts: payouts ?? [] };
+    },
+  });
+  const { data: myHandles = [] } = useQuery({
+    queryKey: ["my-entry-handles", data?.c?.id, user?.id],
+    enabled: !!data?.c?.id && !!user,
+    queryFn: async () => {
+      const { data: rows } = await supabase
+        .from("entries")
+        .select("handle")
+        .eq("campaign_id", data!.c!.id)
+        .eq("user_id", user!.id);
+      return (rows ?? []).map((r) => r.handle);
     },
   });
 
@@ -81,6 +98,9 @@ function ResultPage() {
                     </span>
                   )}
                 </span>
+                {p && p.status !== "paid" && c.payment_method === "stripe" && myHandles.includes(w.handle) && (
+                  <StripeClaim payoutId={p.id} onboarded={!!p.stripe_account_id} onDone={refetch} />
+                )}
               </li>
             );
           })}
@@ -109,6 +129,34 @@ function ResultPage() {
         </details>
       </div>
     </div>
+  );
+}
+
+function StripeClaim({ payoutId, onboarded, onDone }: { payoutId: string; onboarded: boolean; onDone: () => void }) {
+  const { t } = useI18n();
+  const claim = useServerFn(claimStripePayout);
+  const [busy, setBusy] = useState(false);
+  async function run() {
+    setBusy(true);
+    try {
+      const r = await claim({ data: { payoutId, origin: window.location.origin } });
+      if (r.url) {
+        window.location.href = r.url;
+        return;
+      }
+      onDone();
+    } catch (e) {
+      toast.error((e as Error).message);
+      setBusy(false);
+    }
+  }
+  return (
+    <span>
+      {onboarded && <span className="mr-2 text-xs opacity-70">{t("r.claimedInfo")}</span>}
+      <Button size="sm" variant="secondary" disabled={busy} onClick={run}>
+        {onboarded ? t("r.claimAgain") : t("r.claim")}
+      </Button>
+    </span>
   );
 }
 
