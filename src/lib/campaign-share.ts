@@ -47,6 +47,5 @@ export function campaignTweet(c: ShareCampaign, origin: string) {
   const m = shareModel(c);
   return [c.title, "", prizeSummary(c), conditionSummary(c),
     ...(c.requirement?.trim() ? [translate(m.language, "share.requirement", { requirement: c.requirement.trim() })] : []),
-    translate(m.language, "share.draw", { count: m.winners }),
-    translate(m.language, "share.payment"), `${origin.replace(/\/$/, "")}/c/${encodeURIComponent(c.slug)}`].join("\n");
+    translate(m.language, "share.prepaid"), `${origin.replace(/\/$/, "")}/c/${encodeURIComponent(c.slug)}`].join("\n");
 }

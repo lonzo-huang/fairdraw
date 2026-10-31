@@ -48,7 +48,7 @@ function NewCampaign() {
   const [funded, setFunded] = useState(false);
   const [titleTouched, setTitleTouched] = useState(false);
   const [prizeTouched, setPrizeTouched] = useState(false);
-  const [poster, setPoster] = useState<{ name: string; handle: string } | null>(null);
+  const [poster, setPoster] = useState<{ name: string; handle: string; avatar: string | null } | null>(null);
   const [f, setF] = useState({
     title: "",
     prize: "",
@@ -114,7 +114,9 @@ function NewCampaign() {
       const x = data.user?.identities?.find((i) => i.provider === "x" || i.provider === "twitter");
       const un = x?.identity_data?.user_name ?? x?.identity_data?.preferred_username ?? x?.identity_data?.screen_name;
       const nm = x?.identity_data?.name ?? data.user?.user_metadata?.full_name;
-      if (typeof un === "string" && un) setPoster({ name: typeof nm === "string" && nm ? nm : un, handle: un });
+      const av = x?.identity_data?.avatar_url ?? x?.identity_data?.picture ?? x?.identity_data?.profile_image_url ?? data.user?.user_metadata?.avatar_url;
+      if (typeof un === "string" && un)
+        setPoster({ name: typeof nm === "string" && nm ? nm : un, handle: un, avatar: typeof av === "string" && av ? av : null });
     });
   }, []);
 
@@ -224,6 +226,7 @@ function NewCampaign() {
             <TweetPreview
               name={poster?.name ?? "FairDraw"}
               handle={poster?.handle ?? "fairdraw"}
+              avatar={poster?.avatar ?? null}
               now={t("new.previewNow")}
               text={previewText}
             />
@@ -241,13 +244,18 @@ function NewCampaign() {
 }
 
 /** X-style post card mirroring the generated share tweet. */
-function TweetPreview({ name, handle, now, text }: { name: string; handle: string; now: string; text: string }) {
+function TweetPreview({ name, handle, avatar, now, text }: { name: string; handle: string; avatar: string | null; now: string; text: string }) {
+  const [imgErr, setImgErr] = useState(false);
   return (
     <div className="rounded-2xl border border-[#2f3336] bg-black p-4 text-[15px] leading-5 text-[#e7e9ea]">
       <div className="flex gap-3">
-        <div className="flex size-10 shrink-0 items-center justify-center rounded-full bg-primary/20 font-bold text-primary">
-          {name.trim().slice(0, 1).toUpperCase() || "F"}
-        </div>
+        {avatar && !imgErr ? (
+          <img src={avatar} alt={name} className="size-10 shrink-0 rounded-full object-cover" onError={() => setImgErr(true)} />
+        ) : (
+          <div className="flex size-10 shrink-0 items-center justify-center rounded-full bg-primary/20 font-bold text-primary">
+            {name.trim().slice(0, 1).toUpperCase() || "F"}
+          </div>
+        )}
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-1">
             <span className="truncate font-bold">{name}</span>

@@ -162,6 +162,7 @@ export const checkEntries = createServerFn({ method: "POST" })
               replies: stats.replies,
               reposts: stats.reposts,
               views: stats.views,
+              x_verified: stats.author_verified,
             };
             source = stats.source;
           }
@@ -250,11 +251,14 @@ export const checkCampaignConditions = createServerFn({ method: "POST" })
 
     const { data: counts } = await supabase
       .from("entries")
-      .select("eligibility_status")
+      .select("eligibility_status, fetched_meta")
       .eq("campaign_id", c.id);
     for (const e of counts ?? []) {
       metrics.participants++;
-      if (e.eligibility_status === "verified" || e.eligibility_status === "eligible") metrics.verified++;
+      // Blue-V count: owner-marked "eligible" counts as a manual pass; auto-verified
+      // entries only count when the post source confirmed the author's blue badge.
+      const blueVerified = (e.fetched_meta as { x_verified?: boolean | null } | null)?.x_verified === true;
+      if (e.eligibility_status === "eligible" || (e.eligibility_status === "verified" && blueVerified)) metrics.verified++;
     }
 
     const { checks, progress } = computeProgress(conditions, metrics);

@@ -16,6 +16,8 @@ export type TweetStats = {
   text: string | null;
   author_handle: string | null;
   author_name: string | null;
+  /** X blue-verified badge on the author; null when the source cannot tell. */
+  author_verified: boolean | null;
   source: "x-api" | "x-syndication" | "x-oembed";
 };
 
@@ -31,13 +33,13 @@ async function fromXApi(id: string): Promise<TweetStats | null> {
   const token = process.env["X_BEARER_TOKEN"];
   if (!token) return null;
   const res = await fetch(
-    `https://api.x.com/2/tweets/${id}?tweet.fields=public_metrics,text&expansions=author_id`,
+    `https://api.x.com/2/tweets/${id}?tweet.fields=public_metrics,text&expansions=author_id&user.fields=verified,verified_type`,
     { headers: { Authorization: `Bearer ${token}` } },
   );
   if (!res.ok) return null;
   const j = (await res.json()) as {
     data?: { text?: string; public_metrics?: Record<string, number> };
-    includes?: { users?: { username?: string; name?: string }[] };
+    includes?: { users?: { username?: string; name?: string; verified?: boolean; verified_type?: string }[] };
   };
   const m = j.data?.public_metrics;
   if (!j.data || !m) return null;
@@ -50,6 +52,10 @@ async function fromXApi(id: string): Promise<TweetStats | null> {
     text: j.data.text ?? null,
     author_handle: j.includes?.users?.[0]?.username ?? null,
     author_name: j.includes?.users?.[0]?.name ?? null,
+    author_verified:
+      j.includes?.users?.[0]?.verified === true || j.includes?.users?.[0]?.verified_type === "blue"
+        ? true
+        : j.includes?.users?.[0] ? false : null,
     source: "x-api",
   };
 }
@@ -74,6 +80,7 @@ async function fromSyndication(id: string): Promise<TweetStats | null> {
     text: typeof j["text"] === "string" ? j["text"] : null,
     author_handle: typeof j.user?.["screen_name"] === "string" ? j.user["screen_name"] : null,
     author_name: typeof j.user?.["name"] === "string" ? j.user["name"] : null,
+    author_verified: typeof j.user?.["is_blue_verified"] === "boolean" ? j.user["is_blue_verified"] : null,
     source: "x-syndication",
   };
 }
