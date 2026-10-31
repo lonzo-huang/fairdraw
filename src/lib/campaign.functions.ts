@@ -17,7 +17,7 @@ export const drawCampaign = createServerFn({ method: "POST" })
       .single();
     if (error || !c) throw new Error("Campaign not found");
     if (c.owner_id !== userId) throw new Error("Forbidden");
-    if (c.status === "drawn") throw new Error("Already drawn");
+    if (c.status !== "open") throw new Error(c.status === "drawn" ? "Already drawn" : "Campaign is cancelled");
 
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     // Real-money campaigns must be funded before the pool can be drawn.
@@ -63,6 +63,61 @@ export const drawCampaign = createServerFn({ method: "POST" })
       .insert(result.winners.map((w) => ({ campaign_id: c.id, winner_handle: w.handle, wallet_address: payoutAddr.get(w.handle) ?? null })));
     return { ok: true };
   });
+
+type EscrowState = "none" | "refunded" | "refund_pending";
+
+const REFUNDABLE_ESCROW = new Set(["funded", "preauthorized"]);
+
+/**
+ * Refunds a funded/pre-authorized pool for a closing campaign.
+ * Stripe refunds happen via the API; chain funds sit in the platform wallet so
+ * the refund is queued for the admin flow (escrow_status = refund_pending).
+ */
+async function refundPool(c: { id: string; escrow_status: string; payment_method: string | null }, userId: string): Promise<EscrowState> {
+  if (!REFUNDABLE_ESCROW.has(c.escrow_status)) return "none";
+  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+  if (c.payment_method === "stripe") {
+    const { data: pay } = await supabaseAdmin
+      .from("payments")
+      .select("external_ref")
+      .eq("campaign_id", c.id)
+      .eq("provider", "stripe")
+      .eq("kind", "pool")
+      .eq("status", "confirmed")
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (!pay?.external_ref) throw new Error("No confirmed Stripe payment found");
+    const { stripe } = await import("@/lib/stripe.server");
+    const session = await stripe().checkout.sessions.retrieve(pay.external_ref);
+    const pi = typeof session.payment_intent === "string" ? session.payment_intent : session.payment_intent?.id;
+    if (!pi) throw new Error("Stripe payment intent not found");
+    const refund = await stripe().refunds.create({ payment_intent: pi });
+    await supabaseAdmin.from("payments").insert({
+      campaign_id: c.id,
+      user_id: userId,
+      provider: "stripe",
+      kind: "refund",
+      status: refund.status === "succeeded" || refund.status === "pending" ? "confirmed" : "pending",
+      amount: (refund.amount ?? 0) / 100,
+      currency: refund.currency?.toUpperCase() ?? "USD",
+      external_ref: refund.id,
+    });
+    return "refunded";
+  }
+  if (c.payment_method === "chain") return "refund_pending";
+  return "none";
+}
+
+/** Marks a campaign cancelled and refunds the pool when one is held. */
+async function closeWithRefund(c: { id: string; escrow_status: string; payment_method: string | null }, userId: string) {
+  const escrow = await refundPool(c, userId);
+  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+  const patch: Record<string, unknown> = { status: "cancelled", cancelled_at: new Date().toISOString() };
+  if (escrow !== "none") patch["escrow_status"] = escrow;
+  const { error } = await supabaseAdmin.from("campaigns").update(patch).eq("id", c.id);
+  if (error) throw new Error(error.message);
+}
 
 async function fetchOembed(url: string, platform: string) {
   const endpoint =
@@ -156,7 +211,7 @@ export const checkCampaignConditions = createServerFn({ method: "POST" })
     const { supabase, userId } = context;
     const { data: c, error } = await supabase
       .from("campaigns")
-      .select("id, owner_id, tweet_url, conditions")
+      .select("id, owner_id, status, ends_at, tweet_url, conditions, escrow_status, payment_method")
       .eq("id", data.campaignId)
       .single();
     if (error || !c) throw new Error("Campaign not found");
@@ -208,10 +263,47 @@ export const checkCampaignConditions = createServerFn({ method: "POST" })
       metrics: metrics as unknown as Json,
       progress,
     });
+
+    // Deadline passed with a definitively unmet condition → auto-cancel and refund.
+    // "unknown" alone never cancels: unreadable metrics go to manual review.
+    if (
+      c.status === "open" &&
+      new Date(c.ends_at).getTime() <= Date.now() &&
+      checks.some((ch) => ch.state === "unmet")
+    ) {
+      try {
+        await closeWithRefund(c, userId);
+      } catch {
+        /* refund failure leaves the campaign open for manual handling */
+      }
+    }
     return { checks, progress, metrics };
   });
 
-/** Owner refunds the pre-authorized pool when the campaign ended without a draw. */
+/** Organiser may undo a campaign within 1 hour of publishing; the pool is refunded. */
+export const CANCEL_WINDOW_MS = 60 * 60 * 1000;
+
+export const cancelCampaign = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: { campaignId: string }) => input)
+  .handler(async ({ data, context }) => {
+    const { supabase, userId } = context;
+    const { data: c, error } = await supabase
+      .from("campaigns")
+      .select("id, owner_id, status, created_at, escrow_status, payment_method")
+      .eq("id", data.campaignId)
+      .single();
+    if (error || !c) throw new Error("Campaign not found");
+    if (c.owner_id !== userId) throw new Error("Forbidden");
+    if (c.status !== "open") throw new Error("Campaign is not open");
+    if (Date.parse(c.created_at) + CANCEL_WINDOW_MS < Date.now())
+      throw new Error("The 1-hour cancellation window has closed");
+
+    await closeWithRefund(c, userId);
+    return { ok: true };
+  });
+
+/** Owner refunds the pool when the campaign ended without a draw. Marks the campaign cancelled. */
 export const refundEscrow = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: { campaignId: string }) => input)
@@ -219,56 +311,15 @@ export const refundEscrow = createServerFn({ method: "POST" })
     const { supabase, userId } = context;
     const { data: c, error } = await supabase
       .from("campaigns")
-      .select("id, owner_id, status, ends_at, escrow_status")
+      .select("id, owner_id, status, ends_at, escrow_status, payment_method")
       .eq("id", data.campaignId)
       .single();
     if (error || !c) throw new Error("Campaign not found");
     if (c.owner_id !== userId) throw new Error("Forbidden");
-    if (c.status === "drawn") throw new Error("Already drawn");
-    const refundable = c.escrow_status === "preauthorized" || c.escrow_status === "funded";
-    if (!refundable) throw new Error("No funded pool to refund");
+    if (c.status !== "open") throw new Error("Campaign is not open");
+    if (!REFUNDABLE_ESCROW.has(c.escrow_status)) throw new Error("No funded pool to refund");
     if (new Date(c.ends_at).getTime() > Date.now()) throw new Error("Campaign still running");
 
-    const { data: camp } = await supabase
-      .from("campaigns")
-      .select("payment_method")
-      .eq("id", c.id)
-      .single();
-
-    if (camp?.payment_method === "stripe" && c.escrow_status === "funded") {
-      // Real Stripe refund of the captured pool payment.
-      const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-      const { data: pay } = await supabaseAdmin
-        .from("payments")
-        .select("external_ref")
-        .eq("campaign_id", c.id)
-        .eq("provider", "stripe")
-        .eq("kind", "pool")
-        .eq("status", "confirmed")
-        .order("created_at", { ascending: false })
-        .limit(1)
-        .maybeSingle();
-      if (!pay?.external_ref) throw new Error("No confirmed Stripe payment found");
-      const { stripe } = await import("@/lib/stripe.server");
-      const session = await stripe().checkout.sessions.retrieve(pay.external_ref);
-      const pi = typeof session.payment_intent === "string" ? session.payment_intent : session.payment_intent?.id;
-      if (!pi) throw new Error("Stripe payment intent not found");
-      const refund = await stripe().refunds.create({ payment_intent: pi });
-      await supabaseAdmin.from("payments").insert({
-        campaign_id: c.id,
-        user_id: userId,
-        provider: "stripe",
-        kind: "refund",
-        status: refund.status === "succeeded" || refund.status === "pending" ? "confirmed" : "pending",
-        amount: (refund.amount ?? 0) / 100,
-        currency: refund.currency?.toUpperCase() ?? "USD",
-        external_ref: refund.id,
-      });
-    } else if (camp?.payment_method === "chain" && c.escrow_status === "funded") {
-      throw new Error("On-chain refunds are executed by the platform admin — please contact support");
-    }
-
-    const { error: uErr } = await supabase.from("campaigns").update({ escrow_status: "refunded" }).eq("id", c.id);
-    if (uErr) throw new Error(uErr.message);
+    await closeWithRefund(c, userId);
     return { ok: true };
   });

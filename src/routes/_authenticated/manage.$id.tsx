@@ -5,13 +5,12 @@ import { useState } from "react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useI18n } from "@/lib/i18n";
-import { checkCampaignConditions, checkEntries, drawCampaign, refundEscrow } from "@/lib/campaign.functions";
-import { confirmChainPayment, payoutViaStripe, recordChainPayout, refundChainEscrow, startStripeCheckout } from "@/lib/payment.functions";
+import { CANCEL_WINDOW_MS, cancelCampaign, checkCampaignConditions, checkEntries, drawCampaign, refundEscrow } from "@/lib/campaign.functions";
+import { payoutViaStripe, recordChainPayout, refundChainEscrow } from "@/lib/payment.functions";
 import { parseConditions, type ConditionCheck } from "@/lib/conditions";
-import { chainConfig } from "@/lib/payments";
-import { feeAmount } from "@/lib/fees";
-import { useFeeTiers } from "@/hooks/use-fee-tiers";
+import { campaignTweet } from "@/lib/campaign-share";
 import { hasEthereum, sendTokenTransfer } from "@/lib/wallet";
+import { FundingPanel } from "@/components/funding-panel";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { StatusBadge, EntryBadge } from "@/components/status-badge";
@@ -36,6 +35,7 @@ function Manage() {
   const check = useServerFn(checkEntries);
   const checkConds = useServerFn(checkCampaignConditions);
   const refund = useServerFn(refundEscrow);
+  const cancel = useServerFn(cancelCampaign);
   const draw = useServerFn(drawCampaign);
   const [busy, setBusy] = useState(false);
   const [condResult, setCondResult] = useState<{ checks: ConditionCheck[]; progress: number } | null>(null);
@@ -109,6 +109,18 @@ function Manage() {
     setTweetUrl(null);
     refresh();
   }
+  async function doCancel() {
+    if (!confirm(t("m.cancelConfirm"))) return;
+    setBusy(true);
+    try {
+      await cancel({ data: { campaignId: c!.id } });
+      refresh();
+    } catch (e) {
+      toast.error((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
   async function doRefund() {
     if (!confirm(t("m.refundConfirm"))) return;
     setBusy(true);
@@ -140,7 +152,10 @@ function Manage() {
           {t("c.share")}
         </Button>
         <Button asChild variant="outline" size="sm"><Link to="/c/$slug" params={{ slug: c.slug }}>/c/{c.slug}</Link></Button>
-        {!open && <Button asChild size="sm"><Link to="/r/$slug" params={{ slug: c.slug }}>{t("c.result")}</Link></Button>}
+        {!open && c.status !== "cancelled" && <Button asChild size="sm"><Link to="/r/$slug" params={{ slug: c.slug }}>{t("c.result")}</Link></Button>}
+        {open && Date.parse(c.created_at) + CANCEL_WINDOW_MS > Date.now() && (
+          <Button variant="destructive" size="sm" disabled={busy} onClick={doCancel}>{t("m.cancel")}</Button>
+        )}
         {open && <Button variant="ghost" size="sm" onClick={del}>{t("m.delete")}</Button>}
       </div>
 
@@ -158,8 +173,19 @@ function Manage() {
       {c.escrow_status === "awaiting" && c.prize_amount && c.prize_amount > 0 && (
         <FundingPanel c={c} busy={busy} setBusy={setBusy} onDone={refresh} />
       )}
-      {open && c.escrow_status === "funded" && c.payment_method === "chain" && new Date(c.ends_at).getTime() < Date.now() && (
+      {(c.escrow_status === "refund_pending" || (open && c.escrow_status === "funded" && c.payment_method === "chain" && new Date(c.ends_at).getTime() < Date.now())) && (
         <ChainRefund campaignId={c.id} busy={busy} setBusy={setBusy} onDone={refresh} />
+      )}
+
+      {open && !c.tweet_url && (c.escrow_status === "funded" || c.escrow_status === "preauthorized" || c.escrow_status === "charged" || c.payment_method === "manual") && (
+        <p className="mt-4 text-sm text-muted-foreground">
+          <a
+            href={`https://x.com/intent/post?text=${encodeURIComponent(campaignTweet(c, typeof window !== "undefined" ? window.location.origin : ""))}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="font-medium text-primary hover:underline"
+          >{t("new.postToX")} ↗</a>
+        </p>
       )}
 
       <section className="mt-8 rounded-xl border border-border bg-card p-5">
@@ -263,77 +289,6 @@ function Manage() {
         </section>
       )}
     </div>
-  );
-}
-
-function FundingPanel({ c, busy, setBusy, onDone }: { c: { id: string; prize_amount: number | null; currency: string; payment_method: string }; busy: boolean; setBusy: (b: boolean) => void; onDone: () => void }) {
-  const { t } = useI18n();
-  const { data: fees = [] } = useFeeTiers();
-  const checkout = useServerFn(startStripeCheckout);
-  const confirmChain = useServerFn(confirmChainPayment);
-  const [txHash, setTxHash] = useState("");
-  const cfg = chainConfig();
-  const total = (c.prize_amount ?? 0) + feeAmount(fees, c.prize_amount ?? 0);
-
-  async function payStripe() {
-    setBusy(true);
-    try {
-      const r = await checkout({ data: { campaignId: c.id, origin: window.location.origin } });
-      if (r.url) window.location.href = r.url;
-    } catch (e) {
-      toast.error((e as Error).message);
-      setBusy(false);
-    }
-  }
-  async function payChain() {
-    if (!hasEthereum()) { toast.error(t("m.noMetaMask")); return; }
-    if (!cfg.receiverAddress) { toast.error(t("m.noReceiver")); return; }
-    setBusy(true);
-    try {
-      const hash = await sendTokenTransfer(cfg.receiverAddress, total);
-      await confirmChain({ data: { campaignId: c.id, txHash: hash } });
-      toast.success(t("pay.funded"));
-      onDone();
-    } catch (e) {
-      toast.error((e as Error).message);
-    } finally {
-      setBusy(false);
-    }
-  }
-  async function confirmManual() {
-    setBusy(true);
-    try {
-      await confirmChain({ data: { campaignId: c.id, txHash: txHash.trim() } });
-      toast.success(t("pay.funded"));
-      onDone();
-    } catch (e) {
-      toast.error((e as Error).message);
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  return (
-    <section className="mt-6 rounded-xl border border-primary/40 bg-primary/5 p-5">
-      <h2 className="text-xl font-semibold">{t("m.funding")}</h2>
-      <p className="mt-1 text-sm text-muted-foreground">
-        {t("m.fundNeed")}: <span className="font-mono font-semibold text-foreground">{total.toFixed(2)} {c.currency}</span>
-        {c.payment_method === "chain" && cfg.receiverAddress && (
-          <span className="mt-1 block break-all font-mono text-xs">→ {cfg.receiverAddress}</span>
-        )}
-      </p>
-      <div className="mt-4 flex flex-wrap gap-2">
-        {c.payment_method === "stripe" && <Button size="sm" disabled={busy} onClick={payStripe}>{t("m.fundStripe")}</Button>}
-        {c.payment_method === "chain" && <Button size="sm" disabled={busy} onClick={payChain}>{t("m.fundChain")}</Button>}
-        {c.payment_method === "manual" && <p className="text-sm text-muted-foreground">{t("m.manualFund")}</p>}
-      </div>
-      {c.payment_method === "chain" && (
-        <div className="mt-3 flex flex-col gap-2 sm:flex-row">
-          <Input placeholder={t("m.txHash")} value={txHash} onChange={(e) => setTxHash(e.target.value)} />
-          <Button size="sm" variant="secondary" disabled={busy || !txHash.trim()} onClick={confirmManual}>{t("m.confirmTx")}</Button>
-        </div>
-      )}
-    </section>
   );
 }
 

@@ -16,6 +16,7 @@ export type Database = {
     Tables: {
       campaigns: {
         Row: {
+          cancelled_at: string | null
           clicks: number
           conditions: Json
           created_at: string
@@ -41,10 +42,11 @@ export type Database = {
           winners_count: number
         }
         Insert: {
+          cancelled_at?: string | null
           clicks?: number
           conditions?: Json
           created_at?: string
-          currency?: string
+          currency: string
           description?: string
           ends_at: string
           escrow_status?: string
@@ -66,6 +68,7 @@ export type Database = {
           winners_count?: number
         }
         Update: {
+          cancelled_at?: string | null
           clicks?: number
           conditions?: Json
           created_at?: string

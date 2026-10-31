@@ -11,6 +11,7 @@ import { feeAmount, feeRate } from "@/lib/fees";
 import { useFeeTiers } from "@/hooks/use-fee-tiers";
 import { CURRENCIES, DURATIONS, endsAtFromDays } from "@/lib/plans";
 import { PAYMENT_METHODS, stripeSupports, type PaymentMethod } from "@/lib/payments";
+import { FundingPanel } from "@/components/funding-panel";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -28,7 +29,7 @@ export const Route = createFileRoute("/_authenticated/new")({
   component: NewCampaign,
 });
 
-type Created = ShareCampaign & { id: string; ends_at: string };
+type Created = ShareCampaign & { id: string; ends_at: string; payment_method: string };
 
 /** Selectable metric conditions: checkbox + ≥ threshold input, max 3 picked. */
 const METRIC_KEYS = ["min_likes", "min_replies", "min_reposts", "min_quotes", "min_views", "min_participants", "min_verified"] as const;
@@ -38,7 +39,7 @@ const METRIC_LABEL: Record<MetricKey, "cond.likes" | "cond.replies" | "cond.repo
   min_quotes: "cond.quotes", min_views: "cond.views",
   min_participants: "cond.participants", min_verified: "cond.verified",
 };
-const MAX_CONDITIONS = 3;
+const MAX_CONDITIONS = 4;
 
 function NewCampaign() {
   const { t, lang } = useI18n();
@@ -55,7 +56,7 @@ function NewCampaign() {
     prize_amount: "",
     currency: "USDT",
     winners_count: 1,
-    days: "3",
+    days: "1",
     requirement: "",
     tweet_url: "",
     payment_method: "manual" as PaymentMethod,
@@ -125,6 +126,8 @@ function NewCampaign() {
     const prize = prizeText.trim();
     if (!title) { toast.error(t("f.title")); return; }
     if (!prize) { toast.error(t("f.prize")); return; }
+    if (!amount || amount <= 0) { toast.error(t("f.amount")); return; }
+    if (selKeys.length === 0) { toast.error(t("f.pickMin")); return; }
     setBusy(true);
     const { data: u } = await supabase.auth.getUser();
     if (!u.user) { setBusy(false); toast.error(t("c.signin")); return; }
@@ -138,7 +141,7 @@ function NewCampaign() {
         prize_amount: amount,
         currency: f.currency.trim() || "USDT",
         // Declared pools await real funding (Stripe checkout or on-chain transfer) before the draw.
-        escrow_status: amount && amount > 0 ? "awaiting" : "none",
+        escrow_status: "awaiting",
         payment_method: f.payment_method,
         winners_count: winners,
         share_language: lang,
@@ -148,7 +151,7 @@ function NewCampaign() {
         tweet_url: f.tweet_url.trim() || null,
         conditions,
       })
-      .select("id, slug, title, prize, ends_at, prize_amount, currency, winners_count, share_language, share_duration, conditions, requirement")
+      .select("id, slug, title, prize, ends_at, prize_amount, currency, winners_count, share_language, share_duration, conditions, requirement, payment_method")
       .single();
     setBusy(false);
     if (error) {
@@ -161,27 +164,14 @@ function NewCampaign() {
   if (created) return <AfterCreate c={created} />;
 
   return (
-    <div className="mx-auto max-w-2xl px-4 py-12">
+    <div className="mx-auto max-w-5xl px-4 py-12">
       <h1 className="text-4xl font-semibold">{t("new.title")}</h1>
-      <form onSubmit={submit} className="mt-8 space-y-5 rounded-xl border border-border bg-card p-6">
+      <div className="mt-8 grid gap-6 lg:grid-cols-[minmax(0,1fr)_360px]">
+      <form onSubmit={submit} className="space-y-5 rounded-xl border border-border bg-card p-6">
         <div className="grid gap-5 sm:grid-cols-2">
-          <Field label={t("f.amount")}><Input type="number" min={0} step="0.01" placeholder="20" value={f.prize_amount} onChange={set("prize_amount")} /></Field>
+          <Field label={t("f.amount")}><Input required type="number" min={0.01} step="0.01" placeholder="20" value={f.prize_amount} onChange={set("prize_amount")} /></Field>
           <Field label={t("f.currency")}><select className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm" value={f.currency} onChange={set("currency")}>{CURRENCIES.map((c) => <option key={c} value={c}>{c}</option>)}</select></Field>
         </div>
-        {f.prize_amount && Number(f.prize_amount) > 0 && (
-          <div className="space-y-3 rounded-lg border border-primary/30 bg-primary/5 p-3">
-            <p className="text-sm text-muted-foreground">{t("fee.estimate")}: {feeRate(fees, Number(f.prize_amount))}% · {feeAmount(fees, Number(f.prize_amount))} {f.currency}<br />{t("f.escrowNote")}</p>
-            <Field label={t("f.paymentMethod")}>
-              <select className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm" value={f.payment_method} onChange={set("payment_method")}>
-                {PAYMENT_METHODS.map((m) => (
-                  <option key={m} value={m} disabled={(m === "stripe" && !stripeSupports(f.currency)) || (m === "chain" && f.currency !== "USDT")}>
-                    {t(`pay.${m}` as Parameters<typeof t>[0])}
-                  </option>
-                ))}
-              </select>
-            </Field>
-          </div>
-        )}
         <div className="grid gap-5 sm:grid-cols-2">
           <Field label={t("f.winners")}><><Input type="number" min={1} max={100} required list="winner-options" value={f.winners_count} onChange={set("winners_count")} /><datalist id="winner-options">{[1, 2, 3, 5, 10, 20, 50, 100].map((n) => <option key={n} value={n} />)}</datalist></></Field>
           <Field label={t("f.ends")}><select className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm" value={f.days} onChange={set("days")}>{DURATIONS.map((d) => <option key={d} value={d}>{t(`f.day${d}` as "f.day1")}</option>)}</select></Field>
@@ -228,7 +218,11 @@ function NewCampaign() {
           </div>
         </div>
 
-        <div className="rounded-xl border border-border p-4">
+        <Button type="submit" className="w-full" disabled={busy}>{t("f.publish")}</Button>
+      </form>
+
+      <aside className="space-y-4 lg:sticky lg:top-20 lg:self-start">
+        <div className="rounded-xl border border-border bg-card p-4">
           <p className="font-medium">{t("new.preview")}</p>
           <div className="mt-3">
             <TweetPreview
@@ -239,9 +233,24 @@ function NewCampaign() {
             />
           </div>
         </div>
-
-        <Button type="submit" className="w-full" disabled={busy}>{t("f.publish")}</Button>
-      </form>
+        <div className="space-y-3 rounded-lg border border-primary/30 bg-primary/5 p-4">
+          <p className="text-sm text-muted-foreground">
+            {t("fee.estimate")}: {amount && amount > 0 ? <>{feeRate(fees, amount)}% · {feeAmount(fees, amount)} {f.currency}</> : "—"}
+            <br />{t("f.escrowNote")}
+            <br />{t("new.cancelWindow")}
+          </p>
+          <Field label={t("f.paymentMethod")}>
+            <select className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm" value={f.payment_method} onChange={set("payment_method")}>
+              {PAYMENT_METHODS.map((m) => (
+                <option key={m} value={m} disabled={(m === "stripe" && !stripeSupports(f.currency)) || (m === "chain" && f.currency !== "USDT")}>
+                  {t(`pay.${m}` as Parameters<typeof t>[0])}
+                </option>
+              ))}
+            </select>
+          </Field>
+        </div>
+      </aside>
+      </div>
     </div>
   );
 }
@@ -273,10 +282,12 @@ function TweetPreview({ name, handle, now, text }: { name: string; handle: strin
   );
 }
 
-/** After creation: jump to X with the tweet pre-filled, or go manage the campaign. */
+/** After creation: prepay the pool (unless manual payout), then jump to X with the tweet pre-filled. */
 function AfterCreate({ c }: { c: Created }) {
   const { t } = useI18n();
   const navigate = useNavigate();
+  const [stage, setStage] = useState<"pay" | "publish">(c.payment_method === "manual" ? "publish" : "pay");
+  const [fundBusy, setFundBusy] = useState(false);
   const [origin, setOrigin] = useState("");
   const [image, setImage] = useState<string | null>(null);
   const [imageError, setImageError] = useState(false);
@@ -309,8 +320,17 @@ function AfterCreate({ c }: { c: Created }) {
       <h1 className="text-4xl font-semibold">{t("new.created")}</h1>
       <p className="mt-3 text-muted-foreground">{t("new.createdSub")}</p>
 
+      {stage === "pay" && (
+        <div className="mt-8 space-y-4">
+          <p className="text-sm text-muted-foreground"><span className="font-semibold text-foreground">{t("new.stepPay")}</span> — {t("new.stepPayHint")}</p>
+          <FundingPanel c={c} busy={fundBusy} setBusy={setFundBusy} onDone={() => setStage("publish")} />
+          <Button variant="ghost" size="sm" onClick={() => setStage("publish")}>{t("new.stepTweet")} →</Button>
+        </div>
+      )}
+
+      {stage === "publish" && (
       <div className="mt-8 rounded-xl border border-border bg-card p-6">
-        <p className="font-mono text-xs uppercase tracking-widest text-primary">{t("new.tweetPreview")}</p>
+        <p className="font-mono text-xs uppercase tracking-widest text-primary">{t("new.stepTweet")} · {t("new.tweetPreview")}</p>
         <pre className="mt-3 whitespace-pre-wrap break-words rounded-lg bg-muted p-4 font-mono text-sm">{text}</pre>
         <div className="mt-4 flex flex-col gap-2 sm:flex-row">
           <Button asChild className="flex-1">
@@ -322,6 +342,7 @@ function AfterCreate({ c }: { c: Created }) {
         </div>
         <p className="mt-3 text-sm text-muted-foreground">{t("new.afterPost")}</p>
       </div>
+      )}
 
       <section className="mt-8 space-y-3">
         <h2 className="font-semibold">{t("share.image")}</h2>

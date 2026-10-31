@@ -264,7 +264,7 @@ export const refundChainEscrow = createServerFn({ method: "POST" })
       .single();
     if (!c) throw new Error("Campaign not found");
     if (c.status === "drawn") throw new Error("Already drawn");
-    if (c.escrow_status !== "funded") throw new Error("No funded pool to refund");
+    if (c.escrow_status !== "funded" && c.escrow_status !== "refund_pending") throw new Error("No funded pool to refund");
 
     const { data: funding } = await supabaseAdmin
       .from("payments")

@@ -3,11 +3,11 @@ import { useI18n } from "@/lib/i18n";
 export function StatusBadge({ status, endsAt }: { status: string; endsAt: string }) {
   const { t } = useI18n();
   const ended = new Date(endsAt).getTime() < Date.now();
-  const label = status === "drawn" ? t("status.drawn") : ended ? t("status.ended") : t("status.open");
+  const label = status === "drawn" ? t("status.drawn") : status === "cancelled" ? t("status.cancelled") : ended ? t("status.ended") : t("status.open");
   const cls =
     status === "drawn"
       ? "bg-primary text-primary-foreground"
-      : ended
+      : status === "cancelled" || ended
         ? "bg-muted text-muted-foreground"
         : "bg-success/20 text-success";
   return <span className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${cls}`}>{label}</span>;
