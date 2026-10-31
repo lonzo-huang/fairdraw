@@ -211,7 +211,7 @@ const dict = {
   "share.noConditions": { zh: "⏳ 条件：活动持续{days}天，截止后从符合参与要求的用户中抽奖", en: "⏳ Duration: {days} day(s); draw from eligible entrants after the deadline" },
   "share.requirement": { zh: "💡 话题：{requirement}", en: "💡 Topic: {requirement}" },
   "share.draw": { zh: "满足条件后通过FairDraw随机抽取{count}名用户，奖品由发起者发放。", en: "Once conditions are met, FairDraw randomly selects {count} winners; the organiser delivers the prizes." },
-  "share.prepaid": { zh: "💰 奖金已预付，请加入来领奖金，祝您好运", en: "💰 Prize is prepaid — join in and win. Good luck!" },
+  "share.prepaid": { zh: "💰 奖金已预付给FairDraw平台，请放心加入来领奖金，祝您好运", en: "💰 Prize is prepaid to the FairDraw platform — join in and win. Good luck!" },
   "share.payment": { zh: "奖池托管与派奖凭证请查看活动页面：", en: "Pool funding and payout receipts are on the campaign page:" },
   "share.image": { zh: "活动专属分享图片", en: "Campaign share image" },
   "share.download": { zh: "下载分享图片", en: "Download share image" },
