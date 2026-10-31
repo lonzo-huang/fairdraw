@@ -51,7 +51,7 @@ function checkNum(current: number | null | undefined, target: number): Condition
   return current >= target ? "met" : "unmet";
 }
 
-/** Evaluate every configured condition. Overall progress = met / configured (unknown counts as not met). */
+/** Evaluate every configured condition. Progress = mean completion ratio per condition (met = 100%, unmet numeric = current/target, unknown = 0). */
 export function computeProgress(conditions: Conditions, metrics: Metrics): { checks: ConditionCheck[]; progress: number } {
   const checks: ConditionCheck[] = [];
   if (conditions.keyword) {
@@ -71,7 +71,11 @@ export function computeProgress(conditions: Conditions, metrics: Metrics): { che
   if (conditions.min_participants) checks.push({ key: "min_participants", label: "participants", target: conditions.min_participants, current: metrics.participants, state: checkNum(metrics.participants, conditions.min_participants) });
   if (conditions.min_verified) checks.push({ key: "min_verified", label: "verified", target: conditions.min_verified, current: metrics.verified, state: checkNum(metrics.verified, conditions.min_verified) });
 
-  const progress = checks.length === 0 ? 0 : Math.round((checks.filter((c) => c.state === "met").length / checks.length) * 100);
+  const score = (c: ConditionCheck) =>
+    c.state === "met" ? 1
+      : typeof c.current === "number" && typeof c.target === "number" ? Math.min(1, c.current / c.target)
+        : 0;
+  const progress = checks.length === 0 ? 0 : Math.round((checks.reduce((s, c) => s + score(c), 0) / checks.length) * 100);
   return { checks, progress };
 }
 

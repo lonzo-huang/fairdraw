@@ -44,12 +44,12 @@ describe("platform detection", () => {
 
 describe("unlock condition progress", () => {
   const conds = parseConditions({ keyword: "giveaway", min_likes: 100, min_participants: 50 });
-  it("counts only met conditions toward progress", () => {
+  it("weighs each condition's completion ratio toward progress", () => {
     const { progress, checks } = computeProgress(conds, {
       likes: 120, replies: null, reposts: null, keyword_found: true, participants: 30, verified: 0,
     });
     expect(checks).toHaveLength(3);
-    expect(progress).toBe(67); // keyword + likes met, participants not
+    expect(progress).toBe(87); // keyword 100% + likes 100% + participants 30/50 = 60%
   });
   it("marks unreadable metrics as unknown, not met", () => {
     const { checks, progress } = computeProgress(conds, {
