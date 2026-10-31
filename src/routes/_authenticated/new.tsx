@@ -167,7 +167,7 @@ function NewCampaign() {
     <div className="mx-auto max-w-5xl px-4 py-12">
       <h1 className="text-4xl font-semibold">{t("new.title")}</h1>
       <div className="mt-8 grid gap-6 lg:grid-cols-[minmax(0,1fr)_360px]">
-      <form onSubmit={submit} className="space-y-5 rounded-xl border border-border bg-card p-6">
+      <form id="new-campaign" onSubmit={submit} className="space-y-5 rounded-xl border border-border bg-card p-6">
         <div className="grid gap-5 sm:grid-cols-2">
           <Field label={t("f.amount")}><Input required type="number" min={0.01} step="0.01" placeholder="20" value={f.prize_amount} onChange={set("prize_amount")} /></Field>
           <Field label={t("f.currency")}><select className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm" value={f.currency} onChange={set("currency")}>{CURRENCIES.map((c) => <option key={c} value={c}>{c}</option>)}</select></Field>
@@ -218,7 +218,6 @@ function NewCampaign() {
           </div>
         </div>
 
-        <Button type="submit" className="w-full" disabled={busy}>{t("f.publish")}</Button>
       </form>
 
       <aside className="space-y-4 lg:sticky lg:top-20 lg:self-start">
@@ -249,6 +248,8 @@ function NewCampaign() {
             </select>
           </Field>
         </div>
+        <Button type="submit" form="new-campaign" className="w-full" disabled={busy}>{t("f.confirm")}</Button>
+        <p className="text-xs text-muted-foreground">{t("f.confirmHint")}</p>
       </aside>
       </div>
     </div>
@@ -324,7 +325,6 @@ function AfterCreate({ c }: { c: Created }) {
         <div className="mt-8 space-y-4">
           <p className="text-sm text-muted-foreground"><span className="font-semibold text-foreground">{t("new.stepPay")}</span> — {t("new.stepPayHint")}</p>
           <FundingPanel c={c} busy={fundBusy} setBusy={setFundBusy} onDone={() => setStage("publish")} />
-          <Button variant="ghost" size="sm" onClick={() => setStage("publish")}>{t("new.stepTweet")} →</Button>
         </div>
       )}
 
