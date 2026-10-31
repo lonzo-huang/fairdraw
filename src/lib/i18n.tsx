@@ -198,6 +198,7 @@ const dict = {
   "f.limit": { zh: "本周发布额度已用完，升级方案或等到下周一。", en: "Weekly limit reached. Upgrade or wait until Monday." },
   "f.amount": { zh: "奖池总金额（平均分给中奖者）", en: "Total prize pool (split equally among winners)" },
   "share.prize": { zh: "🎁 奖品：{count}个中奖者，每人得{amount}{currency}", en: "🎁 Prize: {count} winners, {amount} {currency} each" },
+  "share.prizeOne": { zh: "🎁 奖品：1个中奖者得{amount}{currency}", en: "🎁 Prize: 1 winner gets {amount} {currency}" },
   "share.manualPrize": { zh: "🎁 奖品：{prize}（{count}名中奖者）", en: "🎁 Prize: {prize} ({count} winners)" },
   "share.conditions": { zh: "⏳ 条件：在{days}天内需要同时满足：{conditions}", en: "⏳ Conditions: within {days} day(s), all of the following must be met: {conditions}" },
   "share.likes": { zh: "❤️ 至少{count}个点赞", en: "❤️ at least {count} likes" },

@@ -26,7 +26,7 @@ export function prizeSummary(c: ShareCampaign, language?: Lang) {
   const lang = language ?? m.language;
   return m.amountEach === null
     ? translate(lang, "share.manualPrize", { prize: c.prize, count: m.winners })
-    : translate(lang, "share.prize", { count: m.winners, amount: Number(m.amountEach.toFixed(6)).toString(), currency: c.currency || "USDT" });
+    : translate(lang, m.winners === 1 ? "share.prizeOne" : "share.prize", { count: m.winners, amount: Number(m.amountEach.toFixed(6)).toString(), currency: c.currency || "USDT" });
 }
 
 export function conditionSummary(c: ShareCampaign) {
