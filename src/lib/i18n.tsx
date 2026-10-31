@@ -235,8 +235,8 @@ const dict = {
   "f.tweetUrl": { zh: "已有推文链接（可选）", en: "Existing tweet link (optional)" },
   "f.condTitle": { zh: "开奖条件", en: "Unlock conditions" },
   "f.condHint": {
-    zh: "达到这些条件才开奖，指标条件选 1–4 项。关键词、参与人数由平台自动核对；点赞/回复/转贴/引用/曝光数无法自动读取时会标注“待人工核对”。",
-    en: "The draw unlocks when these are met — pick 1–4 metric conditions. Keyword and entrant counts are checked automatically; like/reply/repost/quote/impression counts are marked “manual review” when unreadable.",
+    zh: "达到这些条件才开奖，指标条件选 1–4 项。关键词、参与人数由平台自动核对。",
+    en: "The draw unlocks when these are met — pick 1–4 metric conditions. Keyword and entrant counts are checked automatically.",
   },
   "f.pickMax": { zh: "最多只能选择 4 个指标条件", en: "Pick at most 4 metric conditions" },
   "f.pickMin": { zh: "请至少选择 1 个指标条件", en: "Pick at least 1 metric condition" },
