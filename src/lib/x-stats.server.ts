@@ -60,9 +60,18 @@ async function fromXApi(id: string): Promise<TweetStats | null> {
   };
 }
 
+/**
+ * The widget endpoint requires a token derived from the tweet id
+ * (same formula x.com's embed loader computes). Without it the CDN
+ * returns an empty {} object instead of stats.
+ */
+function syndicationToken(id: string): string {
+  return ((Number(id) / 1e15) * Math.PI).toString(36).replace(/(0+|\.)/g, "");
+}
+
 /** Free fallback: the same JSON endpoint x.com's embedded-tweet widgets call. */
 async function fromSyndication(id: string): Promise<TweetStats | null> {
-  const res = await fetch(`https://cdn.syndication.twimg.com/tweet-result?id=${id}&lang=en`, {
+  const res = await fetch(`https://cdn.syndication.twimg.com/tweet-result?id=${id}&lang=en&token=${syndicationToken(id)}`, {
     headers: { "User-Agent": "Mozilla/5.0 (compatible; FairDrawBot/1.0)", Accept: "application/json" },
   });
   if (!res.ok) return null;
