@@ -16,7 +16,7 @@ export const Route = createFileRoute("/api/stripe/webhook")({
 
         let event;
         try {
-          event = stripe().webhooks.constructEvent(await request.text(), sig, secret);
+          event = await stripe().webhooks.constructEventAsync(await request.text(), sig, secret);
         } catch (e) {
           return new Response(`Invalid signature: ${(e as Error).message}`, { status: 400 });
         }
