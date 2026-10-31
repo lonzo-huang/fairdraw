@@ -10,7 +10,7 @@ import { BarChart3, Bookmark, Download, Heart, MessageCircle, Repeat2, Share } f
 import { feeAmount, feeRate } from "@/lib/fees";
 import { useFeeTiers } from "@/hooks/use-fee-tiers";
 import { CURRENCIES, DURATIONS, endsAtFromDays } from "@/lib/plans";
-import { PAYMENT_METHODS, stripeSupports, type PaymentMethod } from "@/lib/payments";
+import { stripeSupports, type PaymentMethod } from "@/lib/payments";
 import { FundingPanel } from "@/components/funding-panel";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -43,9 +43,9 @@ const MAX_CONDITIONS = 4;
 
 function NewCampaign() {
   const { t, lang } = useI18n();
-  const { data: fees = [] } = useFeeTiers();
   const [busy, setBusy] = useState(false);
   const [created, setCreated] = useState<Created | null>(null);
+  const [funded, setFunded] = useState(false);
   const [titleTouched, setTitleTouched] = useState(false);
   const [prizeTouched, setPrizeTouched] = useState(false);
   const [poster, setPoster] = useState<{ name: string; handle: string } | null>(null);
@@ -59,7 +59,6 @@ function NewCampaign() {
     days: "1",
     requirement: "",
     tweet_url: "",
-    payment_method: "manual" as PaymentMethod,
     keyword: "",
   });
   const [sel, setSel] = useState<Partial<Record<MetricKey, boolean>>>({});
@@ -122,6 +121,7 @@ function NewCampaign() {
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
+    if (created) return;
     const title = titleText.trim();
     const prize = prizeText.trim();
     if (!title) { toast.error(t("f.title")); return; }
@@ -142,7 +142,6 @@ function NewCampaign() {
         currency: f.currency.trim() || "USDT",
         // Declared pools await real funding (Stripe checkout or on-chain transfer) before the draw.
         escrow_status: "awaiting",
-        payment_method: f.payment_method,
         winners_count: winners,
         share_language: lang,
         share_duration: Number(f.days),
@@ -161,13 +160,14 @@ function NewCampaign() {
     setCreated(data);
   }
 
-  if (created) return <AfterCreate c={created} />;
+  if (created && funded) return <AfterCreate c={created} />;
 
   return (
     <div className="mx-auto max-w-5xl px-4 py-12">
       <h1 className="text-4xl font-semibold">{t("new.title")}</h1>
       <div className="mt-8 grid gap-6 lg:grid-cols-[minmax(0,1fr)_360px]">
       <form id="new-campaign" onSubmit={submit} className="space-y-5 rounded-xl border border-border bg-card p-6">
+      <fieldset disabled={!!created} className="contents">
         <div className="grid gap-5 sm:grid-cols-2">
           <Field label={t("f.amount")}><Input required type="number" min={0.01} step="0.01" placeholder="20" value={f.prize_amount} onChange={set("prize_amount")} /></Field>
           <Field label={t("f.currency")}><select className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm" value={f.currency} onChange={set("currency")}>{CURRENCIES.map((c) => <option key={c} value={c}>{c}</option>)}</select></Field>
@@ -217,7 +217,7 @@ function NewCampaign() {
             <Field label={t("f.tweetUrl")}><Input type="url" placeholder="https://x.com/you/status/…" value={f.tweet_url} onChange={set("tweet_url")} /></Field>
           </div>
         </div>
-
+      </fieldset>
       </form>
 
       <aside className="space-y-4 lg:sticky lg:top-20 lg:self-start">
@@ -232,24 +232,11 @@ function NewCampaign() {
             />
           </div>
         </div>
-        <div className="space-y-3 rounded-lg border border-primary/30 bg-primary/5 p-4">
-          <p className="text-sm text-muted-foreground">
-            {t("fee.estimate")}: {amount && amount > 0 ? <>{feeRate(fees, amount)}% · {feeAmount(fees, amount)} {f.currency}</> : "—"}
-            <br />{t("f.escrowNote")}
-            <br />{t("new.cancelWindow")}
-          </p>
-          <Field label={t("f.paymentMethod")}>
-            <select className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm" value={f.payment_method} onChange={set("payment_method")}>
-              {PAYMENT_METHODS.map((m) => (
-                <option key={m} value={m} disabled={(m === "stripe" && !stripeSupports(f.currency)) || (m === "chain" && f.currency !== "USDT")}>
-                  {t(`pay.${m}` as Parameters<typeof t>[0])}
-                </option>
-              ))}
-            </select>
-          </Field>
-        </div>
-        <Button type="submit" form="new-campaign" className="w-full" disabled={busy}>{t("f.confirm")}</Button>
+        <Button type="submit" form="new-campaign" className="w-full" disabled={busy || !!created}>
+          {created ? t("f.confirmed") : t("f.confirm")}
+        </Button>
         <p className="text-xs text-muted-foreground">{t("f.confirmHint")}</p>
+        {created && <PrepayPanel c={created} onDone={() => setFunded(true)} />}
       </aside>
       </div>
     </div>
@@ -283,12 +270,49 @@ function TweetPreview({ name, handle, now, text }: { name: string; handle: strin
   );
 }
 
-/** After creation: prepay the pool (unless manual payout), then jump to X with the tweet pre-filled. */
+/** Pool prepayment section: pick Stripe or an on-chain wallet, pay pool + fee, then publishing unlocks. */
+function PrepayPanel({ c, onDone }: { c: Created; onDone: () => void }) {
+  const { t } = useI18n();
+  const { data: fees = [] } = useFeeTiers();
+  const [method, setMethod] = useState<PaymentMethod | null>(null);
+  const [busy, setBusy] = useState(false);
+  const currency = c.currency ?? "USDT";
+  const total = (c.prize_amount ?? 0) + feeAmount(fees, c.prize_amount ?? 0);
+
+  async function choose(m: PaymentMethod) {
+    setBusy(true);
+    const { error } = await supabase.from("campaigns").update({ payment_method: m }).eq("id", c.id);
+    setBusy(false);
+    if (error) { toast.error(error.message); return; }
+    setMethod(m);
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="space-y-3 rounded-lg border border-primary/30 bg-primary/5 p-4">
+        <p className="font-medium">{t("f.prepay")}</p>
+        <p className="text-sm text-muted-foreground">
+          {t("fee.estimate")}: {c.prize_amount ? <>{feeRate(fees, c.prize_amount)}% · {feeAmount(fees, c.prize_amount)} {currency}</> : "—"}
+          <br />{t("m.fundNeed")}: <span className="font-mono font-semibold text-foreground">{total.toFixed(2)} {currency}</span>
+          <br />{t("new.cancelWindow")}
+        </p>
+        {!method && (
+          <div className="flex flex-col gap-2">
+            <Button size="sm" disabled={busy || !stripeSupports(currency)} onClick={() => choose("stripe")}>{t("pay.stripe")}</Button>
+            <Button size="sm" variant="secondary" disabled={busy || currency !== "USDT"} onClick={() => choose("chain")}>{t("pay.chain")}</Button>
+            <p className="text-xs text-muted-foreground">{t("f.prepayHint")}</p>
+          </div>
+        )}
+      </div>
+      {method && <FundingPanel c={{ ...c, payment_method: method }} busy={busy} setBusy={setBusy} onDone={onDone} />}
+    </div>
+  );
+}
+
+/** After the pool is funded: jump to X with the generated tweet pre-filled. */
 function AfterCreate({ c }: { c: Created }) {
   const { t } = useI18n();
   const navigate = useNavigate();
-  const [stage, setStage] = useState<"pay" | "publish">(c.payment_method === "manual" ? "publish" : "pay");
-  const [fundBusy, setFundBusy] = useState(false);
   const [origin, setOrigin] = useState("");
   const [image, setImage] = useState<string | null>(null);
   const [imageError, setImageError] = useState(false);
@@ -321,14 +345,6 @@ function AfterCreate({ c }: { c: Created }) {
       <h1 className="text-4xl font-semibold">{t("new.created")}</h1>
       <p className="mt-3 text-muted-foreground">{t("new.createdSub")}</p>
 
-      {stage === "pay" && (
-        <div className="mt-8 space-y-4">
-          <p className="text-sm text-muted-foreground"><span className="font-semibold text-foreground">{t("new.stepPay")}</span> — {t("new.stepPayHint")}</p>
-          <FundingPanel c={c} busy={fundBusy} setBusy={setFundBusy} onDone={() => setStage("publish")} />
-        </div>
-      )}
-
-      {stage === "publish" && (
       <div className="mt-8 rounded-xl border border-border bg-card p-6">
         <p className="font-mono text-xs uppercase tracking-widest text-primary">{t("new.stepTweet")} · {t("new.tweetPreview")}</p>
         <pre className="mt-3 whitespace-pre-wrap break-words rounded-lg bg-muted p-4 font-mono text-sm">{text}</pre>
@@ -342,7 +358,6 @@ function AfterCreate({ c }: { c: Created }) {
         </div>
         <p className="mt-3 text-sm text-muted-foreground">{t("new.afterPost")}</p>
       </div>
-      )}
 
       <section className="mt-8 space-y-3">
         <h2 className="font-semibold">{t("share.image")}</h2>
