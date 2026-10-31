@@ -51,7 +51,6 @@ function NewCampaign() {
   const [poster, setPoster] = useState<{ name: string; handle: string } | null>(null);
   const [f, setF] = useState({
     title: "",
-    description: "",
     prize: "",
     prize_amount: "",
     currency: "USDT",
@@ -136,7 +135,6 @@ function NewCampaign() {
       .insert({
         owner_id: u.user.id,
         title,
-        description: f.description.trim(),
         prize,
         prize_amount: amount,
         currency: f.currency.trim() || "USDT",
@@ -207,7 +205,6 @@ function NewCampaign() {
           <Input required maxLength={120} value={titleText} onChange={(e) => { setTitleTouched(true); setF({ ...f, title: e.target.value }); }} />
           <p className="text-xs text-muted-foreground">{t("f.titleAuto")}</p>
         </Field>
-        <Field label={t("f.desc")}><Textarea rows={4} maxLength={2000} value={f.description} onChange={set("description")} /></Field>
         <Field label={t("f.req")}><Textarea rows={3} maxLength={1000} placeholder={t("f.reqPh")} value={f.requirement} onChange={set("requirement")} /></Field>
 
         <div className="rounded-xl border border-border p-4">

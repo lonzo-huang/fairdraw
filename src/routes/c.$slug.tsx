@@ -88,7 +88,7 @@ function CampaignPage() {
       <div>
         <StatusBadge status={c.status} endsAt={c.ends_at} />
         <h1 className="mt-3 text-4xl font-semibold sm:text-5xl">{c.title}</h1>
-        <p className="mt-4 whitespace-pre-line text-muted-foreground">{c.description}</p>
+        {c.description && <p className="mt-4 whitespace-pre-line text-muted-foreground">{c.description}</p>}
         {c.requirement && (
           <div className="mt-6 rounded-xl border border-border bg-card p-5">
             <p className="font-mono text-xs uppercase tracking-widest text-primary">{t("f.req")}</p>

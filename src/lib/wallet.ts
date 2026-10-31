@@ -21,17 +21,17 @@ export function hasEthereum(): boolean {
   return typeof window !== "undefined" && !!window.ethereum;
 }
 
-/** Prompts MetaMask for accounts; returns the first address. */
+/** Prompts the injected browser wallet (any EIP-1193 provider) for accounts. */
 export async function connectWallet(): Promise<`0x${string}`> {
-  if (!window.ethereum) throw new Error("MetaMask not detected");
+  if (!window.ethereum) throw new Error("Browser wallet not detected");
   const accounts = (await window.ethereum.request({ method: "eth_requestAccounts" })) as string[];
   if (!accounts?.[0]) throw new Error("No wallet account");
   return accounts[0] as `0x${string}`;
 }
 
-/** Switches (or adds) the configured chain in MetaMask. */
+/** Switches (or adds) the configured chain in the injected wallet. */
 export async function ensureChain(): Promise<void> {
-  if (!window.ethereum) throw new Error("MetaMask not detected");
+  if (!window.ethereum) throw new Error("Browser wallet not detected");
   const cfg = chainConfig();
   const hex = `0x${cfg.chainId.toString(16)}`;
   try {
@@ -54,7 +54,7 @@ export async function ensureChain(): Promise<void> {
   }
 }
 
-/** Sends an ERC-20 transfer from the connected MetaMask account. */
+/** Sends an ERC-20 transfer from the connected wallet account. */
 export async function sendTokenTransfer(to: `0x${string}`, amount: number): Promise<`0x${string}`> {
   const cfg = chainConfig();
   const from = await connectWallet();

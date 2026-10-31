@@ -1,7 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { feeAmount } from "@/lib/fees";
-import { chainConfig, stripeSupports, toMinorUnits } from "@/lib/payments";
+import { chainConfig, stripeChargeCurrency, stripeSupports, toMinorUnits } from "@/lib/payments";
 import type { Json } from "@/integrations/supabase/types";
 
 /** Local copy — chain.server.ts must not be imported at top level here (client bundle). */
@@ -77,7 +77,7 @@ export const startStripeCheckout = createServerFn({ method: "POST" })
         {
           quantity: 1,
           price_data: {
-            currency: c.currency.toLowerCase(),
+            currency: stripeChargeCurrency(c.currency),
             unit_amount: units,
             product_data: {
               name: `FairDraw pool + fee — ${c.title}`,

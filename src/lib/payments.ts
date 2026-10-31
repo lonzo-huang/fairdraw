@@ -50,7 +50,13 @@ export function toMinorUnits(amount: number): number | null {
   return units > 0 ? units : null;
 }
 
-/** Stripe Checkout supports fiat only; USDT pools must fund on-chain. */
+/** Stripe Checkout supports fiat; USDT pools are charged at par in USD. */
 export function stripeSupports(currency: string): boolean {
-  return FIAT_CURRENCIES.has(currency.toUpperCase());
+  const c = currency.toUpperCase();
+  return FIAT_CURRENCIES.has(c) || c === "USDT";
+}
+
+/** Currency Stripe actually charges: fiat as-is, USDT billed in USD at 1:1. */
+export function stripeChargeCurrency(currency: string): string {
+  return currency.toUpperCase() === "USDT" ? "usd" : currency.toLowerCase();
 }
