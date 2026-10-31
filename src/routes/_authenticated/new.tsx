@@ -294,15 +294,32 @@ function PrepayPanel({ c, onDone }: { c: Created; onDone: () => void }) {
 
   return (
     <div className="space-y-4">
-      <div className="space-y-3 rounded-lg border border-primary/30 bg-primary/5 p-4">
-        <p className="font-medium">{t("f.prepay")}</p>
-        <p className="text-sm text-muted-foreground">
-          {t("fee.estimate")}: {c.prize_amount ? <>{feeRate(fees, c.prize_amount)}% · {feeAmount(fees, c.prize_amount)} {currency}</> : "—"}
-          <br />{t("m.fundNeed")}: <span className="font-mono font-semibold text-foreground">{total.toFixed(2)} {currency}</span>
-          <br />{t("new.cancelWindow")}
-        </p>
+      <div className="space-y-4 rounded-lg border border-primary/30 bg-primary/5 p-4">
+        <p className="font-medium">💰 {t("f.prepay")}</p>
+        <dl className="space-y-1.5 text-sm">
+          <div className="flex items-baseline justify-between gap-4">
+            <dt className="text-muted-foreground">{t("pay.poolBase")}</dt>
+            <dd className="font-mono">{(c.prize_amount ?? 0).toFixed(2)} {currency}</dd>
+          </div>
+          <div className="flex items-baseline justify-between gap-4">
+            <dt className="text-muted-foreground">{t("pay.feeLine")}（{c.prize_amount ? `${feeRate(fees, c.prize_amount)}%` : "—"}）</dt>
+            <dd className="font-mono">{feeAmount(fees, c.prize_amount ?? 0).toFixed(2)} {currency}</dd>
+          </div>
+          <div className="flex items-baseline justify-between gap-4 border-t border-border pt-1.5">
+            <dt className="font-medium">{t("pay.total")}</dt>
+            <dd className="font-mono font-semibold">{total.toFixed(2)} {currency}{currency === "USDT" ? " / USD" : ""}</dd>
+          </div>
+        </dl>
+        <div className="rounded-md bg-background/60 p-3 text-sm">
+          <p className="font-medium">🛡️ {t("pay.escrowTitle")}</p>
+          <ul className="mt-1 list-disc space-y-0.5 pl-5 text-muted-foreground">
+            <li>{t("pay.escrowCancel")}</li>
+            <li>{t("pay.escrowRefund")}</li>
+          </ul>
+        </div>
         {!method && (
           <div className="flex flex-col gap-2">
+            <p className="text-sm font-medium">💳 {t("pay.methodTitle")}</p>
             <Button size="sm" disabled={busy || !stripeSupports(currency)} onClick={() => choose("stripe")}>{t("pay.stripe")}</Button>
             <Button size="sm" variant="secondary" disabled={busy || currency !== "USDT"} onClick={() => choose("chain")}>{t("pay.chain")}</Button>
             <p className="text-xs text-muted-foreground">{t("f.prepayHint")}</p>
