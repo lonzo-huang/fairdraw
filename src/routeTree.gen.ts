@@ -22,6 +22,7 @@ import { Route as CSlugRouteImport } from './routes/c.$slug'
 import { Route as GoSlugRouteImport } from './routes/go.$slug'
 import { Route as RSlugRouteImport } from './routes/r.$slug'
 import { Route as AuthenticatedManageIdRouteImport } from './routes/_authenticated/manage.$id'
+import { Route as ApiStripeWebhookRouteImport } from './routes/api/stripe/webhook'
 import { Route as ApiPublicCampaignImageSlugRouteImport } from './routes/api/public/campaign-image.$slug'
 
 const IndexRoute = IndexRouteImport.update({
@@ -88,6 +89,11 @@ const AuthenticatedManageIdRoute = AuthenticatedManageIdRouteImport.update({
   path: '/manage/$id',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const ApiStripeWebhookRoute = ApiStripeWebhookRouteImport.update({
+  id: '/api/stripe/webhook',
+  path: '/api/stripe/webhook',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiPublicCampaignImageSlugRoute =
   ApiPublicCampaignImageSlugRouteImport.update({
     id: '/api/public/campaign-image/$slug',
@@ -108,6 +114,7 @@ export interface FileRoutesByFullPath {
   '/go/$slug': typeof GoSlugRoute
   '/r/$slug': typeof RSlugRoute
   '/manage/$id': typeof AuthenticatedManageIdRoute
+  '/api/stripe/webhook': typeof ApiStripeWebhookRoute
   '/api/public/campaign-image/$slug': typeof ApiPublicCampaignImageSlugRoute
 }
 export interface FileRoutesByTo {
@@ -123,6 +130,7 @@ export interface FileRoutesByTo {
   '/go/$slug': typeof GoSlugRoute
   '/r/$slug': typeof RSlugRoute
   '/manage/$id': typeof AuthenticatedManageIdRoute
+  '/api/stripe/webhook': typeof ApiStripeWebhookRoute
   '/api/public/campaign-image/$slug': typeof ApiPublicCampaignImageSlugRoute
 }
 export interface FileRoutesById {
@@ -140,6 +148,7 @@ export interface FileRoutesById {
   '/go/$slug': typeof GoSlugRoute
   '/r/$slug': typeof RSlugRoute
   '/_authenticated/manage/$id': typeof AuthenticatedManageIdRoute
+  '/api/stripe/webhook': typeof ApiStripeWebhookRoute
   '/api/public/campaign-image/$slug': typeof ApiPublicCampaignImageSlugRoute
 }
 export interface FileRouteTypes {
@@ -157,6 +166,7 @@ export interface FileRouteTypes {
     | '/go/$slug'
     | '/r/$slug'
     | '/manage/$id'
+    | '/api/stripe/webhook'
     | '/api/public/campaign-image/$slug'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -172,6 +182,7 @@ export interface FileRouteTypes {
     | '/go/$slug'
     | '/r/$slug'
     | '/manage/$id'
+    | '/api/stripe/webhook'
     | '/api/public/campaign-image/$slug'
   id:
     | '__root__'
@@ -188,6 +199,7 @@ export interface FileRouteTypes {
     | '/go/$slug'
     | '/r/$slug'
     | '/_authenticated/manage/$id'
+    | '/api/stripe/webhook'
     | '/api/public/campaign-image/$slug'
   fileRoutesById: FileRoutesById
 }
@@ -200,6 +212,7 @@ export interface RootRouteChildren {
   CSlugRoute: typeof CSlugRoute
   GoSlugRoute: typeof GoSlugRoute
   RSlugRoute: typeof RSlugRoute
+  ApiStripeWebhookRoute: typeof ApiStripeWebhookRoute
   ApiPublicCampaignImageSlugRoute: typeof ApiPublicCampaignImageSlugRoute
 }
 
@@ -296,6 +309,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedManageIdRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/api/stripe/webhook': {
+      id: '/api/stripe/webhook'
+      path: '/api/stripe/webhook'
+      fullPath: '/api/stripe/webhook'
+      preLoaderRoute: typeof ApiStripeWebhookRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/campaign-image/$slug': {
       id: '/api/public/campaign-image/$slug'
       path: '/api/public/campaign-image/$slug'
@@ -334,6 +354,7 @@ const rootRouteChildren: RootRouteChildren = {
   CSlugRoute: CSlugRoute,
   GoSlugRoute: GoSlugRoute,
   RSlugRoute: RSlugRoute,
+  ApiStripeWebhookRoute: ApiStripeWebhookRoute,
   ApiPublicCampaignImageSlugRoute: ApiPublicCampaignImageSlugRoute,
 }
 export const routeTree = rootRouteImport

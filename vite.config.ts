@@ -19,4 +19,8 @@ export default defineConfig({
     // nitro/vite builds from this
     server: { entry: "server" },
   },
+  nitro: {
+    // Build serverless functions for Vercel instead of the default Cloudflare worker output.
+    preset: "vercel",
+  },
 });
