@@ -20,7 +20,15 @@ export default defineConfig({
     server: { entry: "server" },
   },
   nitro: {
-    // Build serverless functions for Vercel instead of the default Cloudflare worker output.
-    preset: "vercel",
+    // Build a Cloudflare Worker bundle (default preset); deploy with `wrangler deploy`.
+    preset: "cloudflare-module",
+    cloudflare: {
+      wrangler: {
+        name: "fairdraw",
+        // Serve on the existing fairdraw.win zone instead of workers.dev.
+        workers_dev: false,
+        routes: [{ pattern: "dev.fairdraw.win", custom_domain: true }],
+      },
+    },
   },
 });
