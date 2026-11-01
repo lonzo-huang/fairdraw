@@ -22,7 +22,7 @@ const COND_LABEL: Record<(typeof NUM_COND_KEYS)[number], "cond.likes" | "cond.re
   min_participants: "cond.participants", min_verified: "cond.verified",
 };
 
-const Route = createFileRoute("/_authenticated/manage/$id")({
+export const Route = createFileRoute("/_authenticated/manage/$id")({
   head: () => ({ meta: [
     { title: "Manage campaign — FairDraw" },
     { name: "description", content: "Review participants, draw winners and record payout proof on FairDraw." },
