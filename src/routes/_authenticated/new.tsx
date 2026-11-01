@@ -60,7 +60,7 @@ function NewCampaign() {
     tweet_url: "",
     keyword: "",
   });
-  const [sel, setSel] = useState<Partial<Record<MetricKey, boolean>>>({});
+  const [sel, setSel] = useState<Partial<Record<MetricKey, boolean>>>({ min_replies: true });
   const [vals, setVals] = useState<Record<MetricKey, string>>(
     () => Object.fromEntries(METRIC_KEYS.map((k) => [k, "100"])) as Record<MetricKey, string>,
   );
@@ -72,6 +72,7 @@ function NewCampaign() {
   const selKeys = METRIC_KEYS.filter((k) => sel[k]);
 
   function toggle(k: MetricKey) {
+    if (k === "min_replies") return; // replies are the raffle entries — always required
     if (!sel[k] && selKeys.length >= MAX_CONDITIONS) { toast.error(t("f.pickMax")); return; }
     setSel({ ...sel, [k]: !sel[k] });
   }
@@ -184,9 +185,9 @@ function NewCampaign() {
             <Field label={t("f.keyword")}><Input maxLength={100} value={f.keyword} onChange={set("keyword")} /></Field>
             <div className="grid gap-2 sm:grid-cols-2">
               {METRIC_KEYS.map((k) => (
-                <label key={k} className={`flex cursor-pointer items-center gap-2 rounded-md border px-3 py-2 text-sm ${sel[k] ? "border-primary bg-primary/5" : "border-border"}`}>
-                  <input type="checkbox" checked={!!sel[k]} onChange={() => toggle(k)} className="accent-[#d4a017]" />
-                  <span>{t(METRIC_LABEL[k])}</span>
+                <label key={k} className={`flex items-center gap-2 rounded-md border px-3 py-2 text-sm ${sel[k] ? "border-primary bg-primary/5" : "border-border"} ${k === "min_replies" ? "cursor-not-allowed" : "cursor-pointer"}`}>
+                  <input type="checkbox" checked={!!sel[k]} disabled={k === "min_replies"} onChange={() => toggle(k)} className="accent-[#d4a017]" />
+                  <span>{t(METRIC_LABEL[k])}{k === "min_replies" ? ` · ${t("f.required")}` : ""}</span>
                   {sel[k] && (
                     <span className="ml-auto flex items-center gap-1 text-muted-foreground">
                       ≥

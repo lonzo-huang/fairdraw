@@ -235,9 +235,10 @@ const dict = {
   "f.tweetUrl": { zh: "已有推文链接（可选）", en: "Existing tweet link (optional)" },
   "f.condTitle": { zh: "开奖条件", en: "Unlock conditions" },
   "f.condHint": {
-    zh: "达到这些条件才开奖，指标条件选 1–4 项。关键词、参与人数由平台自动核对。",
-    en: "The draw unlocks when these are met — pick 1–4 metric conditions. Keyword and entrant counts are checked automatically.",
+    zh: "达到这些条件才开奖，指标条件选 1–4 项（回复数必选——回复即报名抽奖）。关键词、参与人数由平台自动核对。",
+    en: "The draw unlocks when these are met — pick 1–4 metric conditions (replies required: replying is how people enter the draw). Keyword and entrant counts are checked automatically.",
   },
+  "f.required": { zh: "必选", en: "required" },
   "f.pickMax": { zh: "最多只能选择 4 个指标条件", en: "Pick at most 4 metric conditions" },
   "f.pickMin": { zh: "请至少选择 1 个指标条件", en: "Pick at least 1 metric condition" },
   "f.prizeAuto": { zh: "已按奖池自动生成，可直接修改", en: "Auto-generated from the pool — editable" },
