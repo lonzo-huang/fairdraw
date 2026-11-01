@@ -33,6 +33,15 @@ export const drawCampaign = createServerFn({ method: "POST" })
     ) {
       throw new Error("Prize pool is not funded yet");
     }
+    // A resized pool draws short unless its top-up payment already confirmed.
+    const { data: pendingTopup } = await supabaseAdmin
+      .from("payments")
+      .select("id")
+      .eq("campaign_id", c.id)
+      .eq("kind", "topup")
+      .eq("status", "pending")
+      .limit(1);
+    if (pendingTopup?.length) throw new Error("A pool top-up payment is still pending");
 
     const { data: entries, error: eErr } = await supabaseAdmin
       .from("entries")
@@ -113,7 +122,7 @@ async function refundPool(c: { id: string; escrow_status: string; payment_method
 async function closeWithRefund(c: { id: string; escrow_status: string; payment_method: string | null }, userId: string) {
   const escrow = await refundPool(c, userId);
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-  const patch: Record<string, unknown> = { status: "cancelled", cancelled_at: new Date().toISOString() };
+  const patch: { status: string; cancelled_at: string; escrow_status?: string } = { status: "cancelled", cancelled_at: new Date().toISOString() };
   if (escrow !== "none") patch["escrow_status"] = escrow;
   const { error } = await supabaseAdmin.from("campaigns").update(patch).eq("id", c.id);
   if (error) throw new Error(error.message);
@@ -249,6 +258,26 @@ export const checkCampaignConditions = createServerFn({ method: "POST" })
       }
     }
 
+    // Original tweet deleted → conditions can never unlock: cancel + refund.
+    // Only a definitive oEmbed 404 counts; unreadable sources never cancel.
+    if (c.status === "open" && c.tweet_url) {
+      let gone: boolean | null = null;
+      try {
+        const { tweetDeleted } = await import("@/lib/x-stats.server");
+        gone = await tweetDeleted(c.tweet_url);
+      } catch {
+        gone = null;
+      }
+      if (gone === true) {
+        try {
+          await closeWithRefund(c, userId);
+          return { checks: [], progress: 0, metrics, deleted: true };
+        } catch {
+          /* refund failure leaves the campaign open for manual handling */
+        }
+      }
+    }
+
     const { data: counts } = await supabase
       .from("entries")
       .select("eligibility_status, fetched_meta")
@@ -282,6 +311,46 @@ export const checkCampaignConditions = createServerFn({ method: "POST" })
       }
     }
     return { checks, progress, metrics };
+  });
+
+const METRIC_COND_KEYS = ["min_likes", "min_replies", "min_reposts", "min_quotes", "min_views", "min_participants", "min_verified"] as const;
+
+/**
+ * Owners may edit unlock conditions any time while the campaign is open —
+ * but only to relax them: numbers may drop, conditions may be removed, never
+ * added or tightened. min_replies must stay (replies are the raffle entries).
+ */
+export const updateCampaignConditions = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: { campaignId: string; conditions: unknown }) => input)
+  .handler(async ({ data, context }) => {
+    const { supabase, userId } = context;
+    const { data: c, error } = await supabase
+      .from("campaigns")
+      .select("id, owner_id, status, conditions")
+      .eq("id", data.campaignId)
+      .single();
+    if (error || !c) throw new Error("Campaign not found");
+    if (c.owner_id !== userId) throw new Error("Forbidden");
+    if (c.status !== "open") throw new Error("Only open campaigns can change conditions");
+
+    const prev = parseConditions(c.conditions);
+    const next = parseConditions(data.conditions);
+    for (const k of METRIC_COND_KEYS) {
+      const nv = next[k];
+      if (nv === undefined) continue;
+      const ov = prev[k];
+      if (ov === undefined) throw new Error("Conditions cannot be added — only relaxed or removed");
+      if (nv > ov) throw new Error(`Condition ${k} can only be relaxed, not tightened`);
+    }
+    if (prev.min_replies !== undefined && next.min_replies === undefined)
+      throw new Error("The replies condition is required");
+    if (next.keyword !== undefined && next.keyword !== prev.keyword)
+      throw new Error("Keyword can only be removed, not changed");
+
+    const { error: uErr } = await supabase.from("campaigns").update({ conditions: next }).eq("id", c.id);
+    if (uErr) throw new Error(uErr.message);
+    return { ok: true };
   });
 
 /** Organiser may undo a campaign within 1 hour of publishing; the pool is refunded. */

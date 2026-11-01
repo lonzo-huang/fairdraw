@@ -1,5 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { CANCEL_WINDOW_MS } from "@/lib/campaign.functions";
 import { feeAmount } from "@/lib/fees";
 import { chainConfig, stripeChargeCurrency, stripeSupports, toMinorUnits } from "@/lib/payments";
 import type { Json } from "@/integrations/supabase/types";
@@ -105,7 +106,118 @@ export const startStripeCheckout = createServerFn({ method: "POST" })
     return { url: session.url };
   });
 
+/**Resizes a declared pool within the publish window. Unfunded campaigns update
+ * directly. Funded Stripe pools part-refund the difference (decrease) or issue a
+ * top-up Checkout (increase — prize_amount applies when the webhook confirms).
+ * Funded on-chain pools cannot be resized: cancel and recreate instead.
+ */
+export const updateCampaignAmount = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: { campaignId: string; amount: number; origin?: string }) => input)
+  .handler(async ({ data, context }) => {
+    const { supabase, userId } = context;
+    const { data: c, error } = await supabase
+      .from("campaigns")
+      .select("id, owner_id, status, created_at, title, prize_amount, currency, escrow_status, payment_method")
+      .eq("id", data.campaignId)
+      .single();
+    if (error || !c) throw new Error("Campaign not found");
+    if (c.owner_id !== userId) throw new Error("Forbidden");
+    if (c.status !== "open") throw new Error("Campaign is not open");
+    if (Date.parse(c.created_at) + CANCEL_WINDOW_MS < Date.now())
+      throw new Error("The 1-hour update window has closed");
+    const next = Number(data.amount);
+    if (!(next > 0)) throw new Error("Invalid amount");
+    const prev = Number(c.prize_amount ?? 0);
+    if (next === prev) return { ok: true };
+
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const FUNDED = new Set(["funded", "preauthorized", "charged"]);
+    if (!FUNDED.has(c.escrow_status)) {
+      const { error: uErr } = await supabaseAdmin.from("campaigns").update({ prize_amount: next }).eq("id", c.id);
+      if (uErr) throw new Error(uErr.message);
+      return { ok: true };
+    }
+    if (c.payment_method !== "stripe")
+      throw new Error("Funded on-chain pools cannot be resized — cancel within the window and recreate");
+
+    const { stripe } = await import("@/lib/stripe.server");
+    const { data: tiers } = await supabaseAdmin.from("fee_tiers").select("min_amount, rate_percent");
+    const delta = (next + feeAmount(tiers ?? [], next)) - (prev + feeAmount(tiers ?? [], prev));
+
+    const { data: pay } = await supabaseAdmin
+      .from("payments")
+      .select("external_ref")
+      .eq("campaign_id", c.id)
+      .eq("provider", "stripe")
+      .eq("kind", "pool")
+      .eq("status", "confirmed")
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (!pay?.external_ref) throw new Error("No confirmed Stripe payment found");
+
+    if (delta < 0) {
+      const session = await stripe().checkout.sessions.retrieve(pay.external_ref);
+      const pi = typeof session.payment_intent === "string" ? session.payment_intent : session.payment_intent?.id;
+      if (!pi) throw new Error("Stripe payment intent not found");
+      const units = toMinorUnits(-delta);
+      if (!units) throw new Error("Invalid refund amount");
+      const refund = await stripe().refunds.create({ payment_intent: pi, amount: units });
+      await supabaseAdmin.from("payments").insert({
+        campaign_id: c.id,
+        user_id: userId,
+        provider: "stripe",
+        kind: "refund",
+        status: refund.status === "succeeded" || refund.status === "pending" ? "confirmed" : "pending",
+        amount: -delta,
+        currency: c.currency,
+        external_ref: refund.id,
+        meta: { partial: true, new_pool: next } as unknown as Json,
+      });
+      const { error: uErr } = await supabaseAdmin.from("campaigns").update({ prize_amount: next }).eq("id", c.id);
+      if (uErr) throw new Error(uErr.message);
+      return { ok: true, refunded: -delta };
+    }
+
+    const units = toMinorUnits(delta);
+    if (!units) throw new Error("Invalid top-up amount");
+    const origin = (data.origin ?? "").replace(/\/$/, "") || "https://www.fairdraw.win";
+    const session = await stripe().checkout.sessions.create({
+      mode: "payment",
+      line_items: [
+        {
+          quantity: 1,
+          price_data: {
+            currency: stripeChargeCurrency(c.currency),
+            unit_amount: units,
+            product_data: {
+              name: `FairDraw pool top-up — ${c.title}`,
+              description: `Pool ${prev} → ${next} ${c.currency}`,
+            },
+          },
+        },
+      ],
+      metadata: { campaign_id: c.id, topup_to: String(next), currency: c.currency },
+      success_url: `${origin}/manage/${c.id}?funded=1`,
+      cancel_url: `${origin}/manage/${c.id}`,
+    });
+    await supabaseAdmin.from("payments").insert({
+      campaign_id: c.id,
+      user_id: userId,
+      provider: "stripe",
+      kind: "topup",
+      status: "pending",
+      amount: delta,
+      currency: c.currency,
+      external_ref: session.id,
+      meta: { new_pool: next } as unknown as Json,
+    });
+    return { ok: true, checkoutUrl: session.url };
+  });
+
 /**
+ * 
  * Confirms an on-chain funding tx: the organizer sent pool+fee in the configured
  * token to the platform wallet via MetaMask. Verified against the chain receipt —
  * the tx hash alone is never trusted.
@@ -482,7 +594,7 @@ export const payoutViaStripe = createServerFn({ method: "POST" })
       amount: units,
       currency: c.currency.toLowerCase(),
       destination: p.stripe_account_id,
-      source_transaction: sourceTransaction,
+      ...(sourceTransaction ? { source_transaction: sourceTransaction } : {}),
       description: `FairDraw prize — ${p.winner_handle}`,
       metadata: { campaign_id: c.id, payout_id: p.id },
     });

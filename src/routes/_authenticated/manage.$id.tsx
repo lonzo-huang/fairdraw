@@ -5,9 +5,9 @@ import { useState } from "react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useI18n } from "@/lib/i18n";
-import { CANCEL_WINDOW_MS, cancelCampaign, checkCampaignConditions, checkEntries, drawCampaign, refundEscrow } from "@/lib/campaign.functions";
-import { payoutViaStripe, recordChainPayout, refundChainEscrow } from "@/lib/payment.functions";
-import { parseConditions, type ConditionCheck } from "@/lib/conditions";
+import { CANCEL_WINDOW_MS, cancelCampaign, checkCampaignConditions, checkEntries, drawCampaign, refundEscrow, updateCampaignConditions } from "@/lib/campaign.functions";
+import { payoutViaStripe, recordChainPayout, refundChainEscrow, updateCampaignAmount } from "@/lib/payment.functions";
+import { parseConditions, type ConditionCheck, type Conditions } from "@/lib/conditions";
 import { campaignTweet } from "@/lib/campaign-share";
 import { hasEthereum, sendTokenTransfer } from "@/lib/wallet";
 import { FundingPanel } from "@/components/funding-panel";
@@ -15,7 +15,14 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { StatusBadge, EntryBadge } from "@/components/status-badge";
 
-export const Route = createFileRoute("/_authenticated/manage/$id")({
+export const NUM_COND_KEYS = ["min_likes", "min_replies", "min_reposts", "min_quotes", "min_views", "min_participants", "min_verified"] as const;
+const COND_LABEL: Record<(typeof NUM_COND_KEYS)[number], "cond.likes" | "cond.replies" | "cond.reposts" | "cond.quotes" | "cond.views" | "cond.participants" | "cond.verified"> = {
+  min_likes: "cond.likes", min_replies: "cond.replies", min_reposts: "cond.reposts",
+  min_quotes: "cond.quotes", min_views: "cond.views",
+  min_participants: "cond.participants", min_verified: "cond.verified",
+};
+
+const Route = createFileRoute("/_authenticated/manage/$id")({
   head: () => ({ meta: [
     { title: "Manage campaign — FairDraw" },
     { name: "description", content: "Review participants, draw winners and record payout proof on FairDraw." },
@@ -37,9 +44,12 @@ function Manage() {
   const refund = useServerFn(refundEscrow);
   const cancel = useServerFn(cancelCampaign);
   const draw = useServerFn(drawCampaign);
+  const updateAmount = useServerFn(updateCampaignAmount);
   const [busy, setBusy] = useState(false);
   const [condResult, setCondResult] = useState<{ checks: ConditionCheck[]; progress: number } | null>(null);
   const [tweetUrl, setTweetUrl] = useState<string | null>(null);
+  const [editAmount, setEditAmount] = useState<string | null>(null);
+  const [editConds, setEditConds] = useState(false);
 
   const { data, isLoading } = useQuery({
     queryKey: ["manage", id],
@@ -93,6 +103,11 @@ function Manage() {
     setBusy(true);
     try {
       const r = await checkConds({ data: { campaignId: c!.id } });
+      if (r.deleted) {
+        toast.error(t("m.tweetGone"));
+        refresh();
+        return;
+      }
       setCondResult({ checks: r.checks as ConditionCheck[], progress: r.progress });
       toast.success(`${r.progress}%`);
     } catch (e) {
@@ -108,6 +123,22 @@ function Manage() {
     else toast.success(t("common.save"));
     setTweetUrl(null);
     refresh();
+  }
+  async function doUpdateAmount() {
+    const n = Number(editAmount ?? c!.prize_amount);
+    if (!(n > 0)) { toast.error("Invalid amount"); return; }
+    setBusy(true);
+    try {
+      const r = await updateAmount({ data: { campaignId: c!.id, amount: n, origin: window.location.origin } });
+      if (r.checkoutUrl) { window.location.href = r.checkoutUrl; return; }
+      toast.success(t("common.save"));
+      setEditAmount(null);
+      refresh();
+    } catch (e) {
+      toast.error((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
   }
   async function doCancel() {
     if (!confirm(t("m.cancelConfirm"))) return;
@@ -168,6 +199,16 @@ function Manage() {
         {open && (c.escrow_status === "preauthorized" || (c.escrow_status === "funded" && c.payment_method !== "chain")) && new Date(c.ends_at).getTime() < Date.now() && (
           <Button variant="outline" size="sm" disabled={busy} onClick={doRefund}>{t("m.refund")}</Button>
         )}
+        {open && Date.parse(c.created_at) + CANCEL_WINDOW_MS > Date.now() && c.prize_amount !== null && (
+          <span className="flex items-center gap-1">
+            <Input
+              type="number" min={0.01} step="0.01" className="h-8 w-28"
+              value={editAmount ?? String(c.prize_amount)}
+              onChange={(e) => setEditAmount(e.target.value)}
+            />
+            <Button size="sm" variant="outline" disabled={busy} onClick={doUpdateAmount}>{t("m.updateAmount")}</Button>
+          </span>
+        )}
       </div>
 
       {c.escrow_status === "awaiting" && c.prize_amount && c.prize_amount > 0 && (
@@ -191,8 +232,12 @@ function Manage() {
       <section className="mt-8 rounded-xl border border-border bg-card p-5">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <h2 className="text-xl font-semibold">{t("m.conditions")}</h2>
-          <Button variant="outline" size="sm" disabled={busy} onClick={runCondCheck}>{t("m.checkConditions")}</Button>
+          <div className="flex gap-2">
+            {open && <Button variant="ghost" size="sm" onClick={() => setEditConds((v) => !v)}>{t("m.editConds")}</Button>}
+            <Button variant="outline" size="sm" disabled={busy} onClick={runCondCheck}>{t("m.checkConditions")}</Button>
+          </div>
         </div>
+        {open && editConds && <ConditionEditor c={c} onDone={refresh} />}
         <div className="mt-4 flex flex-col gap-2 sm:flex-row">
           <Input
             placeholder="https://x.com/you/status/…"
@@ -288,6 +333,64 @@ function Manage() {
           </div>
         </section>
       )}
+    </div>
+  );
+}
+
+/**
+ * Looser-only conditions editor: every configured metric can be lowered or
+ * removed, keyword can be removed — the server rejects tightening.
+ */
+function ConditionEditor({ c, onDone }: { c: { id: string; conditions: unknown }; onDone: () => void }) {
+  const { t } = useI18n();
+  const update = useServerFn(updateCampaignConditions);
+  const init = parseConditions(c.conditions);
+  const [vals, setVals] = useState<Record<string, string>>(
+    () => Object.fromEntries(NUM_COND_KEYS.filter((k) => init[k] !== undefined).map((k) => [k, String(init[k])])) as Record<string, string>,
+  );
+  const [keyword, setKeyword] = useState(init.keyword ?? "");
+  const [busy, setBusy] = useState(false);
+
+  async function save() {
+    const next: Conditions = {};
+    if (keyword.trim()) next.keyword = keyword.trim();
+    for (const k of NUM_COND_KEYS) {
+      const n = Math.floor(Number(vals[k]));
+      if (n > 0) next[k] = n;
+    }
+    setBusy(true);
+    try {
+      await update({ data: { campaignId: c.id, conditions: next } });
+      toast.success(t("common.save"));
+      onDone();
+    } catch (e) {
+      toast.error((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="mt-4 space-y-2 rounded-lg border border-border p-3">
+      <p className="text-xs text-muted-foreground">{t("m.condLooserHint")}</p>
+      {init.keyword !== undefined && (
+        <div className="flex items-center gap-2 text-sm">
+          <span className="w-28 shrink-0">{t("cond.keyword")}</span>
+          <Input className="h-8" value={keyword} onChange={(e) => setKeyword(e.target.value)} />
+          <Button size="sm" variant="ghost" onClick={() => setKeyword("")}>✕</Button>
+        </div>
+      )}
+      {NUM_COND_KEYS.filter((k) => init[k] !== undefined).map((k) => (
+        <div key={k} className="flex items-center gap-2 text-sm">
+          <span className="w-28 shrink-0">{t(COND_LABEL[k])}</span>
+          <span className="text-muted-foreground">≥</span>
+          <Input type="number" min={1} className="h-8 w-24" value={vals[k] ?? ""} onChange={(e) => setVals({ ...vals, [k]: e.target.value })} />
+          {k !== "min_replies" && (
+            <Button size="sm" variant="ghost" onClick={() => setVals({ ...vals, [k]: "" })}>✕</Button>
+          )}
+        </div>
+      ))}
+      <Button size="sm" disabled={busy} onClick={save}>{t("common.save")}</Button>
     </div>
   );
 }

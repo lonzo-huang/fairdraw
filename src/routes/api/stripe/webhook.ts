@@ -33,12 +33,18 @@ export const Route = createFileRoute("/api/stripe/webhook")({
             .update({ status: "confirmed", updated_at: new Date().toISOString() })
             .eq("provider", "stripe")
             .eq("external_ref", session.id);
-          // Funding confirmed: lock the pool until draw (charged) or refund.
-          await supabaseAdmin
-            .from("campaigns")
-            .update({ escrow_status: "funded" })
-            .eq("id", campaignId)
-            .eq("escrow_status", "awaiting");
+          const topupTo = Number(session.metadata?.["topup_to"]);
+          if (topupTo > 0) {
+            // Pool top-up confirmed: apply the resized pool amount.
+            await supabaseAdmin.from("campaigns").update({ prize_amount: topupTo }).eq("id", campaignId);
+          } else {
+            // Funding confirmed: lock the pool until draw (charged) or refund.
+            await supabaseAdmin
+              .from("campaigns")
+              .update({ escrow_status: "funded" })
+              .eq("id", campaignId)
+              .eq("escrow_status", "awaiting");
+          }
         }
 
         if (event.type === "checkout.session.expired" || event.type === "checkout.session.async_payment_failed") {

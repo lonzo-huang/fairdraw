@@ -114,3 +114,18 @@ export async function fetchTweetStats(url: string): Promise<TweetStats | null> {
     return null;
   }
 }
+
+/**
+ * Definitive "post is gone" check: X's oEmbed endpoint answers 404 for deleted
+ * and protected posts — unlike stats sources which fail ambiguously.
+ * true = gone, false = exists, null = cannot tell (rate limit, network).
+ */
+export async function tweetDeleted(url: string): Promise<boolean | null> {
+  const res = await fetch(
+    `https://publish.twitter.com/oembed?omit_script=true&url=${encodeURIComponent(url)}`,
+    { headers: { "User-Agent": "FairDrawBot/1.0" } },
+  );
+  if (res.status === 404) return true;
+  if (res.ok) return false;
+  return null;
+}
