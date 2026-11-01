@@ -21,7 +21,7 @@ import { Route as AuthenticatedNewRouteImport } from './routes/_authenticated/ne
 import { Route as CSlugRouteImport } from './routes/c.$slug'
 import { Route as GoSlugRouteImport } from './routes/go.$slug'
 import { Route as RSlugRouteImport } from './routes/r.$slug'
-import { Route as AuthenticatedManageIdRouteImport } from './routes/_authenticated/manage.$id'
+import { Route as ApiCronConditionsRouteImport } from './routes/api/cron/conditions'
 import { Route as ApiStripeWebhookRouteImport } from './routes/api/stripe/webhook'
 import { Route as ApiPublicCampaignImageSlugRouteImport } from './routes/api/public/campaign-image.$slug'
 
@@ -84,10 +84,10 @@ const RSlugRoute = RSlugRouteImport.update({
   path: '/r/$slug',
   getParentRoute: () => rootRouteImport,
 } as any)
-const AuthenticatedManageIdRoute = AuthenticatedManageIdRouteImport.update({
-  id: '/manage/$id',
-  path: '/manage/$id',
-  getParentRoute: () => AuthenticatedRouteRoute,
+const ApiCronConditionsRoute = ApiCronConditionsRouteImport.update({
+  id: '/api/cron/conditions',
+  path: '/api/cron/conditions',
+  getParentRoute: () => rootRouteImport,
 } as any)
 const ApiStripeWebhookRoute = ApiStripeWebhookRouteImport.update({
   id: '/api/stripe/webhook',
@@ -113,7 +113,7 @@ export interface FileRoutesByFullPath {
   '/c/$slug': typeof CSlugRoute
   '/go/$slug': typeof GoSlugRoute
   '/r/$slug': typeof RSlugRoute
-  '/manage/$id': typeof AuthenticatedManageIdRoute
+  '/api/cron/conditions': typeof ApiCronConditionsRoute
   '/api/stripe/webhook': typeof ApiStripeWebhookRoute
   '/api/public/campaign-image/$slug': typeof ApiPublicCampaignImageSlugRoute
 }
@@ -129,7 +129,7 @@ export interface FileRoutesByTo {
   '/c/$slug': typeof CSlugRoute
   '/go/$slug': typeof GoSlugRoute
   '/r/$slug': typeof RSlugRoute
-  '/manage/$id': typeof AuthenticatedManageIdRoute
+  '/api/cron/conditions': typeof ApiCronConditionsRoute
   '/api/stripe/webhook': typeof ApiStripeWebhookRoute
   '/api/public/campaign-image/$slug': typeof ApiPublicCampaignImageSlugRoute
 }
@@ -147,7 +147,7 @@ export interface FileRoutesById {
   '/c/$slug': typeof CSlugRoute
   '/go/$slug': typeof GoSlugRoute
   '/r/$slug': typeof RSlugRoute
-  '/_authenticated/manage/$id': typeof AuthenticatedManageIdRoute
+  '/api/cron/conditions': typeof ApiCronConditionsRoute
   '/api/stripe/webhook': typeof ApiStripeWebhookRoute
   '/api/public/campaign-image/$slug': typeof ApiPublicCampaignImageSlugRoute
 }
@@ -165,7 +165,7 @@ export interface FileRouteTypes {
     | '/c/$slug'
     | '/go/$slug'
     | '/r/$slug'
-    | '/manage/$id'
+    | '/api/cron/conditions'
     | '/api/stripe/webhook'
     | '/api/public/campaign-image/$slug'
   fileRoutesByTo: FileRoutesByTo
@@ -181,7 +181,7 @@ export interface FileRouteTypes {
     | '/c/$slug'
     | '/go/$slug'
     | '/r/$slug'
-    | '/manage/$id'
+    | '/api/cron/conditions'
     | '/api/stripe/webhook'
     | '/api/public/campaign-image/$slug'
   id:
@@ -198,7 +198,7 @@ export interface FileRouteTypes {
     | '/c/$slug'
     | '/go/$slug'
     | '/r/$slug'
-    | '/_authenticated/manage/$id'
+    | '/api/cron/conditions'
     | '/api/stripe/webhook'
     | '/api/public/campaign-image/$slug'
   fileRoutesById: FileRoutesById
@@ -212,6 +212,7 @@ export interface RootRouteChildren {
   CSlugRoute: typeof CSlugRoute
   GoSlugRoute: typeof GoSlugRoute
   RSlugRoute: typeof RSlugRoute
+  ApiCronConditionsRoute: typeof ApiCronConditionsRoute
   ApiStripeWebhookRoute: typeof ApiStripeWebhookRoute
   ApiPublicCampaignImageSlugRoute: typeof ApiPublicCampaignImageSlugRoute
 }
@@ -302,12 +303,12 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof RSlugRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/_authenticated/manage/$id': {
-      id: '/_authenticated/manage/$id'
-      path: '/manage/$id'
-      fullPath: '/manage/$id'
-      preLoaderRoute: typeof AuthenticatedManageIdRouteImport
-      parentRoute: typeof AuthenticatedRouteRoute
+    '/api/cron/conditions': {
+      id: '/api/cron/conditions'
+      path: '/api/cron/conditions'
+      fullPath: '/api/cron/conditions'
+      preLoaderRoute: typeof ApiCronConditionsRouteImport
+      parentRoute: typeof rootRouteImport
     }
     '/api/stripe/webhook': {
       id: '/api/stripe/webhook'
@@ -331,7 +332,6 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedDashboardRoute: typeof AuthenticatedDashboardRoute
   AuthenticatedMyEntriesRoute: typeof AuthenticatedMyEntriesRoute
   AuthenticatedNewRoute: typeof AuthenticatedNewRoute
-  AuthenticatedManageIdRoute: typeof AuthenticatedManageIdRoute
 }
 
 const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
@@ -339,7 +339,6 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedDashboardRoute: AuthenticatedDashboardRoute,
   AuthenticatedMyEntriesRoute: AuthenticatedMyEntriesRoute,
   AuthenticatedNewRoute: AuthenticatedNewRoute,
-  AuthenticatedManageIdRoute: AuthenticatedManageIdRoute,
 }
 
 const AuthenticatedRouteRouteWithChildren =
@@ -354,6 +353,7 @@ const rootRouteChildren: RootRouteChildren = {
   CSlugRoute: CSlugRoute,
   GoSlugRoute: GoSlugRoute,
   RSlugRoute: RSlugRoute,
+  ApiCronConditionsRoute: ApiCronConditionsRoute,
   ApiStripeWebhookRoute: ApiStripeWebhookRoute,
   ApiPublicCampaignImageSlugRoute: ApiPublicCampaignImageSlugRoute,
 }

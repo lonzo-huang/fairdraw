@@ -1,7 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { runDraw } from "@/lib/draw";
-import { computeProgress, parseConditions, type Metrics } from "@/lib/conditions";
+import { computeProgress, parseConditions, type ConditionCheck, type Metrics } from "@/lib/conditions";
 import type { Json } from "@/integrations/supabase/types";
 
 /** Owner locks the candidate list and draws. Written with admin rights so owners cannot forge results. */
@@ -226,7 +226,28 @@ export const checkCampaignConditions = createServerFn({ method: "POST" })
       .single();
     if (error || !c) throw new Error("Campaign not found");
     if (c.owner_id !== userId) throw new Error("Forbidden");
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    return runConditionCheckCore(supabaseAdmin, c);
+  });
 
+/** Campaign shape the shared check pipeline needs. */
+export type CheckableCampaign = {
+  id: string;
+  owner_id: string;
+  status: string;
+  ends_at: string;
+  tweet_url: string | null;
+  conditions: unknown;
+  escrow_status: string;
+  payment_method: string | null;
+};
+
+/**
+ * Shared condition-check pipeline — the owner action and the per-minute cron
+ * sweep both run this. `db` reads entries and writes snapshots (admin client
+ * for cron); refunds credit the campaign owner.
+ */
+export async function runConditionCheckCore(db: any, c: CheckableCampaign): Promise<{ checks: ConditionCheck[]; progress: number; metrics: Metrics; deleted?: boolean }> {
     const conditions = parseConditions(c.conditions);
     const metrics: Metrics = { likes: null, replies: null, reposts: null, quotes: null, views: null, keyword_found: null, participants: 0, verified: 0 };
 
@@ -270,7 +291,7 @@ export const checkCampaignConditions = createServerFn({ method: "POST" })
       }
       if (gone === true) {
         try {
-          await closeWithRefund(c, userId);
+          await closeWithRefund(c, c.owner_id);
           return { checks: [], progress: 0, metrics, deleted: true };
         } catch {
           /* refund failure leaves the campaign open for manual handling */
@@ -278,7 +299,7 @@ export const checkCampaignConditions = createServerFn({ method: "POST" })
       }
     }
 
-    const { data: counts } = await supabase
+    const { data: counts } = await db
       .from("entries")
       .select("eligibility_status, fetched_meta")
       .eq("campaign_id", c.id);
@@ -291,7 +312,7 @@ export const checkCampaignConditions = createServerFn({ method: "POST" })
     }
 
     const { checks, progress } = computeProgress(conditions, metrics);
-    await supabase.from("condition_snapshots").insert({
+    await db.from("condition_snapshots").insert({
       campaign_id: c.id,
       metrics: metrics as unknown as Json,
       progress,
@@ -305,13 +326,13 @@ export const checkCampaignConditions = createServerFn({ method: "POST" })
       checks.some((ch) => ch.state === "unmet")
     ) {
       try {
-        await closeWithRefund(c, userId);
+        await closeWithRefund(c, c.owner_id);
       } catch {
         /* refund failure leaves the campaign open for manual handling */
       }
     }
     return { checks, progress, metrics };
-  });
+}
 
 const METRIC_COND_KEYS = ["min_likes", "min_replies", "min_reposts", "min_quotes", "min_views", "min_participants", "min_verified"] as const;
 
