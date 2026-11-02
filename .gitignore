@@ -33,3 +33,10 @@ dist-ssr
 
 .vercel
 .env*.local
+
+# sidecar local secrets/cache
+sidecar/accounts.json
+sidecar/cookies_export/
+sidecar/.x-export-profile/
+sidecar/__pycache__/
+
