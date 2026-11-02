@@ -326,7 +326,11 @@ async def main() -> None:
         # stored creds; still-dead accounts sit this sweep out.
         live = []
         for c in clients:
-            if not await alive(c) and not await revive(c):
+            try:
+                ok = await asyncio.wait_for(alive(c), timeout=30)
+            except asyncio.TimeoutError:
+                ok = False
+            if not ok and not await revive(c):
                 log(f"{c['name']}: dead — needs manual attention")
                 continue
             live.append(c)
@@ -341,7 +345,9 @@ async def main() -> None:
         for camp in campaigns if live else []:
             c = random.choice(live)
             try:
-                await poll_campaign(c["client"], camp)
+                await asyncio.wait_for(poll_campaign(c["client"], camp), timeout=180)
+            except asyncio.TimeoutError:
+                log(f"campaign {camp['id']} via {c['name']}: timed out, skipped")
             except Exception as e:
                 log(f"campaign {camp['id']} via {c['name']}: {e}")
             await asyncio.sleep(random.uniform(2, 4))  # human-ish pacing
