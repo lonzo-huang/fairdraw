@@ -113,8 +113,11 @@ def parse_detail(response, tid: str, focal_seen: bool):
             if v and ("bottom" in eid or cursor is None):
                 cursor = v
             continue
+        # Every item in a conversationthread is a reply in the chain —
+        # items[0] is the direct reply to the focal tweet; skipping it (as
+        # twikit does for its own sub-reply purposes) drops all repliers.
         nodes = (
-            [(i.get("item") or {}).get("itemContent") for i in content["items"][1:] if isinstance(i, dict)]
+            [(i.get("item") or {}).get("itemContent") for i in content["items"] if isinstance(i, dict)]
             if isinstance(content.get("items"), list)
             else [content.get("itemContent")]
         )
