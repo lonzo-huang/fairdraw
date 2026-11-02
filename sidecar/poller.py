@@ -23,6 +23,12 @@ from pathlib import Path
 
 import httpx
 
+try:  # twikit transaction-id patch (see twikit_patch.py) — no-op if absent
+    import twikit_patch
+    twikit_patch.apply()
+except Exception:
+    pass
+
 SUPA = os.environ["SUPABASE_URL"].rstrip("/")
 KEY = os.environ["SUPABASE_SERVICE_KEY"]
 COOKIES_DIR = Path(os.environ.get("COOKIES_DIR", "cookies"))
@@ -48,19 +54,103 @@ def tweet_id(url: str) -> str | None:
 
 
 async def rest(method: str, path: str, **kw) -> httpx.Response:
+    hdrs = {**HDRS, **kw.pop("headers", {})}
     async with httpx.AsyncClient(timeout=30) as c:
-        res = await c.request(method, f"{SUPA}/rest/v1/{path}", headers=HDRS, **kw)
+        res = await c.request(method, f"{SUPA}/rest/v1/{path}", headers=hdrs, **kw)
     if res.status_code >= 400:
         raise RuntimeError(f"{method} {path} -> {res.status_code}: {res.text[:200]}")
     return res
 
 
-def stat(tweet, *names):
-    for n in names:
-        v = getattr(tweet, n, None)
-        if isinstance(v, (int, float)):
-            return int(v)
-    return None
+def _walk(obj, key):
+    """Yield every value bound to `key` anywhere in a nested structure."""
+    if isinstance(obj, dict):
+        for k, v in obj.items():
+            if k == key:
+                yield v
+            yield from _walk(v, key)
+    elif isinstance(obj, list):
+        for v in obj:
+            yield from _walk(v, key)
+
+
+def _num(v):
+    try:
+        return int(v)
+    except (TypeError, ValueError):
+        return None
+
+
+def _tweet_result(node):
+    """itemContent → tweet dict, unwrapping visibility-result nesting."""
+    r = ((node or {}).get("tweet_results") or {}).get("result")
+    if not isinstance(r, dict):
+        return None
+    if isinstance(r.get("tweet"), dict):
+        r = r["tweet"]  # TweetWithVisibilityResults
+    return r
+
+
+def parse_detail(response, tid: str, focal_seen: bool):
+    """One TweetDetail page → (stats|None, replies[rid→row], cursor|None,
+    focal_seen). Tweets before the focal entry are ancestors, not replies."""
+    entries = []
+    for e in _walk(response, "entries"):
+        if isinstance(e, list):
+            entries += e
+    for e in _walk(response, "entry"):
+        if isinstance(e, dict):
+            entries.append(e)
+
+    stats, replies, cursor = None, {}, None
+    for entry in entries:
+        if not isinstance(entry, dict):
+            continue
+        eid = str(entry.get("entryId") or entry.get("entry_id") or "")
+        content = entry.get("content") or {}
+        if eid.startswith("cursor"):
+            v = ((content.get("itemContent") or {}).get("value")) or content.get("value")
+            if v and ("bottom" in eid or cursor is None):
+                cursor = v
+            continue
+        nodes = (
+            [(i.get("item") or {}).get("itemContent") for i in content["items"][1:] if isinstance(i, dict)]
+            if isinstance(content.get("items"), list)
+            else [content.get("itemContent")]
+        )
+        for node in nodes:
+            t = _tweet_result(node)
+            if not t:
+                continue
+            rid = str(t.get("rest_id") or (t.get("legacy") or {}).get("id_str") or "")
+            if not rid:
+                continue
+            legacy = t.get("legacy") or {}
+            if rid == tid:
+                stats = {
+                    "likes": _num(legacy.get("favorite_count")),
+                    "replies": _num(legacy.get("reply_count")),
+                    "reposts": _num(legacy.get("retweet_count")),
+                    "quotes": _num(legacy.get("quote_count")),
+                    "views": _num((t.get("views") or {}).get("count")),
+                }
+                focal_seen = True
+                continue
+            if not focal_seen:
+                continue  # ancestor of the focal tweet, not a reply
+            u = ((t.get("core") or {}).get("user_results") or {}).get("result") or {}
+            ulegacy = u.get("legacy") or {}
+            handle = (ulegacy.get("screen_name") or "").lower()
+            if not handle or rid in replies:
+                continue
+            replies[rid] = {
+                "reply_id": rid,
+                "handle": handle,
+                "x_verified": u.get("is_blue_verified", ulegacy.get("is_blue_verified")),
+                "author_name": ulegacy.get("name"),
+                "text": legacy.get("full_text"),
+            }
+    return stats, replies, cursor, focal_seen
 
 
 async def open_campaigns() -> list[dict]:
@@ -79,16 +169,9 @@ async def known_handles(campaign_id: str) -> set[str]:
     return {str(r["handle"]).lower() for r in res.json() if r.get("handle")}
 
 
-async def upsert_stats(tid: str, tweet) -> None:
-    row = {
-        "tweet_id": tid,
-        "likes": stat(tweet, "favorite_count", "like_count"),
-        "replies": stat(tweet, "reply_count"),
-        "reposts": stat(tweet, "retweet_count"),
-        "quotes": stat(tweet, "quote_count"),
-        "views": stat(tweet, "view_count"),
-        "checked_at": datetime.now(timezone.utc).isoformat(),
-    }
+async def upsert_stats(tid: str, stats: dict) -> None:
+    row = {"tweet_id": tid, **stats,
+           "checked_at": datetime.now(timezone.utc).isoformat()}
     await rest(
         "POST",
         "tweet_stats?on_conflict=tweet_id",
@@ -97,56 +180,56 @@ async def upsert_stats(tid: str, tweet) -> None:
     )
 
 
-async def replies_of(tweet, tid: str, client):
-    """Yield reply Tweet objects across pages until exhausted or cap."""
-    pages = 0
-    result = getattr(tweet, "replies", None)
-    if not result and hasattr(client, "get_tweet_replies"):
-        result = await client.get_tweet_replies(tid)
-    while result:
-        for r in result:
-            yield r
-        pages += 1
-        if pages >= MAX_PAGES:
-            return
-        try:
-            result = await result.next()
-        except Exception:
-            return
-
-
 async def poll_campaign(client, camp: dict) -> None:
+    """twikit is transport only (gql.tweet_detail signs requests with our
+    cookies); JSON is parsed by parse_detail — immune to twikit's model
+    drift, which is what kept breaking."""
     cid, url = camp["id"], camp["tweet_url"]
     tid = tweet_id(url)
     if not tid:
         return
-    tweet = await client.get_tweet_by_id(tid)
-    if tweet is None:
+    response, _ = await client.gql.tweet_detail(tid, None)
+    if not isinstance(response, dict) or response.get("errors"):
         return  # gone/protected — the worker's oEmbed probe handles cancellation
 
-    await upsert_stats(tid, tweet)
+    stats, replies, cursor, focal = parse_detail(response, tid, focal_seen=False)
+    if not focal:
+        return
+    if stats:
+        await upsert_stats(tid, stats)
+
+    pages = 0
+    while cursor and pages < MAX_PAGES:
+        pages += 1
+        await asyncio.sleep(random.uniform(1, 2))
+        try:
+            response, _ = await client.gql.tweet_detail(tid, cursor)
+        except Exception:
+            break
+        _, more, cursor, focal = parse_detail(response, tid, focal_seen=focal)
+        replies.update(more)
+        if not more:
+            break
 
     known = await known_handles(cid)
     rows = []
-    async for r in replies_of(tweet, tid, client):
-        user = getattr(r, "user", None)
-        handle = (getattr(user, "screen_name", "") or "").lower()
-        if not handle or handle in known:
+    for rid, r in replies.items():
+        if r["handle"] in known:
             continue
-        known.add(handle)
+        known.add(r["handle"])
         rows.append({
             "campaign_id": cid,
             "user_id": None,
-            "handle": handle,
-            "post_url": f"https://x.com/i/status/{r.id}",
+            "handle": r["handle"],
+            "post_url": f"https://x.com/i/status/{rid}",
             "platform": "x",
             "eligibility_status": "verified",
             "verification_source": "reply-import",
             "fetched_meta": {
-                "reply_id": str(r.id),
-                "x_verified": getattr(user, "is_blue_verified", None),
-                "author_name": getattr(user, "name", None),
-                "text": getattr(r, "text", None),
+                "reply_id": rid,
+                "x_verified": r["x_verified"],
+                "author_name": r["author_name"],
+                "text": r["text"],
             },
             "fetched_at": datetime.now(timezone.utc).isoformat(),
         })
@@ -163,11 +246,12 @@ async def poll_campaign(client, camp: dict) -> None:
 
 
 async def alive(c: dict) -> bool:
-    """Probe real READ capability — suspended accounts may fail account
-    endpoints (user_id) while still serving public GraphQL reads, which is
-    all the poller needs. Tweet 20 is X's oldest, always public."""
+    """Probe real READ capability on the transport layer — suspended
+    accounts may fail account endpoints while still serving public GraphQL
+    reads. Tweet 20 is X's oldest, always public."""
     try:
-        return (await c["client"].get_tweet_by_id("20")) is not None
+        resp, _ = await c["client"].gql.tweet_detail("20", None)
+        return isinstance(resp, dict) and bool(resp.get("data"))
     except Exception:
         return False
 
@@ -199,7 +283,9 @@ async def load_clients() -> list[dict]:
     cookie-file name — enables auto re-login when cookies die, and a fresh
     login for creds that have no cookie file at all.
     """
-    from twikit import Client  # deferred so --check works without twikit
+    import twikit_patch
+    twikit_patch.apply()
+    from twikit import Client
 
     creds = {}
     af = COOKIES_DIR.parent / "accounts.json"
