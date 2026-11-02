@@ -163,9 +163,11 @@ async def poll_campaign(client, camp: dict) -> None:
 
 
 async def alive(c: dict) -> bool:
-    """Cheap auth probe — user_id() needs a valid session."""
+    """Probe real READ capability — suspended accounts may fail account
+    endpoints (user_id) while still serving public GraphQL reads, which is
+    all the poller needs. Tweet 20 is X's oldest, always public."""
     try:
-        return (await c["client"].user_id()) is not None
+        return (await c["client"].get_tweet_by_id("20")) is not None
     except Exception:
         return False
 
