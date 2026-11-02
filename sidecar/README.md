@@ -41,6 +41,27 @@ Application → Cookies → https://x.com:
 Each `*.json` in `cookies/` becomes one rotating client — 3–5 low-value
 accounts spread the request load.
 
+## accounts.json — automatic cookie renewal (recommended)
+
+Cookies die when X flags or logs out the account, not on a schedule. Put
+`accounts.json` in the poller root (next to `cookies/`) and the poller
+self-heals: every sweep probes `user_id()`, and dead sessions re-login via
+stored credentials, saving fresh cookies back. Creds with no cookie file
+log in from scratch — you can skip cookie export entirely.
+
+```json
+[
+  { "name": "acct1", "username": "handle", "password": "pass", "totp": "BASE32" },
+  { "name": "acct2", "username": "handle2", "password": "pass2" }
+]
+```
+
+`name` must match the cookie file stem (`acct1` ↔ `cookies/acct1.json`).
+`totp` is optional but recommended — login challenges with TOTP configured
+resolve automatically; without it X may demand an email confirmation the
+script cannot answer (account stays dead until manually fixed).
+`chmod 600 accounts.json`.
+
 ## Notes
 
 - poller exits on fatal errors; systemd restarts it.

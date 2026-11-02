@@ -162,19 +162,66 @@ async def poll_campaign(client, camp: dict) -> None:
         log(f"campaign {cid}: no new repliers")
 
 
-async def load_clients():
-    """One Twikit client per cookies.json (account rotation)."""
+async def alive(c: dict) -> bool:
+    """Cheap auth probe — user_id() needs a valid session."""
+    try:
+        return (await c["client"].user_id()) is not None
+    except Exception:
+        return False
+
+
+async def revive(c: dict) -> bool:
+    """Re-login with stored creds and persist fresh cookies."""
+    cred = c.get("cred")
+    if not cred:
+        return False
+    try:
+        await c["client"].login(
+            auth_info_1=cred.get("email") or cred["username"],
+            auth_info_2=cred.get("username"),
+            password=cred["password"],
+            totp_secret=cred.get("totp"),
+        )
+        c["client"].save_cookies(str(c["file"]))
+        log(f"{c['name']}: re-login ok, cookies refreshed")
+        return True
+    except Exception as e:
+        log(f"{c['name']}: re-login failed: {e}")
+        return False
+
+
+async def load_clients() -> list[dict]:
+    """One Twikit client per cookies.json (account rotation).
+
+    Optional accounts.json next to COOKIES_DIR stores credentials keyed by
+    cookie-file name — enables auto re-login when cookies die, and a fresh
+    login for creds that have no cookie file at all.
+    """
     from twikit import Client  # deferred so --check works without twikit
+
+    creds = {}
+    af = COOKIES_DIR.parent / "accounts.json"
+    if af.exists():
+        for a in json.loads(af.read_text()):
+            creds[a["name"]] = a
 
     clients = []
     for f in sorted(COOKIES_DIR.glob("*.json")):
         c = Client("en-US")
         try:
-            cookies = json.loads(f.read_text())
-            c.set_cookies(cookies) if hasattr(c, "set_cookies") else c.load_cookies(str(f))
-            clients.append((f.stem, c))
+            c.load_cookies(str(f))
+            clients.append({"name": f.stem, "client": c, "file": f, "cred": creds.get(f.stem)})
         except Exception as e:
             log(f"cookie {f.name} failed to load: {e}")
+
+    # Bootstrap: credentials without a cookie file log in from scratch.
+    for name, cred in creds.items():
+        f = COOKIES_DIR / f"{name}.json"
+        if f.exists() or any(c["name"] == name for c in clients):
+            continue
+        entry = {"name": name, "client": Client("en-US"), "file": f, "cred": cred}
+        if await revive(entry):
+            clients.append(entry)
     return clients
 
 
@@ -183,21 +230,32 @@ async def main() -> None:
         sys.exit("SUPABASE_URL / SUPABASE_SERVICE_KEY required")
     clients = await load_clients()
     if not clients:
-        sys.exit(f"no cookies.json under {COOKIES_DIR} — see README for export steps")
+        sys.exit(f"no cookies.json under {COOKIES_DIR} and no usable accounts.json — see README")
     log(f"poller up: {len(clients)} account(s), every {POLL_SECONDS}s")
 
     while True:
+        # Per-sweep health check: dead cookies get one re-login attempt via
+        # stored creds; still-dead accounts sit this sweep out.
+        live = []
+        for c in clients:
+            if not await alive(c) and not await revive(c):
+                log(f"{c['name']}: dead — needs manual attention")
+                continue
+            live.append(c)
+        if not live:
+            log("all accounts dead — nothing will be scraped this sweep")
+
         try:
             campaigns = await open_campaigns()
         except Exception as e:
             log(f"campaign list failed: {e}")
             campaigns = []
-        for camp in campaigns:
-            name, client = random.choice(clients)
+        for camp in campaigns if live else []:
+            c = random.choice(live)
             try:
-                await poll_campaign(client, camp)
+                await poll_campaign(c["client"], camp)
             except Exception as e:
-                log(f"campaign {camp['id']} via {name}: {e}")
+                log(f"campaign {camp['id']} via {c['name']}: {e}")
             await asyncio.sleep(random.uniform(2, 4))  # human-ish pacing
         await asyncio.sleep(POLL_SECONDS)
 
