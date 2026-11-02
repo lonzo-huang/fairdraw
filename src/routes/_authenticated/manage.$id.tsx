@@ -50,6 +50,9 @@ function Manage() {
   const [tweetUrl, setTweetUrl] = useState<string | null>(null);
   const [editAmount, setEditAmount] = useState<string | null>(null);
   const [editConds, setEditConds] = useState(false);
+  const [drawMode, setDrawMode] = useState<"all" | "verified" | "weighted">("all");
+  const [wBlue, setWBlue] = useState("1.2");
+  const [wNormal, setWNormal] = useState("0.4");
 
   const { data, isLoading } = useQuery({
     queryKey: ["manage", id],
@@ -91,7 +94,15 @@ function Manage() {
     if (!confirm(t("m.drawConfirm"))) return;
     setBusy(true);
     try {
-      await draw({ data: { campaignId: c!.id } });
+      await draw({
+        data: {
+          campaignId: c!.id,
+          mode: drawMode,
+          weights: drawMode === "weighted"
+            ? { blue: Number(wBlue) || 1, normal: Number(wNormal) || 1 }
+            : undefined,
+        },
+      });
       refresh();
     } catch (e) {
       toast.error((e as Error).message);
@@ -281,10 +292,27 @@ function Manage() {
         <div className="flex flex-wrap items-center justify-between gap-3">
           <h2 className="text-2xl font-semibold">{entries.length} {t("c.participants")}</h2>
           {open && (
-            <div className="flex gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               <Button variant="outline" size="sm" disabled={busy} onClick={() => runCheck(entries.filter((e) => e.eligibility_status === "unverified").map((e) => e.id))}>
                 {t("m.checkAll")}
               </Button>
+              <select
+                className="h-9 rounded-md border border-border bg-background px-2 text-sm"
+                value={drawMode}
+                onChange={(e) => setDrawMode(e.target.value as typeof drawMode)}
+              >
+                <option value="all">{t("m.modeAll")}</option>
+                <option value="verified">{t("m.modeVerified")}</option>
+                <option value="weighted">{t("m.modeWeighted")}</option>
+              </select>
+              {drawMode === "weighted" && (
+                <span className="flex items-center gap-1 text-sm text-muted-foreground">
+                  {t("m.wBlue")}
+                  <Input className="h-9 w-16" value={wBlue} onChange={(e) => setWBlue(e.target.value)} />
+                  {t("m.wNormal")}
+                  <Input className="h-9 w-16" value={wNormal} onChange={(e) => setWNormal(e.target.value)} />
+                </span>
+              )}
               <Button size="sm" disabled={busy || entries.length === 0} onClick={doDraw}>{t("m.draw")}</Button>
             </div>
           )}
