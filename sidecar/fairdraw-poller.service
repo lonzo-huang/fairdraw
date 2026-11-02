@@ -1,0 +1,16 @@
+[Unit]
+Description=FairDraw reply-import poller (Twikit → Supabase)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=ubuntu
+WorkingDirectory=/home/ubuntu/fairdraw-poller
+EnvironmentFile=/home/ubuntu/fairdraw-poller/poller.env
+ExecStart=/home/ubuntu/fairdraw-poller/.venv/bin/python poller.py
+Restart=always
+RestartSec=15
+
+[Install]
+WantedBy=multi-user.target

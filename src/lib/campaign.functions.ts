@@ -45,7 +45,7 @@ export const drawCampaign = createServerFn({ method: "POST" })
 
     const { data: entries, error: eErr } = await supabaseAdmin
       .from("entries")
-      .select("id, handle, eligibility_status, payout_address")
+      .select("id, handle, eligibility_status, payout_address, post_url")
       .eq("campaign_id", c.id)
       .neq("eligibility_status", "ineligible");
     if (eErr) throw new Error(eErr.message);
@@ -53,7 +53,26 @@ export const drawCampaign = createServerFn({ method: "POST" })
     if (candidates.length === 0) throw new Error("No eligible entries");
 
     const drawnAt = new Date().toISOString();
-    const result = await runDraw(candidates, drawnAt, c.winners_count);
+    // Import-time replies may have been deleted since — draw alternates and
+    // walk the deterministic order, skipping winners whose reply is gone.
+    const result = await runDraw(candidates, drawnAt, c.winners_count + 3);
+    const urlById = new Map((entries ?? []).map((e) => [e.id, e.post_url]));
+    const { tweetDeleted } = await import("@/lib/x-stats.server");
+    const winners: typeof result.winners = [];
+    for (const w of result.winners) {
+      if (winners.length >= c.winners_count) break;
+      const u = urlById.get(w.id);
+      let gone = false;
+      if (u) {
+        try {
+          gone = (await tweetDeleted(u)) === true;
+        } catch {
+          gone = false;
+        }
+      }
+      if (!gone) winners.push(w);
+    }
+    if (!winners.length) throw new Error("Every drawn reply has been deleted");
 
     const { error: dErr } = await supabaseAdmin.from("draws").insert({
       campaign_id: c.id,
@@ -61,7 +80,7 @@ export const drawCampaign = createServerFn({ method: "POST" })
       seed: result.seed,
       drawn_at: drawnAt,
       candidates,
-      winners: result.winners,
+      winners,
     });
     if (dErr) throw new Error(dErr.message);
     // Conditions met at draw time: the funded prize pool is captured for payout.
@@ -69,7 +88,7 @@ export const drawCampaign = createServerFn({ method: "POST" })
     const payoutAddr = new Map((entries ?? []).map((e) => [e.handle, e.payout_address]));
     await supabaseAdmin
       .from("payouts")
-      .insert(result.winners.map((w) => ({ campaign_id: c.id, winner_handle: w.handle, wallet_address: payoutAddr.get(w.handle) ?? null })));
+      .insert(winners.map((w) => ({ campaign_id: c.id, winner_handle: w.handle, wallet_address: payoutAddr.get(w.handle) ?? null })));
     return { ok: true };
   });
 
@@ -268,6 +287,27 @@ export async function runConditionCheckCore(db: any, c: CheckableCampaign): Prom
         }
       } catch {
         /* stats unreadable — fields stay null */
+      }
+      // Off-worker poller writes richer metrics (incl. view counts the free
+      // syndication source cannot see) — fill anything still unknown.
+      try {
+        const { tweetId } = await import("@/lib/x-stats.server");
+        const tid = tweetId(c.tweet_url);
+        if (tid) {
+          const { data: ts } = await db
+            .from("tweet_stats")
+            .select("likes, replies, reposts, quotes, views")
+            .eq("tweet_id", tid)
+            .maybeSingle();
+          if (ts) {
+            for (const k of ["likes", "replies", "reposts", "quotes", "views"] as const) {
+              const v = (ts as Record<string, number | null>)[k];
+              if (metrics[k] === null && typeof v === "number") metrics[k] = v;
+            }
+          }
+        }
+      } catch {
+        /* poller stats optional */
       }
       if (conditions.keyword && metrics.keyword_found === null) {
         try {
