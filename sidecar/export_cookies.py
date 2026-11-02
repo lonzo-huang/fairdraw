@@ -29,6 +29,9 @@ async def main() -> None:
             channel="chrome",          # uses installed Chrome — no browser download
             headless=False,
             viewport={"width": 1200, "height": 800},
+            # without this, x.com detects navigator.webdriver and the
+            # login button silently does nothing
+            args=["--disable-blink-features=AutomationControlled"],
         )
         try:
             page = ctx.pages[0] if ctx.pages else await ctx.new_page()
