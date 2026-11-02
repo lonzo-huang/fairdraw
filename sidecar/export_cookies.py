@@ -2,8 +2,9 @@
 """Export x.com cookies for the FairDraw poller — run LOCALLY (Windows).
 
 Opens your installed Chrome in a dedicated profile. Log each throwaway
-account in via SSO (Google/Apple), press Enter here to save its cookies,
-log out in the browser, repeat for the next account.
+account in via SSO (Google/Apple) — the script detects auth_token changes
+and saves automatically. Log out on x.com to export the next account.
+Ctrl+C when done.
 
     pip install playwright
     python export_cookies.py
@@ -33,33 +34,27 @@ async def main() -> None:
             # login button silently does nothing
             args=["--disable-blink-features=AutomationControlled"],
         )
-        try:
-            page = ctx.pages[0] if ctx.pages else await ctx.new_page()
-            await page.goto("https://x.com/login")
+        page = ctx.pages[0] if ctx.pages else await ctx.new_page()
+        await page.goto("https://x.com/login")
+        print("在打开的 Chrome 里登录小号。检测到 auth_token 自动保存；换号导下一个。")
+        print("Ctrl+C 结束。\n")
 
-            seen: set[str] = set()
-            n = 0
+        seen: set[str] = set()
+        n = 0
+        try:
             while True:
-                ans = input(
-                    f"\n[{n + 1}] 在浏览器里登录小号（SSO 也行）后按 Enter 保存；"
-                    "导下一个先在 x.com 退出再登新号。输入 q 结束: "
-                ).strip().lower()
-                if ans == "q":
-                    break
                 cookies = await ctx.cookies("https://x.com")
                 d = {c["name"]: c["value"] for c in cookies}
                 token = d.get("auth_token")
-                if not token:
-                    print("  ! 没读到 auth_token — 确认登录完成（页面不是登录页）再按回车")
-                    continue
-                if token in seen:
-                    print("  ! 和上一个号相同，没切换账号？跳过")
-                    continue
-                n += 1
-                seen.add(token)
-                f = OUT / f"acct{n}.json"
-                f.write_text(json.dumps(d, indent=1))
-                print(f"  ✓ {f}（{len(d)} 个 cookie）— 现在在浏览器里退出，登录下一个小号")
+                if token and token not in seen:
+                    seen.add(token)
+                    n += 1
+                    f = OUT / f"acct{n}.json"
+                    f.write_text(json.dumps(d, indent=1))
+                    print(f"  ✓ 已保存 {f}（{len(d)} 个 cookie）— 退出当前账号可导下一个")
+                await asyncio.sleep(2)
+        except KeyboardInterrupt:
+            pass
         finally:
             await ctx.close()
     print(f"\n完成：{n} 个号 → {OUT}/，scp 到 VPS 的 ~/fairdraw-poller/cookies/")
