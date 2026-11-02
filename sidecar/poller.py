@@ -204,14 +204,14 @@ async def load_clients() -> list[dict]:
     creds = {}
     af = COOKIES_DIR.parent / "accounts.json"
     if af.exists():
-        for a in json.loads(af.read_text()):
+        for a in json.loads(af.read_text(encoding="utf-8-sig")):
             creds[a["name"]] = a
 
     clients = []
     for f in sorted(COOKIES_DIR.glob("*.json")):
         c = Client("en-US")
         try:
-            c.load_cookies(str(f))
+            c.set_cookies(json.loads(f.read_text(encoding="utf-8-sig")))
             clients.append({"name": f.stem, "client": c, "file": f, "cred": creds.get(f.stem)})
         except Exception as e:
             log(f"cookie {f.name} failed to load: {e}")

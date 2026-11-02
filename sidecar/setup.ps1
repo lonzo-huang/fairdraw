@@ -33,7 +33,7 @@ if ($accounts.Count -eq 0) { Write-Host "no accounts entered, abort"; exit 1 }
 
 if ($accounts.Count -eq 1) { $json = "[" + ($accounts | ConvertTo-Json -Depth 3 -Compress) + "]" }
 else { $json = $accounts | ConvertTo-Json -Depth 3 }
-$json | Set-Content -Encoding UTF8 $OutFile
+[IO.File]::WriteAllText((Resolve-Path .).Path + "\" + $OutFile, $json, (New-Object Text.UTF8Encoding $false))
 Write-Host "`nOK $OutFile written ($($accounts.Count) accounts)" -ForegroundColor Green
 
 # Pick up manually exported cookies_export\*.json too, if present.
