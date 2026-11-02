@@ -30,14 +30,16 @@ journalctl -u fairdraw-poller -f   # watch logs
 
 ## X account cookies (one per file: cookies/account1.json)
 
-Log the throwaway account into x.com in a browser, then grab from DevTools →
-Application → Cookies → https://x.com:
+Easy way — the bundled exporter opens your local Chrome, you SSO-login each
+account, it saves the full cookie set (incl. HttpOnly `auth_token`):
 
-```json
-{"auth_token": "...", "ct0": "...", "guest_id": "...", "twid": "..."}
+```powershell
+pip install playwright
+python sidecar\export_cookies.py     # creates cookies_export\acct1.json, ...
 ```
 
-`auth_token` + `ct0` are the minimum; include the full cookie set if you can.
+Manual way: log in on x.com, DevTools → Application → Cookies → x.com,
+save `auth_token` + `ct0` (and the rest if easy) as JSON.
 Each `*.json` in `cookies/` becomes one rotating client — 3–5 low-value
 accounts spread the request load.
 
