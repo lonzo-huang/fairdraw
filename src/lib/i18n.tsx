@@ -341,6 +341,7 @@ const dict = {
   "m.draw": { zh: "锁定名单并开奖", en: "Lock list & draw" },
   "m.drawConfirm": { zh: "开奖后名单将锁定且无法修改，确定吗？", en: "The list will be locked permanently. Continue?" },
   "m.noEntries": { zh: "还没有人报名。", en: "No entries yet." },
+  "m.importing": { zh: "正在从 X 读取回复数据，候选名单会持续更新…", en: "Importing replies from X — the candidate list keeps updating…" },
   "m.payouts": { zh: "派奖记录", en: "Payouts" },
   "m.proof": { zh: "凭证（交易哈希或链接）", en: "Proof (tx hash or link)" },
   "m.markPaid": { zh: "标记已派奖", en: "Mark paid" },

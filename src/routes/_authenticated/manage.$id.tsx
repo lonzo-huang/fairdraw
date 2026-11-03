@@ -319,9 +319,10 @@ function Manage() {
           )}
         </div>
         {entries.length === 0 ? (
-          <p className="mt-6 text-muted-foreground">{t("m.noEntries")}</p>
+          <p className={`mt-6 ${open ? "flex items-center gap-2 text-muted-foreground" : "text-muted-foreground"}`}>{open && <span className="live-dot" />}{t(open ? "m.importing" : "m.noEntries")}</p>
         ) : (
           <>
+          {open && <p className="mt-3 flex items-center gap-2 text-xs text-muted-foreground"><span className="live-dot" />{t("m.importing")}</p>}
           <div className="mt-4 overflow-x-auto rounded-xl border border-border bg-card">
             <table className="w-full text-sm">
               <thead>
