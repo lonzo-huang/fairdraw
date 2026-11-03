@@ -251,8 +251,7 @@
 .ranking-table td { padding: 13px 12px; }
 .ranking-table tbody tr { transition: background 180ms; }
 .ranking-table tbody tr:hover { background: color-mix(in oklab, var(--prize) 5%, transparent); }
-.ranking-rows { height: 246px; overflow-y: auto; scrollbar-width: thin; scrollbar-color: var(--border) transparent; }
-.ranking-rows.ranking-full { height: 360px; }
+.ranking-rows { min-height: 246px; }
 .rank-row { display: grid; grid-template-columns: 14px minmax(0, 1fr) max-content; gap: 8px; align-items: center; min-height: 41px; padding: 6px 14px; border-bottom: 1px solid color-mix(in oklab, var(--border) 35%, transparent); }
 .rank-row:hover { background: color-mix(in oklab, var(--prize) 5%, transparent); }
 .rank-amount { max-width: 110px; overflow-wrap: anywhere; }
