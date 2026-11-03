@@ -1,5 +1,5 @@
 import { Link, useNavigate, useRouterState } from "@tanstack/react-router";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { useI18n } from "@/lib/i18n";
@@ -21,6 +21,12 @@ export function SiteHeader() {
   const navigate = useNavigate();
   const qc = useQueryClient();
   const onHome = useRouterState({ select: (state) => state.location.pathname === "/" });
+  const { data: isAdmin } = useQuery({ queryKey: ["is-admin"], queryFn: async () => {
+    const { data: u } = await supabase.auth.getUser();
+    if (!u.user) return false;
+    const { data } = await supabase.from("user_roles").select("role").eq("user_id", u.user.id).eq("role", "admin").maybeSingle();
+    return !!data;
+  }, enabled: !!user });
 
   async function signOut() {
     await qc.cancelQueries();
@@ -41,12 +47,11 @@ export function SiteHeader() {
               <Link to="/dashboard" className="px-2 text-muted-foreground hover:text-foreground">
                 {t("nav.dashboard")}
               </Link>
-              <Link to="/admin" className="hidden px-2 text-muted-foreground hover:text-foreground sm:inline">
-                {t("nav.admin")}
-              </Link>
-              <Link to="/my-entries" className="hidden px-2 text-muted-foreground hover:text-foreground sm:inline">
-                {t("nav.myEntries")}
-              </Link>
+              {isAdmin && (
+                <Link to="/admin" className="hidden px-2 text-muted-foreground hover:text-foreground sm:inline">
+                  {t("nav.admin")}
+                </Link>
+              )}
             </>
           )}
           <Button variant="ghost" size="sm"
