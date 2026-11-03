@@ -12,7 +12,10 @@ export type TweetStats = {
   replies: number | null;
   reposts: number | null;
   quotes: number | null;
+  bookmarks: number | null;
   views: number | null;
+  /** Author's follower count — lets clients diff snapshots for new-follower deltas. */
+  followers: number | null;
   text: string | null;
   author_handle: string | null;
   author_name: string | null;
@@ -33,13 +36,13 @@ async function fromXApi(id: string): Promise<TweetStats | null> {
   const token = process.env["X_BEARER_TOKEN"];
   if (!token) return null;
   const res = await fetch(
-    `https://api.x.com/2/tweets/${id}?tweet.fields=public_metrics,text&expansions=author_id&user.fields=verified,verified_type`,
+    `https://api.x.com/2/tweets/${id}?tweet.fields=public_metrics,text&expansions=author_id&user.fields=verified,verified_type,public_metrics`,
     { headers: { Authorization: `Bearer ${token}` } },
   );
   if (!res.ok) return null;
   const j = (await res.json()) as {
     data?: { text?: string; public_metrics?: Record<string, number> };
-    includes?: { users?: { username?: string; name?: string; verified?: boolean; verified_type?: string }[] };
+    includes?: { users?: { username?: string; name?: string; verified?: boolean; verified_type?: string; public_metrics?: Record<string, number> }[] };
   };
   const m = j.data?.public_metrics;
   if (!j.data || !m) return null;
@@ -48,7 +51,9 @@ async function fromXApi(id: string): Promise<TweetStats | null> {
     replies: num(m["reply_count"]),
     reposts: num(m["retweet_count"]),
     quotes: num(m["quote_count"]),
+    bookmarks: num(m["bookmark_count"]),
     views: num(m["impression_count"]),
+    followers: num(j.includes?.users?.[0]?.public_metrics?.["followers_count"]),
     text: j.data.text ?? null,
     author_handle: j.includes?.users?.[0]?.username ?? null,
     author_name: j.includes?.users?.[0]?.name ?? null,
@@ -85,7 +90,9 @@ async function fromSyndication(id: string): Promise<TweetStats | null> {
     replies,
     reposts,
     quotes: num(j["quote_count"]),
+    bookmarks: null,
     views: null,
+    followers: num(j.user?.["followers_count"]),
     text: typeof j["text"] === "string" ? j["text"] : null,
     author_handle: typeof j.user?.["screen_name"] === "string" ? j.user["screen_name"] : null,
     author_name: typeof j.user?.["name"] === "string" ? j.user["name"] : null,

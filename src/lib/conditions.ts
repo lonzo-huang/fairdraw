@@ -19,6 +19,8 @@ export type Metrics = {
   quotes?: number | null;
   bookmarks?: number | null;
   views?: number | null;
+  /** Campaign author's follower count at snapshot time — diff snapshots for new followers. */
+  followers?: number | null;
   keyword_found: boolean | null;
   participants: number;
   verified: number;

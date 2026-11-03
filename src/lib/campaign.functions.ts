@@ -299,7 +299,7 @@ export type CheckableCampaign = {
  */
 export async function runConditionCheckCore(db: any, c: CheckableCampaign): Promise<{ checks: ConditionCheck[]; progress: number; metrics: Metrics; deleted?: boolean }> {
     const conditions = parseConditions(c.conditions);
-    const metrics: Metrics = { likes: null, replies: null, reposts: null, quotes: null, views: null, keyword_found: null, participants: 0, verified: 0 };
+    const metrics: Metrics = { likes: null, replies: null, reposts: null, quotes: null, bookmarks: null, views: null, followers: null, keyword_found: null, participants: 0, verified: 0 };
 
     if (c.tweet_url) {
       // Real X stats first (API → public syndication); oEmbed remains the keyword fallback.
@@ -311,7 +311,9 @@ export async function runConditionCheckCore(db: any, c: CheckableCampaign): Prom
           metrics.replies = stats.replies;
           metrics.reposts = stats.reposts;
           metrics.quotes = stats.quotes;
+          metrics.bookmarks = stats.bookmarks;
           metrics.views = stats.views;
+          metrics.followers = stats.followers;
           if (conditions.keyword && stats.text) {
             metrics.keyword_found = stats.text.toLowerCase().includes(conditions.keyword.toLowerCase());
           }
@@ -327,11 +329,11 @@ export async function runConditionCheckCore(db: any, c: CheckableCampaign): Prom
         if (tid) {
           const { data: ts } = await db
             .from("tweet_stats")
-            .select("likes, replies, reposts, quotes, views")
+            .select("likes, replies, reposts, quotes, bookmarks, views, followers")
             .eq("tweet_id", tid)
             .maybeSingle();
           if (ts) {
-            for (const k of ["likes", "replies", "reposts", "quotes", "views"] as const) {
+            for (const k of ["likes", "replies", "reposts", "quotes", "bookmarks", "views", "followers"] as const) {
               const v = (ts as Record<string, number | null>)[k];
               if (metrics[k] === null && typeof v === "number") metrics[k] = v;
             }

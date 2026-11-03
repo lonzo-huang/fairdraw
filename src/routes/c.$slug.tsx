@@ -1,15 +1,11 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
-import { useAuth } from "@/hooks/use-auth";
 import { useI18n } from "@/lib/i18n";
-import { detectPlatform } from "@/lib/plans";
 import { computeProgress, parseConditions, type Metrics } from "@/lib/conditions";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { StatusBadge } from "@/components/status-badge";
 import { ArrowUpRight } from "lucide-react";
 import { getCampaignShare } from "@/lib/campaign-share.functions";
@@ -54,35 +50,27 @@ function CampaignPage() {
   const { slug } = Route.useParams();
   const share = Route.useLoaderData();
   const { t } = useI18n();
-  const { user } = useAuth();
-  const qc = useQueryClient();
   const { data, isLoading } = useQuery({
-    queryKey: ["campaign", slug, user?.id],
+    queryKey: ["campaign", slug],
     // Pool progress is re-displayed every 15 minutes.
     refetchInterval: 15 * 60 * 1000,
     queryFn: async () => {
       const { data: c } = await supabase.from("campaigns").select("*").eq("slug", slug).maybeSingle();
       if (!c) return null;
       const { data: count } = await supabase.rpc("entry_count", { _campaign_id: c.id });
-      const { data: snap } = await supabase
-        .from("condition_snapshots")
-        .select("metrics, progress, fetched_at")
-        .eq("campaign_id", c.id)
-        .order("fetched_at", { ascending: false })
-        .limit(1)
-        .maybeSingle();
-      let mine = null;
-      if (user) mine = (await supabase.from("entries").select("id").eq("campaign_id", c.id).eq("user_id", user.id).maybeSingle()).data;
-      return { c, count: count ?? 0, mine, snap };
+      const [{ data: snap }, { data: snapFirst }] = await Promise.all([
+        supabase.from("condition_snapshots").select("metrics, progress, fetched_at").eq("campaign_id", c.id).order("fetched_at", { ascending: false }).limit(1).maybeSingle(),
+        supabase.from("condition_snapshots").select("metrics, fetched_at").eq("campaign_id", c.id).order("fetched_at", { ascending: true }).limit(1).maybeSingle(),
+      ]);
+      return { c, count: count ?? 0, snap, snapFirst };
     },
   });
   const cd = useCountdown(data?.c?.ends_at);
 
   if (isLoading) return <p className="p-10 text-center text-muted-foreground">{t("common.loading")}</p>;
   if (!data) return <p className="p-10 text-center text-muted-foreground">404</p>;
-  const { c, count, mine } = data;
+  const { c, count } = data;
   const closed = c.status !== "open" || (cd ? cd.ms === 0 : false);
-  const questions = (c.questions as string[]) ?? [];
 
   return (
     <div className="mx-auto grid max-w-5xl gap-8 px-4 py-12 md:grid-cols-[1.3fr_1fr]">
@@ -102,6 +90,7 @@ function CampaignPage() {
             {c.tweet_url && <a href={c.tweet_url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 text-muted-foreground transition-colors hover:text-foreground"><span className="font-black">𝕏</span>{t("m.tweetUrl")}</a>}
           </div>
         )}
+        <PostStats metrics={data.snap?.metrics as Metrics | null | undefined} firstMetrics={data.snapFirst?.metrics} fetchedAt={data.snap?.fetched_at} />
         <ConditionProgress conditionsRaw={c.conditions} participants={count} snap={data.snap} />
         {share.imageUrl && <details className="mt-6"><summary className="cursor-pointer text-xs text-muted-foreground transition-colors hover:text-foreground">{t("c.sharePreview")}</summary><img src={share.imageUrl} alt={translate(c.share_language === "en" ? "en" : "zh", "share.imageAlt", { title: c.title, prize: c.prize })} width={1200} height={630} className="mt-3 aspect-[1200/630] w-full rounded-lg border border-border object-contain" /></details>}
       </div>
@@ -123,12 +112,8 @@ function CampaignPage() {
           <Button asChild className="w-full"><Link to="/r/$slug" params={{ slug }}>{t("c.result")}</Link></Button>
         ) : closed ? (
           <p className="text-center text-muted-foreground">{t("c.closed")}</p>
-        ) : !user ? (
-          <Button asChild className="w-full"><Link to="/auth" search={{ redirect: `/c/${slug}` }}>{t("c.signin")}</Link></Button>
-        ) : mine ? (
-          <p className="rounded-xl border border-success/40 bg-success/10 p-4 text-center text-success">{t("c.entered")}</p>
         ) : (
-          <EntryForm campaignId={c.id} userId={user.id} questions={questions} acceptsCrypto={c.currency === "USDT" && Number(c.prize_amount) > 0} onDone={() => qc.invalidateQueries({ queryKey: ["campaign", slug] })} />
+          <p className="rounded-xl border border-primary/30 bg-primary/5 p-4 text-center text-sm text-muted-foreground">{t("c.replyToJoin")}</p>
         )}
         <Button variant="ghost" className="w-full" onClick={() => { navigator.clipboard.writeText(window.location.href); toast.success(t("c.copied")); }}>
           {t("c.share")}
@@ -138,76 +123,38 @@ function CampaignPage() {
   );
 }
 
-function EntryForm({ campaignId, userId, questions, acceptsCrypto, onDone }: { campaignId: string; userId: string; questions: string[]; acceptsCrypto: boolean; onDone: () => void }) {
+const fmtCompact = (v: number) => v.toLocaleString("en-US", { notation: "compact", maximumFractionDigits: 1 });
+
+/** Every collectible X metric for the campaign post; null values stay hidden as —. */
+function PostStats({ metrics, firstMetrics, fetchedAt }: { metrics: Metrics | null | undefined; firstMetrics: unknown; fetchedAt?: string }) {
   const { t } = useI18n();
-  const [handle, setHandle] = useState("");
-  const [post, setPost] = useState("");
-  const [wallet, setWallet] = useState("");
-  const [answers, setAnswers] = useState<string[]>(questions.map(() => ""));
-  const [busy, setBusy] = useState(false);
-
-  // Prefill with the verified X handle when the account is X-linked.
-  useEffect(() => {
-    supabase.auth.getUser().then(({ data }) => {
-      const tw = data.user?.identities?.find((i) => i.provider === "x" || i.provider === "twitter");
-      const raw = tw?.identity_data?.["user_name"] ?? tw?.identity_data?.["preferred_username"] ?? tw?.identity_data?.["screen_name"];
-      if (typeof raw === "string" && raw) setHandle((h) => h || raw);
-    });
-  }, []);
-
-  async function submit(e: React.FormEvent) {
-    e.preventDefault();
-    const addr = wallet.trim();
-    if (addr && !/^0x[0-9a-fA-F]{40}$/.test(addr)) {
-      toast.error(t("c.walletBad"));
-      return;
-    }
-    setBusy(true);
-    const { error } = await supabase.from("entries").insert({
-      campaign_id: campaignId,
-      user_id: userId,
-      handle: handle.trim().slice(0, 60),
-      post_url: post.trim(),
-      platform: detectPlatform(post.trim()),
-      payout_address: addr || null,
-      answers: questions.map((q, i) => `${q} — ${answers[i]?.trim() ?? ""}`),
-    });
-    setBusy(false);
-    if (error) {
-      toast.error(error.message);
-      return;
-    }
-    onDone();
-  }
-
+  if (!metrics) return null;
+  const fm = (firstMetrics ?? null) as Metrics | null;
+  const newFollowers = typeof metrics.followers === "number" && typeof fm?.followers === "number" ? Math.max(0, metrics.followers - fm.followers) : null;
+  const cells: { label: string; value: string }[] = [
+    { label: t("cond.likes"), value: typeof metrics.likes === "number" ? fmtCompact(metrics.likes) : "—" },
+    { label: t("cond.replies"), value: typeof metrics.replies === "number" ? fmtCompact(metrics.replies) : "—" },
+    { label: t("cond.reposts"), value: typeof metrics.reposts === "number" ? fmtCompact(metrics.reposts) : "—" },
+    { label: t("cond.quotes"), value: typeof metrics.quotes === "number" ? fmtCompact(metrics.quotes) : "—" },
+    { label: t("stat.bookmarks"), value: typeof metrics.bookmarks === "number" ? fmtCompact(metrics.bookmarks) : "—" },
+    { label: t("cy.exposure"), value: typeof metrics.views === "number" ? fmtCompact(metrics.views) : "—" },
+    { label: t("stat.newFollowers"), value: newFollowers === null ? "—" : `+${fmtCompact(newFollowers)}` },
+  ];
   return (
-    <form onSubmit={submit} className="space-y-4 rounded-xl border border-border bg-card p-5">
-      <p className="flex items-center gap-2 font-display text-xl font-semibold"><span className="font-black text-primary">𝕏</span>{t("c.enter")}</p>
-      <div className="space-y-1.5">
-        <Label>{t("c.handle")}</Label>
-        <div className="flex items-center rounded-md border border-input bg-background focus-within:border-primary">
-          <span className="pl-3 text-sm text-muted-foreground">@</span>
-          <Input required value={handle} onChange={(e) => setHandle(e.target.value)} className="border-0 pl-1 focus-visible:ring-0" />
-        </div>
+    <div className="mt-6 rounded-xl border border-border bg-card p-5">
+      <div className="flex items-center justify-between">
+        <p className="text-xs font-medium text-muted-foreground">{t("stat.title")}</p>
+        {fetchedAt && <span className="text-[10px] text-muted-foreground">{new Date(fetchedAt).toLocaleString()}</span>}
       </div>
-      <div className="space-y-1.5"><Label>{t("c.post")}</Label><Input required type="url" placeholder="https://x.com/…" value={post} onChange={(e) => setPost(e.target.value)} /></div>
-      {acceptsCrypto && (
-        <details className="text-sm">
-          <summary className="cursor-pointer text-muted-foreground transition-colors hover:text-foreground">{t("c.cryptoOpt")}</summary>
-          <div className="mt-2 space-y-1.5">
-            <Input placeholder="0x…" value={wallet} onChange={(e) => setWallet(e.target.value)} className="font-mono text-xs" />
-            <p className="text-xs text-muted-foreground">{t("c.walletHint")}</p>
+      <dl className="mt-3 grid grid-cols-3 gap-2.5 sm:grid-cols-4">
+        {cells.map((cell) => (
+          <div key={cell.label} className="rounded-lg bg-background/60 px-3 py-2.5 text-center">
+            <dd className="font-mono text-lg font-semibold tabular-nums">{cell.value}</dd>
+            <dt className="mt-0.5 text-[10px] text-muted-foreground">{cell.label}</dt>
           </div>
-        </details>
-      )}
-      {questions.map((q, i) => (
-        <div key={i} className="space-y-1.5">
-          <Label>{q}</Label>
-          <Input required maxLength={500} value={answers[i]} onChange={(e) => setAnswers(answers.map((a, j) => (j === i ? e.target.value : a)))} />
-        </div>
-      ))}
-      <Button type="submit" variant="neon" className="w-full" disabled={busy}>{t("c.submit")}</Button>
-    </form>
+        ))}
+      </dl>
+    </div>
   );
 }
 
