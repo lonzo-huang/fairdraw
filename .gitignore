@@ -40,3 +40,7 @@ sidecar/cookies_export/
 sidecar/.x-export-profile/
 sidecar/__pycache__/
 
+
+# local VPS ssh keys / ops
+vps/
+*.key
