@@ -22,6 +22,8 @@ export type Database = {
           created_at: string
           currency: string
           description: string
+          draw_mode: string
+          draw_weights: Json | null
           ends_at: string
           escrow_status: string
           id: string
@@ -48,6 +50,8 @@ export type Database = {
           created_at?: string
           currency: string
           description?: string
+          draw_mode?: string
+          draw_weights?: Json | null
           ends_at: string
           escrow_status?: string
           id?: string
@@ -74,6 +78,8 @@ export type Database = {
           created_at?: string
           currency?: string
           description?: string
+          draw_mode?: string
+          draw_weights?: Json | null
           ends_at?: string
           escrow_status?: string
           id?: string

@@ -47,9 +47,41 @@ export async function pickWinners(
   return winners;
 }
 
-export async function runDraw(candidates: Candidate[], drawnAtIso: string, count: number) {
+/**
+ * Weighted pick without replacement (Efraimidis–Spirakis): score each
+ * candidate u_i^(1/w_i) with u_i derived from the seed hash chain and keep
+ * the top-k scores. Deterministic given the same list, seed and weights.
+ */
+export async function pickWinnersWeighted(
+  candidates: Candidate[],
+  seed: string,
+  count: number,
+  weightOf: (c: Candidate) => number,
+): Promise<Candidate[]> {
+  const k = Math.min(count, candidates.length);
+  const scored: { c: Candidate; s: number }[] = [];
+  for (let i = 0; i < candidates.length; i++) {
+    const c = candidates[i]!;
+    const h = await sha256Hex(`${seed}:${c.id}:${i}`);
+    // 48 bits → u in [0,1); power 1/w = ln(key)/w = ln(u)/w.
+    const u = parseInt(h.slice(0, 12), 16) / 0xffffffffffff;
+    const w = Math.max(1e-6, weightOf(c));
+    scored.push({ c, s: Math.log(Math.max(u, 1e-12)) / w });
+  }
+  scored.sort((a, b) => (a.s > b.s ? -1 : a.s < b.s ? 1 : a.c.id < b.c.id ? -1 : 1));
+  return scored.slice(0, k).map((x) => x.c);
+}
+
+export async function runDraw(
+  candidates: Candidate[],
+  drawnAtIso: string,
+  count: number,
+  weightOf?: (c: Candidate) => number,
+) {
   const hash = await listHash(candidates);
   const seed = await makeSeed(hash, drawnAtIso);
-  const winners = await pickWinners(candidates, seed, count);
+  const winners = weightOf
+    ? await pickWinnersWeighted(candidates, seed, count, weightOf)
+    : await pickWinners(candidates, seed, count);
   return { listHash: hash, seed, winners };
 }

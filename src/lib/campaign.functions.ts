@@ -7,8 +7,16 @@ import type { Json } from "@/integrations/supabase/types";
 /** Owner locks the candidate list and draws. Written with admin rights so owners cannot forge results. */
 export const drawCampaign = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: { campaignId: string }) => input)
+  .inputValidator((input: {
+    campaignId: string;
+    mode?: "all" | "verified" | "weighted";
+    weights?: { blue?: number; normal?: number };
+  }) => input)
   .handler(async ({ data, context }) => {
+    const mode = data.mode ?? "all";
+    if (!["all", "verified", "weighted"].includes(mode)) throw new Error("Unknown draw mode");
+    const clampW = (v: unknown, d: number) => (typeof v === "number" && v > 0 && v <= 100 ? v : d);
+    const weights = { blue: clampW(data.weights?.blue, 1), normal: clampW(data.weights?.normal, 1) };
     const { supabase, userId } = context;
     const { data: c, error } = await supabase
       .from("campaigns")
@@ -45,17 +53,32 @@ export const drawCampaign = createServerFn({ method: "POST" })
 
     const { data: entries, error: eErr } = await supabaseAdmin
       .from("entries")
-      .select("id, handle, eligibility_status, payout_address, post_url")
+      .select("id, handle, eligibility_status, payout_address, post_url, fetched_meta")
       .eq("campaign_id", c.id)
       .neq("eligibility_status", "ineligible");
     if (eErr) throw new Error(eErr.message);
-    const candidates = (entries ?? []).map((e) => ({ id: e.id, handle: e.handle }));
-    if (candidates.length === 0) throw new Error("No eligible entries");
+    // Same rule as the condition checker's verified count: owner-marked
+    // "eligible" counts manually, auto-imported entries need the blue badge.
+    const isVerified = (e: { eligibility_status: string; fetched_meta: unknown }) =>
+      e.eligibility_status === "eligible" ||
+      (e.eligibility_status === "verified" &&
+        (e.fetched_meta as { x_verified?: boolean | null } | null)?.x_verified === true);
+    const verById = new Map((entries ?? []).map((e) => [e.id, isVerified(e)]));
+    let pool = entries ?? [];
+    if (mode === "verified") pool = pool.filter((e) => verById.get(e.id));
+    const candidates = pool.map((e) => ({ id: e.id, handle: e.handle }));
+    if (candidates.length === 0)
+      throw new Error(mode === "verified" ? "No verified (blue-V) entries" : "No eligible entries");
 
     const drawnAt = new Date().toISOString();
     // Import-time replies may have been deleted since — draw alternates and
     // walk the deterministic order, skipping winners whose reply is gone.
-    const result = await runDraw(candidates, drawnAt, c.winners_count + 3);
+    const result = await runDraw(
+      candidates,
+      drawnAt,
+      c.winners_count + 3,
+      mode === "weighted" ? (w) => (verById.get(w.id) ? weights.blue : weights.normal) : undefined,
+    );
     const urlById = new Map((entries ?? []).map((e) => [e.id, e.post_url]));
     const { tweetDeleted } = await import("@/lib/x-stats.server");
     const winners: typeof result.winners = [];
@@ -84,7 +107,15 @@ export const drawCampaign = createServerFn({ method: "POST" })
     });
     if (dErr) throw new Error(dErr.message);
     // Conditions met at draw time: the funded prize pool is captured for payout.
-    await supabaseAdmin.from("campaigns").update({ status: "drawn", escrow_status: "charged" }).eq("id", c.id);
+    await supabaseAdmin
+      .from("campaigns")
+      .update({
+        status: "drawn",
+        escrow_status: "charged",
+        draw_mode: mode,
+        draw_weights: mode === "weighted" ? weights : null,
+      })
+      .eq("id", c.id);
     const payoutAddr = new Map((entries ?? []).map((e) => [e.handle, e.payout_address]));
     await supabaseAdmin
       .from("payouts")
