@@ -373,15 +373,31 @@ async def main() -> None:
         except Exception as e:
             log(f"campaign list failed: {e}")
             campaigns = []
-        for camp in campaigns if live else []:
-            c = random.choice(live)
-            try:
-                await asyncio.wait_for(poll_campaign(c["client"], camp), timeout=180)
-            except asyncio.TimeoutError:
-                log(f"campaign {camp['id']} via {c['name']}: timed out, skipped")
-            except Exception as e:
-                log(f"campaign {camp['id']} via {c['name']}: {e}")
-            await asyncio.sleep(random.uniform(2, 4))  # human-ish pacing
+        # Deterministic sharding: campaign UUID hex mod live accounts picks
+        # its account — stable across sweeps/restarts, spreads X load per
+        # account, and a dead account's campaigns redistribute to survivors.
+        ordered = sorted(live, key=lambda c: c["name"])
+        shards: dict[str, list[dict]] = {c["name"]: [] for c in ordered}
+        for camp in campaigns if ordered else []:
+            h = int(camp["id"].replace("-", ""), 16)
+            shards[ordered[h % len(ordered)]["name"]].append(camp)
+        if campaigns and ordered:
+            log("shard: " + ", ".join(f"{n}<-{len(s)}" for n, s in shards.items()))
+
+        async def work(c: dict, mine: list[dict]) -> None:
+            for camp in mine:
+                try:
+                    await asyncio.wait_for(poll_campaign(c["client"], camp), timeout=180)
+                except asyncio.TimeoutError:
+                    log(f"campaign {camp['id']} via {c['name']}: timed out, skipped")
+                except Exception as e:
+                    log(f"campaign {camp['id']} via {c['name']}: {e}")
+                await asyncio.sleep(random.uniform(2, 4))  # human-ish pacing
+
+        # Shards run in parallel — each account still serialises its own
+        # requests, so wall-clock drops by account count without raising
+        # per-account request rate.
+        await asyncio.gather(*(work(c, shards[c["name"]]) for c in ordered))
         await asyncio.sleep(POLL_SECONDS)
 
 
