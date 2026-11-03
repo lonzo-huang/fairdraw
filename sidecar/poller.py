@@ -140,8 +140,10 @@ def parse_detail(response, tid: str, focal_seen: bool, thread_ids: set):
                     "reposts": _num(legacy.get("retweet_count")),
                     "quotes": _num(legacy.get("quote_count")),
                     "views": _num((t.get("views") or {}).get("count")),
+                    "bookmarks": _num(legacy.get("bookmark_count")),
                 }
                 fa = ((t.get("core") or {}).get("user_results") or {}).get("result") or {}
+                stats["followers"] = _num((fa.get("legacy") or {}).get("followers_count"))
                 focal_handle = ((fa.get("legacy") or {}).get("screen_name") or "").lower() or focal_handle
                 focal_seen = True
                 continue
@@ -190,12 +192,21 @@ async def known_handles(campaign_id: str) -> set[str]:
 async def upsert_stats(tid: str, stats: dict) -> None:
     row = {"tweet_id": tid, **stats,
            "checked_at": datetime.now(timezone.utc).isoformat()}
-    await rest(
+    res = await rest(
         "POST",
         "tweet_stats?on_conflict=tweet_id",
         json=row,
         headers={**HDRS, "Prefer": "resolution=merge-duplicates"},
     )
+    # Older schemas lack the newer columns — retry without them rather than losing the sweep.
+    if res.status_code >= 400 and ("bookmarks" in res.text or "followers" in res.text):
+        base = {k: v for k, v in row.items() if k not in ("bookmarks", "followers")}
+        await rest(
+            "POST",
+            "tweet_stats?on_conflict=tweet_id",
+            json=base,
+            headers={**HDRS, "Prefer": "resolution=merge-duplicates"},
+        )
 
 
 async def poll_campaign(client, camp: dict) -> None:

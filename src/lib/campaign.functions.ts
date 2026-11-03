@@ -333,12 +333,24 @@ export async function runConditionCheckCore(db: any, c: CheckableCampaign): Prom
         if (tid) {
           const { data: ts } = await db
             .from("tweet_stats")
-            .select("likes, replies, reposts, quotes, bookmarks, views, followers")
+            .select("likes, replies, reposts, quotes, views")
             .eq("tweet_id", tid)
             .maybeSingle();
           if (ts) {
-            for (const k of ["likes", "replies", "reposts", "quotes", "bookmarks", "views", "followers"] as const) {
+            for (const k of ["likes", "replies", "reposts", "quotes", "views"] as const) {
               const v = (ts as Record<string, number | null>)[k];
+              if (metrics[k] === null && typeof v === "number") metrics[k] = v;
+            }
+          }
+          // Newer columns may not exist yet on older schemas — never let them break the base stats read.
+          const { data: extra } = await db
+            .from("tweet_stats")
+            .select("bookmarks, followers")
+            .eq("tweet_id", tid)
+            .maybeSingle();
+          if (extra) {
+            for (const k of ["bookmarks", "followers"] as const) {
+              const v = (extra as Record<string, number | null>)[k];
               if (metrics[k] === null && typeof v === "number") metrics[k] = v;
             }
           }
