@@ -83,11 +83,15 @@ export function sampleImpactRanking(period: RankPeriod): ImpactRow[] {
   const rows: Base[] = accounts.map((_, i) => {
     const [handle, name] = accounts[(i + shift) % accounts.length] ?? accounts[0];
     const k = (accounts.length - i) / accounts.length;
+    // Per-metric jitter decorrelates the fixtures so each metric tab sorts differently.
+    const jr = 0.55 + ((i * 5 + shift) % 9) / 10;
+    const je = 0.55 + ((i * 7 + shift * 2) % 9) / 10;
+    const jg = 0.55 + ((i * 3 + shift * 4) % 9) / 10;
     return {
       id: `sample-${handle}`, handle, name,
-      reach: Math.round(4_800_000 * k * scale),
-      engagement: Math.round(96_000 * k * scale),
-      growth: Math.round(9_600 * k * scale),
+      reach: Math.round(4_800_000 * k * jr * scale),
+      engagement: Math.round(96_000 * k * je * scale),
+      growth: Math.round(9_600 * k * jg * scale),
       campaigns: Math.max(1, Math.round((accounts.length - i) / 2)),
       sample: true,
     };
