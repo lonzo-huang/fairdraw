@@ -154,6 +154,8 @@ def parse_detail(response, tid: str, focal_seen: bool):
                 continue
             if focal_handle and handle == focal_handle:
                 continue  # the campaign owner's own replies can't enter their raffle
+            if not legacy.get("in_reply_to_status_id_str"):
+                continue  # promoted/related injections, not actual replies
             replies[rid] = {
                 "reply_id": rid,
                 "handle": handle,
