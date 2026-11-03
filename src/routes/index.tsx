@@ -6,7 +6,6 @@ import { todayLeader, xHandleFromUrl } from "@/lib/campaign-hub";
 import { usePublicHub } from "@/hooks/use-public-hub";
 import testAvatar from "@/assets/mirrortek-avatar.jpg.asset.json";
 import { Button } from "@/components/ui/button";
-import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { DrawScene } from "@/components/draw-scene";
 import { xDisplayName } from "@/lib/sponsor-ranking";
 import { CampaignHub } from "@/components/campaign-hub";
@@ -43,27 +42,12 @@ function Index() {
         <h1 className="hero-brand mt-6">FairDraw<span className="text-success">.</span></h1>
         <p className="hero-type mt-4 whitespace-pre-line font-semibold">{t("cy.headline")}</p>
         <p className="mt-5 max-w-md text-sm leading-7 text-muted-foreground">{t("cy.sub")}</p>
-        <div className="mt-7 flex flex-wrap gap-3"><Button asChild variant="neon" size="lg" className="hero-cta"><Link to="/new"><Zap />{t("cy.start")}<ArrowUpRight /></Link></Button><Button asChild variant="glass" size="lg" className="h-12"><a href="#faq"><Code2 />{t("nav.guide")}</a></Button></div>
+        <div className="mt-7 flex flex-wrap gap-3"><Button asChild variant="neon" size="lg" className="hero-cta"><Link to="/new"><Zap />{t("cy.start")}<ArrowUpRight /></Link></Button><Button asChild variant="glass" size="lg" className="h-12"><Link to="/guide"><Code2 />{t("nav.guide")}</Link></Button></div>
       </MotionReveal>
        <div className="hero-annotation"><p>{t("cy.todayLeader")} <span className="text-[8px]">USDT</span></p><a href={`https://x.com/${handle}`} target="_blank" rel="noopener noreferrer" className="leader-name mt-2 block"><span className="block text-lg font-semibold">{displayName}</span><span className="text-xs">@{handle}</span></a>{!leaderHandle && <p className="mt-2 text-[9px] text-muted-foreground">{t("cy.testLeader")}</p>}</div>
     </section>
     <div className="mx-auto max-w-[1440px] px-5 sm:px-8">
       <CampaignHub />
     </div>
-    <section id="faq" className="scroll-mt-24 border-y border-border bg-card/35">
-      <div className="mx-auto max-w-3xl px-5 py-14 sm:px-8">
-        <MotionReveal><p className="font-mono text-[10px] text-primary">GROWTH GUIDE / 01</p><h2 className="mt-4 text-3xl font-semibold">{t("faq.title")}</h2><p className="mt-3 text-sm text-muted-foreground">{t("faq.sub")}</p></MotionReveal>
-        <MotionReveal delay={0.1}>
-          <Accordion type="single" collapsible className="mt-8">
-            {([1, 2, 3, 4, 5, 6, 7, 9, 10, 11] as const).map((n) => (
-              <AccordionItem key={n} value={`q${n}`}>
-                <AccordionTrigger>{t(`faq.q${n}`)}</AccordionTrigger>
-                <AccordionContent className="text-sm leading-7 text-muted-foreground">{t(`faq.a${n}`)}</AccordionContent>
-              </AccordionItem>
-            ))}
-          </Accordion>
-        </MotionReveal>
-      </div>
-    </section>
   </>;
 }
