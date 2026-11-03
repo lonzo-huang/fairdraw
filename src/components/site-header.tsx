@@ -34,7 +34,7 @@ export function SiteHeader() {
       <div className="mx-auto flex h-18 max-w-7xl items-center justify-between gap-3 px-5 sm:px-8">
         <Logo />
         <nav className="flex items-center gap-1 text-sm sm:gap-3">
-          {onHome ? <a href="#campaigns" className="hidden px-2 text-xs text-muted-foreground hover:text-success lg:inline">{t("cy.live")}</a> : <Link to="/" className="hidden px-2 font-medium sm:inline">{t("cy.live")}</Link>}
+          {onHome ? <a href="#campaigns" className="hidden px-2 text-muted-foreground hover:text-foreground sm:inline">{t("cy.live")}</a> : <Link to="/" className="hidden px-2 text-muted-foreground hover:text-foreground sm:inline">{t("cy.live")}</Link>}
           <Link to="/guide" className="hidden px-2 text-muted-foreground hover:text-foreground sm:inline">{t("nav.guide")}</Link>
           {user && (
             <>
