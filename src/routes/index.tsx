@@ -1,6 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
-import { ArrowUpRight, Code2, Zap } from "lucide-react";
+import { ArrowUpRight, Code2, Crown, Zap } from "lucide-react";
 import { useI18n } from "@/lib/i18n";
 import { todayLeader, xHandleFromUrl } from "@/lib/campaign-hub";
 import { usePublicHub } from "@/hooks/use-public-hub";
@@ -44,7 +44,14 @@ function Index() {
         <p className="mt-5 max-w-md text-sm leading-7 text-muted-foreground">{t("cy.sub")}</p>
         <div className="mt-7 flex flex-wrap gap-3"><Button asChild variant="neon" size="lg" className="hero-cta"><Link to="/new"><Zap />{t("cy.start")}<ArrowUpRight /></Link></Button><Button asChild variant="glass" size="lg" className="h-12"><Link to="/guide"><Code2 />{t("nav.guide")}</Link></Button></div>
       </MotionReveal>
-       <div className="hero-annotation"><p>{t("cy.todayLeader")} <span className="text-[8px]">USDT</span></p><a href={`https://x.com/${handle}`} target="_blank" rel="noopener noreferrer" className="leader-name mt-2 block"><span className="block text-lg font-semibold">{displayName}</span><span className="text-xs">@{handle}</span></a>{!leaderHandle && <p className="mt-2 text-[9px] text-muted-foreground">{t("cy.testLeader")}</p>}</div>
+       <a href={`https://x.com/${handle}`} target="_blank" rel="noopener noreferrer" className="hero-annotation">
+         <p className="flex items-center gap-2 font-mono text-[9px] tracking-[0.18em] text-muted-foreground"><span className="live-dot" /><Crown className="size-3.5 text-amber-400" />{t("cy.todayLeader")}</p>
+         <div className="mt-3 flex items-center gap-3">
+           <img src={avatar} alt={displayName} className="size-10 rounded-full border border-primary/40 object-cover shadow-glow" />
+           <span><span className="block text-sm font-semibold leading-tight">{displayName}</span><span className="text-xs text-muted-foreground">@{handle}</span></span>
+         </div>
+         {leader?.prize_amount ? <p className="mt-3 border-t border-border/60 pt-2 font-mono text-[10px] text-success">{leader.prize_amount} {leader.currency} · {t("tick.top")}</p> : null}
+       </a>
     </section>
     <div className="mx-auto max-w-[1440px] px-5 sm:px-8">
       <CampaignHub />
