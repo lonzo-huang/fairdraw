@@ -120,8 +120,9 @@ function Dashboard() {
     .sort((a, b) => rank(a.c) - rank(b.c) || Date.parse(b.c.created_at) - Date.parse(a.c.created_at));
 
   return (
-    <div className="mx-auto max-w-6xl px-4 py-12">
-      <div className="flex flex-wrap items-end justify-between gap-4">
+    <div className="relative mx-auto max-w-6xl px-4 py-12">
+      <div aria-hidden className="pointer-events-none absolute -top-24 left-0 h-72 w-[42rem] bg-[radial-gradient(ellipse_at_top_left,rgba(24,235,165,0.07),transparent_65%)]" />
+      <div className="relative flex flex-wrap items-end justify-between gap-4">
         <div>
           <h1 className="text-4xl font-semibold">{t("dash.title")}</h1>
           <p className="mt-2 text-sm text-muted-foreground">{t("dash.subtitle")}</p>
@@ -147,9 +148,9 @@ function Dashboard() {
       ) : (
         <>
           <div className="mt-8 grid grid-cols-2 gap-3 lg:grid-cols-4">
-            <KpiCard icon={Eye} accent="text-prize" label={t("kpi.impressions")} value={impDelta === null ? "—" : fmtCompact(impDelta)} note={t("kpi.scope")} />
-            <KpiCard icon={Activity} accent="text-sky-400" label={t("kpi.engagements")} value={engDelta === null ? "—" : fmtCompact(engDelta)} note={t("kpi.scope")} />
-            <KpiCard icon={TrendingUp} accent="text-violet-400" label={t("kpi.growth")} value={growth === null ? "—" : `+${fmtCompact(growth)}`} note={t("kpi.growthNote")} />
+            <KpiCard icon={Eye} accent="text-prize" label={t("kpi.impressions")} value={impDelta === null ? "—" : fmtCompact(impDelta)} note={impDelta === null ? t("kpi.noData") : t("kpi.scope")} />
+            <KpiCard icon={Activity} accent="text-sky-400" label={t("kpi.engagements")} value={engDelta === null ? "—" : fmtCompact(engDelta)} note={engDelta === null ? t("kpi.noData") : t("kpi.scope")} />
+            <KpiCard icon={TrendingUp} accent="text-violet-400" label={t("kpi.growth")} value={growth === null ? "—" : `+${fmtCompact(growth)}`} note={growth === null ? t("kpi.noData") : t("kpi.growthNote")} />
             <KpiCard icon={Gift} accent="text-foreground" label={t("kpi.giveaways")} value={String(campaigns.length)} note={`${live} ${t("kpi.live")}`} />
           </div>
 
@@ -245,12 +246,12 @@ function buildSeries(rows: SnapRow[], metric: "impressions" | "engagements" | "g
 
 function KpiCard({ icon: Icon, accent, label, value, note }: { icon: typeof Eye; accent: string; label: string; value: string; note: string }) {
   return (
-    <div className="rounded-xl border border-border bg-card p-5 transition-colors hover:border-primary/40">
+    <div className="rounded-xl border border-border bg-card p-5 transition-all duration-200 hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-[0_8px_24px_-12px_rgba(24,235,165,0.25)]">
       <div className="flex items-start justify-between">
         <p className="text-xs text-muted-foreground">{label}</p>
         <Icon className={`size-4 ${accent}`} />
       </div>
-      <p className="mt-2 font-mono text-3xl font-semibold tabular-nums">{value}</p>
+      <p className="mt-2 font-mono text-3xl font-bold tabular-nums tracking-tight">{value}</p>
       <p className="mt-1 text-[10px] text-muted-foreground/70">{note}</p>
     </div>
   );
@@ -261,14 +262,28 @@ function TrendChart({ pts, color }: { pts: { t: string; v: number }[]; color: st
   const max = Math.max(1, ...pts.map((p) => p.v));
   const x = (i: number) => PL + (i / Math.max(1, pts.length - 1)) * (W - PL - PR);
   const y = (v: number) => PT + (1 - v / max) * (H - PT - PB);
-  const line = pts.map((p, i) => `${x(i)},${y(p.v)}`).join(" ");
-  const area = `M ${x(0)},${H - PB} ` + pts.map((p, i) => `L ${x(i)},${y(p.v)}`).join(" ") + ` L ${x(pts.length - 1)},${H - PB} Z`;
+  // Catmull-Rom -> cubic bezier for a smooth curve through the points.
+  const P = pts.map((p, i) => [x(i), y(p.v)]);
+  let d = `M ${P[0][0]},${P[0][1]}`;
+  for (let i = 0; i < P.length - 1; i++) {
+    const p0 = P[Math.max(0, i - 1)], p1 = P[i], p2 = P[i + 1], p3 = P[Math.min(P.length - 1, i + 2)];
+    d += ` C ${p1[0] + (p2[0] - p0[0]) / 6},${p1[1] + (p2[1] - p0[1]) / 6} ${p2[0] - (p3[0] - p1[0]) / 6},${p2[1] - (p3[1] - p1[1]) / 6} ${p2[0]},${p2[1]}`;
+  }
+  const area = `${d} L ${P[P.length - 1][0]},${H - PB} L ${P[0][0]},${H - PB} Z`;
+  const gid = `tg-${color.slice(1)}`;
   const last = pts[pts.length - 1];
   return (
     <svg viewBox={`0 0 ${W} ${H}`} className="mt-3 w-full" role="img">
+      <defs>
+        <linearGradient id={gid} x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor={color} stopOpacity="0.22" />
+          <stop offset="100%" stopColor={color} stopOpacity="0" />
+        </linearGradient>
+      </defs>
       {[0.25, 0.5, 0.75, 1].map((f) => <line key={f} x1={PL} x2={W - PR} y1={y(max * f)} y2={y(max * f)} stroke="currentColor" strokeOpacity="0.08" />)}
-      <path d={area} fill={color} fillOpacity="0.07" />
-      <polyline fill="none" stroke={color} strokeWidth="2" strokeLinejoin="round" points={line} />
+      <path d={area} fill={`url(#${gid})`} />
+      <path d={d} fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" />
+      {pts.map((p, i) => <circle key={i} cx={x(i)} cy={y(p.v)} r="7" fill="transparent"><title>{`${p.v.toLocaleString()} · ${new Date(p.t).toLocaleString()}`}</title></circle>)}
       <circle cx={x(pts.length - 1)} cy={y(last.v)} r="3.5" fill={color}><title>{`${last.v.toLocaleString()} · ${new Date(last.t).toLocaleString()}`}</title></circle>
       <text x={PL} y={H - 8} fontSize="10" fill="currentColor" opacity="0.5">{new Date(pts[0].t).toLocaleDateString()}</text>
       <text x={W - PR} y={H - 8} fontSize="10" fill="currentColor" opacity="0.5" textAnchor="end">{new Date(last.t).toLocaleDateString()}</text>
@@ -280,8 +295,8 @@ function TrendChart({ pts, color }: { pts: { t: string; v: number }[]; color: st
 type Row = { c: Camp; latestM: Metrics | null; growth: number | null; engagements: number | null };
 
 function Avatar({ handle, name }: { handle: string | null; name: string | null }) {
-  if (!handle) return <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-muted text-xs font-semibold">{(name ?? "?").slice(0, 1).toUpperCase()}</span>;
-  return <img src={`https://unavatar.io/x/${handle}`} alt="" loading="lazy" className="size-9 shrink-0 rounded-full bg-muted object-cover" onError={(e) => { e.currentTarget.style.display = "none"; }} />;
+  if (!handle) return <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-muted text-xs font-semibold ring-1 ring-border">{(name ?? "?").slice(0, 1).toUpperCase()}</span>;
+  return <img src={`https://unavatar.io/x/${handle}`} alt="" loading="lazy" className="size-9 shrink-0 rounded-full bg-muted object-cover ring-1 ring-border" onError={(e) => { e.currentTarget.style.display = "none"; }} />;
 }
 
 function CampRow({ r }: { r: Row }) {

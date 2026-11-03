@@ -10,7 +10,13 @@ export function StatusBadge({ status, endsAt }: { status: string; endsAt: string
       : status === "cancelled" || ended
         ? "bg-muted text-muted-foreground"
         : "bg-success/20 text-success";
-  return <span className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${cls}`}>{label}</span>;
+  const live = status === "open" && !ended;
+  return (
+    <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-medium ${cls}`}>
+      {live && <span className="size-1.5 rounded-full bg-current" />}
+      {label}
+    </span>
+  );
 }
 
 export function EntryBadge({ status }: { status: string }) {
