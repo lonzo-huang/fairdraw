@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { ArrowUpRight, Clock3, Gift, Flame, Trophy, Zap, Users, RefreshCw, TrendingUp } from "lucide-react";
@@ -20,8 +20,15 @@ export function CampaignHub() {
   const [currency, setCurrency] = useState("USDT");
   const [now, setNow] = useState(0);
   const [sampleRanking, setSampleRanking] = useState(true);
+  const currencyPicked = useRef(false);
   useEffect(() => { setNow(Date.now()); const timer = setInterval(() => setNow(Date.now()), 1000); return () => clearInterval(timer); }, []);
   const query = usePublicHub();
+  // Default the currency selector to the currency holding the largest active pool, so top pools is never empty by a mismatch.
+  useEffect(() => {
+    if (currencyPicked.current || !query.data?.length) return;
+    const top = query.data.filter((c) => c.status === "open" && Date.parse(c.ends_at) > Date.now() && c.prize_amount !== null).sort((a, b) => (b.prize_amount ?? 0) - (a.prize_amount ?? 0))[0];
+    if (top && top.currency !== currency) setCurrency(top.currency);
+  }, [query.data]);
   const snapshots = useQuery({ queryKey: ["public-hub-progress"], queryFn: async () => {
     const { data, error } = await supabase.from("condition_snapshots").select("campaign_id,progress,fetched_at,metrics").order("fetched_at", { ascending: false });
     if (error) throw error; return data;
@@ -46,7 +53,7 @@ export function CampaignHub() {
     </MotionReveal>
     <nav aria-label={t("cy.hub")} className="hub-nav sticky top-16 z-20 mt-5 flex flex-wrap items-center justify-between gap-2 border-y border-border py-2">
       <div className="flex flex-wrap gap-1">{sections.map(({ id, key, icon: Icon }) => <Button key={id} variant={active === id ? "glass" : "ghost"} size="sm" onClick={() => jump(id)} aria-current={active === id ? "location" : undefined} className={active === id ? "text-prize" : "text-muted-foreground"}><Icon className="size-3.5" />{t(key)}</Button>)}</div>
-      <div className="flex items-center gap-3"><select aria-label={t("f.currency")} value={currency} onChange={(e) => setCurrency(e.target.value)} className="rounded-md border border-border bg-card px-2 py-1 text-xs">{["CNY", "USD", "USDT", "EUR", "GBP"].map((c) => <option key={c}>{c}</option>)}</select><span className="hidden items-center gap-1 text-[10px] text-muted-foreground sm:flex"><RefreshCw className="size-3" />{t("cond.refresh")}</span></div>
+      <div className="flex items-center gap-3"><select aria-label={t("f.currency")} value={currency} onChange={(e) => { currencyPicked.current = true; setCurrency(e.target.value); }} className="rounded-md border border-border bg-card px-2 py-1 text-xs">{["CNY", "USD", "USDT", "EUR", "GBP"].map((c) => <option key={c}>{c}</option>)}</select><span className="hidden items-center gap-1 text-[10px] text-muted-foreground sm:flex"><RefreshCw className="size-3" />{t("cond.refresh")}</span></div>
     </nav>
     {sections.map(({ id, key, icon: Icon }) => <section key={id} id={`hub-${id}`} className="hub-section scroll-mt-36 border-b border-border py-6">
       <div className="mb-4 flex items-center gap-2"><Icon className={`size-4 ${id === "drawn" || id === "top" ? "text-prize" : "text-primary"}`} /><h3 className="text-lg font-semibold">{t(key)}</h3></div>
@@ -89,7 +96,7 @@ function CampaignCard({ c, now, index, hostName, metrics, progress, winners }: {
     <div className="relative isolate flex flex-1 flex-col px-3 pb-3">
       <CardBg src={winners[0] ? avatarUrl(winners[0]) : logoAsset.url} contain={!winners[0]} />
       <ul className="condition-slot rounded-md border border-border bg-muted/40 px-2 py-1.5 text-[10px]">{conds.keyword && <li className="flex justify-between gap-1"><span className="text-muted-foreground">{t("cond.keyword")}</span><span className="truncate" title={conds.keyword}>{conds.keyword}</span></li>}{rows.length ? rows.map((r) => <li key={r.key} className="flex justify-between gap-1"><span className="text-muted-foreground">{t(r.key)}</span><span className={`font-mono ${r.cur !== null && r.cur >= r.target ? "text-success" : ""}`}>{r.cur ?? "—"}/{r.target}</span></li>) : !conds.keyword && <li className="text-muted-foreground">{t("cy.noConditions")}</li>}</ul>
-      <div className="metric-duo mt-2 grid grid-cols-2 gap-1.5"><div className="exposure-box" title={t("cy.exposureNote")}><TrendingUp className="metric-signal" /><p className="text-[10px] text-muted-foreground">{t("cy.exposure")}</p><p className="font-mono text-xl font-bold text-prize">{typeof metrics?.views === "number" ? <AnimatedNumber value={metrics.views} /> : "—"}</p></div><div className="exposure-box" title={t("cy.popularityNote")}><span className="metric-signal live-dot" /><p className="text-[10px] text-muted-foreground">{t("cy.popularity")}</p><p className="font-mono text-xl font-bold text-success">{popularity === null ? "—" : <AnimatedNumber value={popularity} />}</p></div></div>
+      <div className="metric-duo mt-2 grid grid-cols-2 gap-1.5"><div className="exposure-box" title={t("cy.exposureNote")}><TrendingUp className="metric-signal" /><p className="text-[10px] text-muted-foreground">{t("cy.exposure")}</p><p className="font-mono text-xl font-bold text-prize">{typeof metrics?.views === "number" ? <AnimatedNumber value={metrics.views} compact /> : "—"}</p></div><div className="exposure-box" title={t("cy.popularityNote")}><span className="metric-signal live-dot" /><p className="text-[10px] text-muted-foreground">{t("cy.popularity")}</p><p className="font-mono text-xl font-bold text-success">{popularity === null ? "—" : <AnimatedNumber value={popularity} compact />}</p></div></div>
       <div className="mt-2 flex justify-between text-[10px] text-muted-foreground"><span>{t("cy.drawProgress")}</span><span className="font-mono">{progress === undefined ? "—" : `${progress}%`}</span></div><AnimatedProgress label={t("cy.drawProgress")} value={progress} tone="heat" />
       <div className="winner-slot mt-2 border-t border-border pt-2"><p className="sponsor-title">{t("cy.winnersTitle")}</p>{winners.length ? <ul className="mt-1 flex justify-center gap-1.5">{winners.slice(0, 3).map((h) => <li key={h}><SponsorLink handle={h} className="flex flex-col items-center gap-0.5"><Avatar handle={h} name={h} size="sm" /><span className="max-w-12 truncate text-[10px]">@{h}</span></SponsorLink></li>)}{winners.length > 3 && <li className="self-center text-[10px] text-muted-foreground">+{winners.length - 3}</li>}</ul> : <p className="mt-2 text-center text-[10px] text-muted-foreground">{t("cy.winnersPending")}</p>}</div>
       <div className="tile-actions mt-auto grid grid-cols-2 gap-1.5 pt-2"><Button asChild variant="glass" size="sm" className="h-7 px-1 text-[10px]"><Link to="/c/$slug" params={{ slug: c.slug }}>{t("cy.details")}</Link></Button>{c.tweet_url ? <Button asChild variant="neon" size="sm" className="h-7 gap-0.5 px-1 text-[10px]"><a href={c.tweet_url} target="_blank" rel="noopener noreferrer">{t("cy.postPage")}<ArrowUpRight className="size-3" /></a></Button> : <Button variant="glass" size="sm" className="h-7 px-1 text-[10px]" disabled>{t("cy.postPage")}</Button>}</div>

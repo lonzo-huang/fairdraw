@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { animate, useInView, useReducedMotion } from "framer-motion";
 
-export function AnimatedNumber({ value, decimals = 0 }: { value: number; decimals?: number }) {
+export function AnimatedNumber({ value, decimals = 0, compact = false }: { value: number; decimals?: number; compact?: boolean }) {
   const ref = useRef<HTMLSpanElement>(null);
   const inView = useInView(ref, { once: true });
   const reduced = useReducedMotion();
@@ -12,7 +12,7 @@ export function AnimatedNumber({ value, decimals = 0 }: { value: number; decimal
     const controls = animate(current.current, value, { duration: reduced ? 0 : 0.9, ease: "easeOut", onUpdate: (v) => { current.current = v; setDisplay(v); } });
     return () => controls.stop();
   }, [value, inView, reduced]);
-  return <span ref={ref} className="tabular-nums">{display.toLocaleString("en-US", { minimumFractionDigits: decimals, maximumFractionDigits: decimals })}</span>;
+  return <span ref={ref} className="tabular-nums">{compact ? display.toLocaleString("en-US", { notation: "compact", maximumFractionDigits: 1 }) : display.toLocaleString("en-US", { minimumFractionDigits: decimals, maximumFractionDigits: decimals })}</span>;
 }
 
 export function AnimatedProgress({ value, label, tone = "default" }: { value: number | undefined; label: string; tone?: "default" | "heat" }) {
