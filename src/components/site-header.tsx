@@ -4,13 +4,13 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { useI18n } from "@/lib/i18n";
 import { Button } from "@/components/ui/button";
-import { ArrowUpRight, Ticket } from "lucide-react";
+import { ArrowUpRight } from "lucide-react";
+import logoImg from "@/assets/fairdraw-logo.png";
 
 export function Logo() {
   return (
-    <Link to="/" className="flex shrink-0 items-center gap-2 text-xl font-semibold">
-      <Ticket className="size-7 -rotate-12 text-success drop-shadow-sm" strokeWidth={2.3} />
-      <span>FairDraw<span className="text-success">.</span></span>
+    <Link to="/" className="flex shrink-0 items-center" aria-label="FairDraw">
+      <img src={logoImg} alt="FairDraw" className="h-9 w-auto object-contain" />
     </Link>
   );
 }

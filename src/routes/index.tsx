@@ -14,9 +14,9 @@ import { MotionReveal } from "@/components/motion-surface";
 
 export const Route = createFileRoute("/")({
   head: () => ({ meta: [
-    { title: "FairDraw — 引爆全网增长，让中奖绝对透明" },
+    { title: "FairDraw — 让每一次抽奖，都带来增长。" },
     { name: "description", content: "设定互动门槛与奖池托管，用可复核的公平抽奖，加速你的账号曝光与粉丝裂变。" },
-    { property: "og:title", content: "FairDraw — 引爆全网增长，让中奖绝对透明" },
+    { property: "og:title", content: "FairDraw — 让每一次抽奖，都带来增长。" },
     { property: "og:description", content: "设定互动门槛与奖池托管，用可复核的公平抽奖，加速你的账号曝光与粉丝裂变。" },
     { property: "og:type", content: "website" },
     { name: "twitter:card", content: "summary_large_image" },

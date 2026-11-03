@@ -8,7 +8,7 @@ export function filterHub(campaigns: HubCampaign[], tab: HubTab, now: number, cu
   const active = campaigns.filter((c) => c.status === "open" && Date.parse(c.ends_at) > now);
   if (tab === "drawn") return campaigns.filter((c) => c.status === "drawn").sort((a, b) => Date.parse(b.created_at) - Date.parse(a.created_at)).slice(0, 12);
   if (tab === "ending") return active.filter((c) => Date.parse(c.ends_at) - now < 2 * 60 * 60 * 1000).sort((a, b) => Date.parse(a.ends_at) - Date.parse(b.ends_at)).slice(0, 12);
-  if (tab === "top") return active.filter((c) => c.currency === currency && c.prize_amount !== null).sort((a, b) => (b.prize_amount ?? 0) - (a.prize_amount ?? 0)).slice(0, 12);
+  if (tab === "top") return active.filter((c) => c.currency === currency && c.prize_amount !== null).sort((a, b) => (b.prize_amount ?? 0) - (a.prize_amount ?? 0)).slice(0, 5);
   return active.sort((a, b) => Date.parse(b.created_at) - Date.parse(a.created_at)).slice(0, 12);
 }
 export function simulateCost(pool: number, target: number) { return pool / (target * 2); }
