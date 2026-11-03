@@ -34,6 +34,8 @@ KEY = os.environ["SUPABASE_SERVICE_KEY"]
 COOKIES_DIR = Path(os.environ.get("COOKIES_DIR", "cookies"))
 POLL_SECONDS = int(os.environ.get("POLL_SECONDS", "300"))
 MAX_PAGES = 10  # safety cap: ~200 replies per sweep per campaign
+FULL_SCAN_EVERY = 3600  # force a full reply scan hourly even when reply_count is flat
+LAST_FULL: dict[str, float] = {}  # campaign_id -> last full-scan timestamp
 
 HDRS = {
     "apikey": KEY,
@@ -103,6 +105,7 @@ def parse_detail(response, tid: str, focal_seen: bool):
             entries.append(e)
 
     stats, replies, cursor = None, {}, None
+    focal_handle = None
     for entry in entries:
         if not isinstance(entry, dict):
             continue
@@ -137,6 +140,8 @@ def parse_detail(response, tid: str, focal_seen: bool):
                     "quotes": _num(legacy.get("quote_count")),
                     "views": _num((t.get("views") or {}).get("count")),
                 }
+                fa = ((t.get("core") or {}).get("user_results") or {}).get("result") or {}
+                focal_handle = ((fa.get("legacy") or {}).get("screen_name") or "").lower() or focal_handle
                 focal_seen = True
                 continue
             if not focal_seen:
@@ -146,12 +151,15 @@ def parse_detail(response, tid: str, focal_seen: bool):
             handle = (ulegacy.get("screen_name") or "").lower()
             if not handle or rid in replies:
                 continue
+            if focal_handle and handle == focal_handle:
+                continue  # the campaign owner's own replies can't enter their raffle
             replies[rid] = {
                 "reply_id": rid,
                 "handle": handle,
                 "x_verified": u.get("is_blue_verified", ulegacy.get("is_blue_verified")),
                 "author_name": ulegacy.get("name"),
                 "text": legacy.get("full_text"),
+                "reply_time": legacy.get("created_at"),
             }
     return stats, replies, cursor, focal_seen
 
@@ -198,21 +206,40 @@ async def poll_campaign(client, camp: dict) -> None:
     stats, replies, cursor, focal = parse_detail(response, tid, focal_seen=False)
     if not focal:
         return
+    prev = None
+    try:
+        pr = await rest("GET", f"tweet_stats?tweet_id=eq.{tid}&select=replies&limit=1")
+        j = pr.json()
+        if isinstance(j, list) and j:
+            prev = j[0].get("replies")
+    except Exception:
+        prev = None
     if stats:
         await upsert_stats(tid, stats)
 
-    pages = 0
-    while cursor and pages < MAX_PAGES:
-        pages += 1
-        await asyncio.sleep(random.uniform(1, 2))
-        try:
-            response, _ = await client.gql.tweet_detail(tid, cursor)
-        except Exception:
-            break
-        _, more, cursor, focal = parse_detail(response, tid, focal_seen=focal)
-        replies.update(more)
-        if not more:
-            break
+    # Most sweeps bring zero new repliers: when the reply_count parsed on
+    # page 1 matches what we stored, pages 2+ cannot contain anyone new —
+    # skip them (~70% fewer calls). A delete+reply swap keeps the count
+    # flat, so force a full scan once an hour; count changes always scan.
+    now = datetime.now(timezone.utc).timestamp()
+    if (
+        stats is None
+        or stats.get("replies") != prev
+        or now - LAST_FULL.get(cid, 0) > FULL_SCAN_EVERY
+    ):
+        LAST_FULL[cid] = now
+        pages = 0
+        while cursor and pages < MAX_PAGES:
+            pages += 1
+            await asyncio.sleep(random.uniform(1, 2))
+            try:
+                response, _ = await client.gql.tweet_detail(tid, cursor)
+            except Exception:
+                break
+            _, more, cursor, focal = parse_detail(response, tid, focal_seen=focal)
+            replies.update(more)
+            if not more:
+                break
 
     known = await known_handles(cid)
     rows = []
@@ -233,6 +260,7 @@ async def poll_campaign(client, camp: dict) -> None:
                 "x_verified": r["x_verified"],
                 "author_name": r["author_name"],
                 "text": r["text"],
+                "reply_time": r["reply_time"],
             },
             "fetched_at": datetime.now(timezone.utc).isoformat(),
         })
