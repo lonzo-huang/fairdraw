@@ -320,36 +320,54 @@ function Manage() {
         {entries.length === 0 ? (
           <p className="mt-6 text-muted-foreground">{t("m.noEntries")}</p>
         ) : (
-          <div className="mt-4 divide-y divide-border rounded-xl border border-border bg-card">
-            {entries.map((e) => {
-              const meta = e.fetched_meta as { author_name?: string; text?: string; handle_match?: boolean | null; reply_time?: string; x_verified?: boolean | null } | null;
-              const answers = (e.answers as string[]) ?? [];
-              return (
-                <div key={e.id} className="flex flex-col gap-2 p-4 sm:flex-row sm:items-start sm:justify-between">
-                  <div className="min-w-0">
-                    <div className="flex flex-wrap items-center gap-2">
-                      {meta?.author_name && <span className="font-medium">{meta.author_name}</span>}
-                      <span className="font-mono text-muted-foreground">@{e.handle}</span>
-                      {meta?.x_verified === true && <span className="text-xs font-medium text-sky-500">✓ {t("m.blueV")}</span>}
-                      <EntryBadge status={e.eligibility_status} />
-                      <span className="text-xs uppercase text-muted-foreground">{e.platform}</span>
-                      {meta?.reply_time && <span className="text-xs text-muted-foreground">{new Date(meta.reply_time).toLocaleString()}</span>}
-                      {meta?.handle_match === false && <span className="text-xs text-destructive">⚠ {t("m.handleMismatch")}</span>}
-                    </div>
-                    <a href={e.post_url} target="_blank" rel="noreferrer" className="block truncate text-sm text-primary hover:underline">{e.post_url}</a>
-                    {meta?.text && <p className="mt-1 text-sm text-muted-foreground">{meta.text}</p>}
-                    {answers.map((a, i) => <p key={i} className="text-sm">• {a}</p>)}
-                  </div>
-                  {open && (
-                    <div className="flex shrink-0 gap-1">
-                      <Button size="sm" variant="ghost" disabled={busy} onClick={() => runCheck([e.id])}>{t("m.check")}</Button>
-                      <Button size="sm" variant="ghost" onClick={() => setStatus(e.id, "eligible")}>{t("m.eligible")}</Button>
-                      <Button size="sm" variant="ghost" onClick={() => setStatus(e.id, "ineligible")}>{t("m.ineligible")}</Button>
-                    </div>
-                  )}
-                </div>
-              );
-            })}
+          <div className="mt-4 overflow-x-auto rounded-xl border border-border bg-card">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-border text-left text-xs text-muted-foreground">
+                  <th className="px-4 py-3 font-medium">{t("m.colName")}</th>
+                  <th className="px-4 py-3 font-medium">@</th>
+                  <th className="px-4 py-3 font-medium">{t("m.blueV")}</th>
+                  <th className="px-4 py-3 font-medium">{t("m.colTime")}</th>
+                  <th className="px-4 py-3 font-medium">{t("m.colReply")}</th>
+                  <th className="px-4 py-3"></th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border">
+                {entries.map((e) => {
+                  const meta = e.fetched_meta as { author_name?: string; text?: string; handle_match?: boolean | null; reply_time?: string; x_verified?: boolean | null } | null;
+                  const answers = (e.answers as string[]) ?? [];
+                  return (
+                    <tr key={e.id} className="align-top">
+                      <td className="max-w-[10rem] truncate px-4 py-3 font-medium">{meta?.author_name ?? "—"}</td>
+                      <td className="whitespace-nowrap px-4 py-3 font-mono text-muted-foreground">
+                        @{e.handle}
+                        {meta?.handle_match === false && <span className="ml-1 text-xs text-destructive">⚠</span>}
+                      </td>
+                      <td className="px-4 py-3">{meta?.x_verified === true ? <span className="text-xs font-medium text-sky-500">✓ {t("m.blueV")}</span> : "—"}</td>
+                      <td className="whitespace-nowrap px-4 py-3 text-muted-foreground">{meta?.reply_time ? new Date(meta.reply_time).toLocaleString() : "—"}</td>
+                      <td className="max-w-xs px-4 py-3 text-muted-foreground">
+                        <a href={e.post_url} target="_blank" rel="noreferrer" className="hover:text-primary">
+                          {meta?.text ?? e.post_url}
+                        </a>
+                        {answers.map((a, i) => <p key={i}>• {a}</p>)}
+                      </td>
+                      <td className="whitespace-nowrap px-4 py-3">
+                        <div className="flex items-center gap-1">
+                          <EntryBadge status={e.eligibility_status} />
+                          {open && (
+                            <>
+                              <Button size="sm" variant="ghost" disabled={busy} onClick={() => runCheck([e.id])}>{t("m.check")}</Button>
+                              <Button size="sm" variant="ghost" onClick={() => setStatus(e.id, "eligible")}>{t("m.eligible")}</Button>
+                              <Button size="sm" variant="ghost" onClick={() => setStatus(e.id, "ineligible")}>{t("m.ineligible")}</Button>
+                            </>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
           </div>
         )}
       </section>
