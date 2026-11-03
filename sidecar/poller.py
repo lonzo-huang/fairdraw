@@ -36,6 +36,7 @@ POLL_SECONDS = int(os.environ.get("POLL_SECONDS", "300"))
 MAX_PAGES = 10  # safety cap: ~200 replies per sweep per campaign
 FULL_SCAN_EVERY = 3600  # force a full reply scan hourly even when reply_count is flat
 LAST_FULL: dict[str, float] = {}  # campaign_id -> last full-scan timestamp
+MAX_REPLIERS = 1000  # raffle pool cap: first 1000 visible repliers in X's order
 
 HDRS = {
     "apikey": KEY,
@@ -221,11 +222,15 @@ async def poll_campaign(client, camp: dict) -> None:
     # page 1 matches what we stored, pages 2+ cannot contain anyone new —
     # skip them (~70% fewer calls). A delete+reply swap keeps the count
     # flat, so force a full scan once an hour; count changes always scan.
+    known = await known_handles(cid)
     now = datetime.now(timezone.utc).timestamp()
     if (
-        stats is None
-        or stats.get("replies") != prev
-        or now - LAST_FULL.get(cid, 0) > FULL_SCAN_EVERY
+        len(known) < MAX_REPLIERS
+        and (
+            stats is None
+            or stats.get("replies") != prev
+            or now - LAST_FULL.get(cid, 0) > FULL_SCAN_EVERY
+        )
     ):
         LAST_FULL[cid] = now
         pages = 0
@@ -241,9 +246,10 @@ async def poll_campaign(client, camp: dict) -> None:
             if not more:
                 break
 
-    known = await known_handles(cid)
     rows = []
     for rid, r in replies.items():
+        if len(known) >= MAX_REPLIERS:
+            break  # raffle pool capped — later repliers in X's order don't enter
         if r["handle"] in known:
             continue
         known.add(r["handle"])
