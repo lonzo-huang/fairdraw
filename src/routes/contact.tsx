@@ -29,7 +29,12 @@ function Contact() {
         {items.map(({ k, icon }) => (
           <section key={k} className="rounded-xl border border-border bg-card p-5">
             <h2 className="flex items-center gap-2 font-medium">{icon}{t(`ct.${k}`)}</h2>
-            <p className="mt-2 text-sm leading-7 text-muted-foreground">{t(`ct.${k}D`)}</p>
+            <p className="mt-2 text-sm leading-7 text-muted-foreground">
+              {k === "mail" ? (
+                <a href="https://x.com/Mirrortekuk" target="_blank" rel="noopener noreferrer" className="font-medium text-success hover:underline">@Mirrortekuk</a>
+              ) : null}{" "}
+              {t(`ct.${k}D`)}
+            </p>
           </section>
         ))}
       </div>

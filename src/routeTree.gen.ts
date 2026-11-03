@@ -13,7 +13,6 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/route'
 import { Route as AuthRouteImport } from './routes/auth'
 import { Route as ContactRouteImport } from './routes/contact'
-import { Route as PricingRouteImport } from './routes/pricing'
 import { Route as PrivacyRouteImport } from './routes/privacy'
 import { Route as RankingsRouteImport } from './routes/rankings'
 import { Route as TermsRouteImport } from './routes/terms'
@@ -46,11 +45,6 @@ const AuthRoute = AuthRouteImport.update({
 const ContactRoute = ContactRouteImport.update({
   id: '/contact',
   path: '/contact',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const PricingRoute = PricingRouteImport.update({
-  id: '/pricing',
-  path: '/pricing',
   getParentRoute: () => rootRouteImport,
 } as any)
 const PrivacyRoute = PrivacyRouteImport.update({
@@ -129,7 +123,6 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
   '/contact': typeof ContactRoute
-  '/pricing': typeof PricingRoute
   '/privacy': typeof PrivacyRoute
   '/rankings': typeof RankingsRoute
   '/terms': typeof TermsRoute
@@ -149,7 +142,6 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
   '/contact': typeof ContactRoute
-  '/pricing': typeof PricingRoute
   '/privacy': typeof PrivacyRoute
   '/rankings': typeof RankingsRoute
   '/terms': typeof TermsRoute
@@ -171,7 +163,6 @@ export interface FileRoutesById {
   '/_authenticated': typeof AuthenticatedRouteRouteWithChildren
   '/auth': typeof AuthRoute
   '/contact': typeof ContactRoute
-  '/pricing': typeof PricingRoute
   '/privacy': typeof PrivacyRoute
   '/rankings': typeof RankingsRoute
   '/terms': typeof TermsRoute
@@ -193,7 +184,6 @@ export interface FileRouteTypes {
     | '/'
     | '/auth'
     | '/contact'
-    | '/pricing'
     | '/privacy'
     | '/rankings'
     | '/terms'
@@ -213,7 +203,6 @@ export interface FileRouteTypes {
     | '/'
     | '/auth'
     | '/contact'
-    | '/pricing'
     | '/privacy'
     | '/rankings'
     | '/terms'
@@ -234,7 +223,6 @@ export interface FileRouteTypes {
     | '/_authenticated'
     | '/auth'
     | '/contact'
-    | '/pricing'
     | '/privacy'
     | '/rankings'
     | '/terms'
@@ -256,7 +244,6 @@ export interface RootRouteChildren {
   AuthenticatedRouteRoute: typeof AuthenticatedRouteRouteWithChildren
   AuthRoute: typeof AuthRoute
   ContactRoute: typeof ContactRoute
-  PricingRoute: typeof PricingRoute
   PrivacyRoute: typeof PrivacyRoute
   RankingsRoute: typeof RankingsRoute
   TermsRoute: typeof TermsRoute
@@ -296,13 +283,6 @@ declare module '@tanstack/react-router' {
       path: '/contact'
       fullPath: '/contact'
       preLoaderRoute: typeof ContactRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/pricing': {
-      id: '/pricing'
-      path: '/pricing'
-      fullPath: '/pricing'
-      preLoaderRoute: typeof PricingRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/privacy': {
@@ -430,7 +410,6 @@ const rootRouteChildren: RootRouteChildren = {
   AuthenticatedRouteRoute: AuthenticatedRouteRouteWithChildren,
   AuthRoute: AuthRoute,
   ContactRoute: ContactRoute,
-  PricingRoute: PricingRoute,
   PrivacyRoute: PrivacyRoute,
   RankingsRoute: RankingsRoute,
   TermsRoute: TermsRoute,

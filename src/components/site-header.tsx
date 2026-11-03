@@ -34,10 +34,7 @@ export function SiteHeader() {
       <div className="mx-auto flex h-18 max-w-7xl items-center justify-between gap-3 px-5 sm:px-8">
         <Logo />
         <nav className="flex items-center gap-1 text-sm sm:gap-3">
-          {onHome ? <div className="hidden items-center gap-5 text-xs text-muted-foreground lg:flex"><a href="#campaigns" className="hover:text-success">{t("cy.live")}</a><a href="#faq" className="hover:text-success">{t("nav.guide")}</a><a href="#how" className="hover:text-success">{t("how.title")}</a></div> : <Link to="/" className="hidden px-2 font-medium sm:inline">{t("cy.live")}</Link>}
-          <Link to="/pricing" className="hidden px-2 text-muted-foreground hover:text-foreground sm:inline">
-            {t("nav.pricing")}
-          </Link>
+          {onHome ? <div className="hidden items-center gap-5 text-xs text-muted-foreground lg:flex"><a href="#campaigns" className="hover:text-success">{t("cy.live")}</a><a href="#faq" className="hover:text-success">{t("nav.guide")}</a></div> : <Link to="/" className="hidden px-2 font-medium sm:inline">{t("cy.live")}</Link>}
           {user && (
             <>
               <Link to="/dashboard" className="px-2 text-muted-foreground hover:text-foreground">
@@ -78,7 +75,7 @@ export function SiteFooter() {
   return (
     <footer className="border-t border-border bg-background">
       <div className="mx-auto max-w-7xl px-5 py-9 sm:px-8">
-        <div className="flex flex-wrap items-center justify-between gap-6"><div><Logo /><p className="mt-3 text-xs text-muted-foreground">{t("cy.footer")}</p></div><div className="flex gap-6 text-xs text-muted-foreground"><Link to="/">{t("cy.live")}</Link><Link to="/pricing">{t("nav.pricing")}</Link><Link to="/new">{t("cy.start")}</Link><Link to="/privacy">{t("footer.privacy")}</Link><Link to="/terms">{t("footer.terms")}</Link><Link to="/contact">{t("footer.contact")}</Link></div></div>
+        <div className="flex flex-wrap items-center justify-between gap-6"><div><Logo /><p className="mt-3 text-xs text-muted-foreground">{t("cy.footer")}</p></div><div className="flex gap-6 text-xs text-muted-foreground"><Link to="/">{t("cy.live")}</Link><Link to="/new">{t("cy.start")}</Link><Link to="/privacy">{t("footer.privacy")}</Link><Link to="/terms">{t("footer.terms")}</Link><Link to="/contact">{t("footer.contact")}</Link></div></div>
         <div className="mt-7 flex flex-wrap justify-between gap-3 border-t border-border pt-5 text-[10px] text-muted-foreground"><span>© 2026 FairDraw.win · {t("cy.unaffiliated")}</span><span>{t("footer.note")}</span></div>
       </div>
     </footer>

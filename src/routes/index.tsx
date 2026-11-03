@@ -43,7 +43,7 @@ function Index() {
         <h1 className="hero-brand mt-6">FairDraw<span className="text-success">.</span></h1>
         <p className="hero-type mt-4 whitespace-pre-line font-semibold">{t("cy.headline")}</p>
         <p className="mt-5 max-w-md text-sm leading-7 text-muted-foreground">{t("cy.sub")}</p>
-        <div className="mt-7 flex flex-wrap gap-3"><Button asChild variant="neon" size="lg" className="hero-cta"><Link to="/new"><Zap />{t("cy.start")}<ArrowUpRight /></Link></Button><Button asChild variant="glass" size="lg" className="h-12"><a href="#how"><Code2 />{t("cy.how")}</a></Button></div>
+        <div className="mt-7 flex flex-wrap gap-3"><Button asChild variant="neon" size="lg" className="hero-cta"><Link to="/new"><Zap />{t("cy.start")}<ArrowUpRight /></Link></Button><Button asChild variant="glass" size="lg" className="h-12"><a href="#faq"><Code2 />{t("nav.guide")}</a></Button></div>
       </MotionReveal>
        <div className="hero-annotation"><p>{t("cy.todayLeader")} <span className="text-[8px]">USDT</span></p><a href={`https://x.com/${handle}`} target="_blank" rel="noopener noreferrer" className="leader-name mt-2 block"><span className="block text-lg font-semibold">{displayName}</span><span className="text-xs">@{handle}</span></a>{!leaderHandle && <p className="mt-2 text-[9px] text-muted-foreground">{t("cy.testLeader")}</p>}</div>
     </section>
@@ -55,7 +55,7 @@ function Index() {
         <MotionReveal><p className="font-mono text-[10px] text-primary">GROWTH GUIDE / 01</p><h2 className="mt-4 text-3xl font-semibold">{t("faq.title")}</h2><p className="mt-3 text-sm text-muted-foreground">{t("faq.sub")}</p></MotionReveal>
         <MotionReveal delay={0.1}>
           <Accordion type="single" collapsible className="mt-8">
-            {([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12] as const).map((n) => (
+            {([1, 2, 3, 4, 5, 6, 7, 9, 10, 11] as const).map((n) => (
               <AccordionItem key={n} value={`q${n}`}>
                 <AccordionTrigger>{t(`faq.q${n}`)}</AccordionTrigger>
                 <AccordionContent className="text-sm leading-7 text-muted-foreground">{t(`faq.a${n}`)}</AccordionContent>
@@ -64,10 +64,6 @@ function Index() {
           </Accordion>
         </MotionReveal>
       </div>
-    </section>
-    <section id="how" className="mx-auto max-w-7xl scroll-mt-24 px-5 py-12 sm:px-8">
-      <MotionReveal><p className="font-mono text-[10px] text-success">THE FLOW / 02</p><h2 className="mt-3 text-2xl font-semibold">{t("how.title")}</h2></MotionReveal>
-      <div className="mt-7 grid gap-7 sm:grid-cols-2 lg:grid-cols-4">{([1, 2, 3, 4] as const).map((n) => <MotionReveal key={n} delay={n * 0.08} className="border-t border-border pt-5"><span className="font-mono text-xs text-primary">0{n} /</span><h3 className="mt-3 text-sm font-medium">{t(`how.${n}t`)}</h3><p className="mt-2 text-xs leading-6 text-muted-foreground">{t(`how.${n}d`)}</p></MotionReveal>)}</div>
     </section>
   </>;
 }
