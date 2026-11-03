@@ -103,7 +103,7 @@ const dict = {
   "admin.denied": { zh: "只有管理员可以访问此页面。", en: "Admins only." },
   "nav.admin": { zh: "后台", en: "Admin" },
   "nav.pricing": { zh: "手续费", en: "Fees" },
-  "nav.dashboard": { zh: "控制台", en: "Dashboard" },
+  "nav.dashboard": { zh: "我的活动", en: "My campaigns" },
   "nav.myEntries": { zh: "我的参与", en: "My entries" },
   "nav.signin": { zh: "登录", en: "Sign in" },
   "nav.signout": { zh: "退出", en: "Sign out" },
