@@ -80,9 +80,8 @@ export function SiteFooter() {
   const { t } = useI18n();
   return (
     <footer className="border-t border-border bg-background">
-      <div className="mx-auto max-w-7xl px-5 py-9 sm:px-8">
+      <div className="mx-auto max-w-7xl px-5 py-7 sm:px-8">
         <div className="flex flex-wrap items-center justify-between gap-6"><div><Logo /><p className="mt-3 text-xs text-muted-foreground">{t("cy.footer")}</p></div><div className="flex gap-6 text-xs text-muted-foreground"><Link to="/">{t("cy.live")}</Link><Link to="/guide">{t("nav.guide")}</Link><Link to="/new">{t("cy.start")}</Link><Link to="/privacy">{t("footer.privacy")}</Link><Link to="/terms">{t("footer.terms")}</Link><Link to="/contact">{t("footer.contact")}</Link></div></div>
-
       </div>
     </footer>
   );
