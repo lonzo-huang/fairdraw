@@ -36,7 +36,7 @@ const dict = {
   "cy.sponsor": { zh: "发奖方", en: "SPONSOR" },
   "cy.exposure": { zh: "曝光", en: "EXPOSURE" },
   "cy.popularity": { zh: "人气", en: "PARTICIPANTS" },
-  "cy.popularityNote": { zh: "X全部参与人数暂不可读取，不代表0人", en: "Total X participants unavailable; not zero" },
+  "cy.popularityNote": { zh: "点赞+回复+引用+转贴+收藏 总和（收藏数暂不可读取）", en: "Likes + replies + quotes + reposts + bookmarks (bookmarks unreadable for now)" },
   "cy.month": { zh: "月榜", en: "Monthly" },
   "cy.week": { zh: "周榜", en: "Weekly" },
   "cy.day": { zh: "日榜", en: "Daily" },

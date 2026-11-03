@@ -17,6 +17,7 @@ export type Metrics = {
   replies: number | null;
   reposts: number | null;
   quotes?: number | null;
+  bookmarks?: number | null;
   views?: number | null;
   keyword_found: boolean | null;
   participants: number;
