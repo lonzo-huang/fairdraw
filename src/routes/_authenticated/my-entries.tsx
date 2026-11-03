@@ -53,7 +53,7 @@ function MyEntries() {
                 className="flex items-center justify-between rounded-xl border border-border bg-card p-4 hover:border-primary"
               >
                 <div>
-                  <p className="font-serif text-lg font-semibold">{e.campaigns.title}</p>
+                  <p className="font-display text-lg font-semibold">{e.campaigns.title}</p>
                   <p className="text-sm text-muted-foreground">{e.campaigns.prize}</p>
                 </div>
                 <div className="flex items-center gap-2">

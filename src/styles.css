@@ -62,10 +62,9 @@
   --color-success: var(--success);
   --color-success-foreground: var(--success-foreground);
   --color-prize: var(--prize);
-  --color-cyber: var(--cyber);
   --color-paper: var(--paper);
   --color-paper-foreground: var(--paper-foreground);
-  --font-serif: "IBM Plex Sans", "Noto Sans SC", system-ui, sans-serif;
+  --font-display: "IBM Plex Sans", "Noto Sans SC", system-ui, sans-serif;
   --font-sans: "IBM Plex Sans", "Noto Sans SC", system-ui, sans-serif;
   --font-mono: "IBM Plex Mono", ui-monospace, monospace;
   --shadow-glow: var(--shadow-glow);
@@ -93,7 +92,6 @@
   --success: oklch(0.88 0.2 158);
   --success-foreground: oklch(0.18 0.035 165);
   --prize: oklch(0.84 0.16 85);
-  --cyber: oklch(0.55 0.25 300);
   --border: oklch(0.3 0.02 264);
   --input: oklch(0.35 0.025 264);
   --ring: var(--primary);
@@ -112,8 +110,9 @@
   --sidebar-accent-foreground: oklch(0.95 0.02 90);
   --sidebar-border: oklch(0.38 0.035 165);
   --sidebar-ring: oklch(0.8 0.13 82);
-  --shadow-glow: 0 0 24px -4px color-mix(in oklab, var(--primary) 65%, transparent), 0 0 55px -10px color-mix(in oklab, var(--cyber) 40%, transparent);
+  --shadow-glow: 0 0 24px -4px color-mix(in oklab, var(--primary) 65%, transparent), 0 0 55px -10px color-mix(in oklab, var(--prize) 30%, transparent);
   --shadow-neon: 0 0 24px -8px color-mix(in oklab, var(--success) 55%, transparent);
+  --z-scene: -1; --z-hit: 2; --z-sticky: 20; --z-header: 30; --z-overlay: 50;
   --shadow-cta-rest: 0 0 24px -10px color-mix(in oklab, var(--success) 65%, transparent), inset 0 1px 0 color-mix(in oklab, var(--foreground) 45%, transparent);
   --shadow-cta-pulse: 0 0 42px -9px color-mix(in oklab, var(--success) 80%, transparent), inset 0 1px 0 color-mix(in oklab, var(--foreground) 45%, transparent);
 }
@@ -129,13 +128,13 @@
     font-family: var(--font-sans);
     letter-spacing: 0;
   }
-  h1, h2, h3 { font-family: var(--font-serif); letter-spacing: 0; }
+  h1, h2, h3 { font-family: var(--font-display); letter-spacing: 0; }
 }
 
 .cyber-hero { position: relative; isolation: isolate; min-height: 630px; overflow: hidden; background: linear-gradient(110deg, var(--background) 8%, transparent 70%); }
 .cyber-hero::before { content: ""; position: absolute; inset: -120px; z-index: -2; background: repeating-linear-gradient(90deg, transparent 0 119px, color-mix(in oklab, var(--primary) 11%, transparent) 120px), repeating-linear-gradient(0deg, transparent 0 119px, color-mix(in oklab, var(--primary) 8%, transparent) 120px); mask-image: linear-gradient(90deg, transparent, var(--foreground)); animation: grid-drift 22s linear infinite; }
 @keyframes grid-drift { to { transform: translate3d(120px, 120px, 0); } }
-.draw-scene { position: absolute; inset: 0; z-index: -1; }
+.draw-scene { position: absolute; inset: 0; z-index: var(--z-scene); }
 .draw-scene canvas { display: block; width: 100%; height: 100%; }
 .hero-copy { pointer-events: none; }
 .hero-copy a { pointer-events: auto; }
@@ -145,39 +144,37 @@
 .hero-copy { max-width: 1180px; }
 .hero-copy > p:first-child { font-size: 11px; }
 .hero-copy > .hero-type { font-size: 42px; line-height: 1.35; }
-.hero-annotation { position: absolute; right: 9%; top: 16%; display: block; padding: 14px 18px; border-radius: 14px; border: 1px solid color-mix(in oklab, var(--primary) 35%, transparent); background: color-mix(in oklab, var(--card) 55%, transparent); backdrop-filter: blur(18px); box-shadow: 0 8px 40px -18px var(--primary), inset 0 1px 0 color-mix(in oklab, var(--foreground) 8%, transparent); animation: badge-float 4.5s ease-in-out infinite; transition: border-color 220ms, box-shadow 220ms, transform 220ms; }
+.hero-annotation { position: absolute; right: 7%; top: 10%; display: block; padding: 14px 18px; border-radius: 14px; border: 1px solid color-mix(in oklab, var(--primary) 35%, transparent); background: color-mix(in oklab, var(--card) 55%, transparent); backdrop-filter: blur(18px); box-shadow: 0 8px 40px -18px var(--primary), inset 0 1px 0 color-mix(in oklab, var(--foreground) 8%, transparent); animation: badge-float 4.5s ease-in-out infinite; transition: border-color 220ms, box-shadow 220ms, transform 220ms; }
 .hero-annotation:hover { border-color: color-mix(in oklab, var(--success) 60%, transparent); box-shadow: 0 10px 50px -14px var(--success); transform: translateY(-3px); }
 .hero-annotation::before { content: ""; position: absolute; inset: 0; border-radius: inherit; pointer-events: none; background: linear-gradient(115deg, color-mix(in oklab, var(--foreground) 7%, transparent), transparent 40%); }
 @keyframes badge-float { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-6px); } }
 .hero-coordinate { position: absolute; bottom: 35px; left: 32px; writing-mode: vertical-rl; font-family: var(--font-mono); font-size: 9px; color: var(--muted-foreground); }
-.hero-cta { height: 48px; position: relative; overflow: hidden; box-shadow: var(--shadow-cta-rest); animation: cta-breathe 3.6s ease-in-out infinite; transition: transform 220ms, box-shadow 220ms; }
-.hero-cta:hover { transform: perspective(600px) rotateX(5deg) translateY(-2px); box-shadow: var(--shadow-cta-pulse); animation: none; }
+.hero-cta { height: 48px; position: relative; overflow: hidden; box-shadow: var(--shadow-cta-rest); transition: transform 220ms, box-shadow 220ms; }
+.hero-cta:hover { transform: perspective(600px) rotateX(5deg) translateY(-2px); box-shadow: var(--shadow-cta-pulse); }
 .hero-cta svg:last-child { transition: transform 250ms cubic-bezier(0.22, 1, 0.36, 1); }
 .hero-cta:hover svg:last-child, .hero-cta:focus-visible svg:last-child { transform: translate(3px, -3px); }
-@keyframes cta-breathe { 0%, 100% { box-shadow: var(--shadow-cta-rest); } 50% { box-shadow: var(--shadow-cta-pulse); } }
 .hero-cta::after { content: ""; position: absolute; top: -50%; left: -40%; width: 30%; height: 200%; transform: rotate(25deg); background: linear-gradient(90deg, transparent, color-mix(in oklab, var(--foreground) 45%, transparent), transparent); animation: cta-shine 5s infinite; }
-@keyframes cta-shine { 60%, 100% { left: 140%; } }
+@keyframes cta-shine { 60%, 100% { transform: rotate(25deg) translateX(620%); } }
 .motion-surface { --tilt-x: 0deg; --tilt-y: 0deg; --pointer-x: 50%; --pointer-y: 50%; perspective: 1000px; min-width: 0; }
 .motion-surface > article, .motion-surface > .cyber-panel { transform: perspective(1000px) rotateX(var(--tilt-x)) rotateY(var(--tilt-y)); transition: transform 250ms ease-out; }
 .motion-surface:hover > article::after { opacity: 1; }
 .campaign-tile { position: relative; overflow: hidden; background: linear-gradient(145deg, color-mix(in oklab, var(--primary) 8%, var(--card)), var(--background)); }
 .campaign-tile::after { content: ""; pointer-events: none; position: absolute; inset: 0; border-radius: inherit; background: radial-gradient(350px circle at var(--pointer-x) var(--pointer-y), color-mix(in oklab, var(--primary) 16%, transparent), transparent 70%); opacity: 0; transition: opacity 220ms; }
-.campaign-tile::before { content: ""; position: absolute; inset: 0; padding: 1px; pointer-events: none; border-radius: inherit; background: linear-gradient(130deg, var(--success), transparent 30%, var(--primary) 60%, var(--cyber)); background-size: 250% 250%; mask: linear-gradient(var(--foreground) 0 0) content-box, linear-gradient(var(--foreground) 0 0); mask-composite: exclude; opacity: 0.45; transition: opacity 250ms; animation: border-flow 6s linear infinite; }
+.campaign-tile::before { content: ""; position: absolute; inset: 0; padding: 1px; pointer-events: none; border-radius: inherit; background: linear-gradient(130deg, var(--success), transparent 30%, var(--primary) 60%, var(--prize)); background-size: 250% 250%; mask: linear-gradient(var(--foreground) 0 0) content-box, linear-gradient(var(--foreground) 0 0); mask-composite: exclude; opacity: 0.45; transition: opacity 250ms; }
 .campaign-tile:hover::before { opacity: 1; }
-@keyframes border-flow { to { background-position: 250% 250%; } }
 .animated-progress { margin-top: 8px; height: 5px; overflow: hidden; border-radius: 4px; background: var(--muted); }
 .animated-progress-fill { height: 100%; display: block; background: linear-gradient(90deg, var(--primary), var(--success)); box-shadow: var(--shadow-neon); transition: width 1200ms cubic-bezier(0.22, 1, 0.36, 1); }
 .animated-progress.motion-off .animated-progress-fill { transition: none; }
 .animated-progress-heat .animated-progress-fill { background: linear-gradient(90deg, var(--prize), var(--success)); box-shadow: 0 0 14px color-mix(in oklab, var(--prize) 55%, transparent); }
-.host-avatar { display: grid; place-items: center; width: 26px; height: 26px; flex-shrink: 0; border-radius: 9999px; border: 1px solid color-mix(in oklab, var(--primary) 40%, transparent); background: linear-gradient(135deg, color-mix(in oklab, var(--primary) 30%, var(--card)), color-mix(in oklab, var(--cyber) 25%, var(--card))); font-family: var(--font-mono, monospace); font-size: 11px; font-weight: 600; color: var(--primary); }
-.tile-badge { display: inline-flex; align-items: center; gap: 2px; border-radius: 9999px; border: 1px solid color-mix(in oklab, var(--prize) 45%, transparent); background: color-mix(in oklab, var(--prize) 12%, transparent); padding: 2px 7px; font-size: 9px; line-height: 1.4; color: var(--prize); white-space: nowrap; }
-.tile-badge-cyber { border-color: color-mix(in oklab, var(--cyber) 45%, transparent); background: color-mix(in oklab, var(--cyber) 12%, transparent); color: var(--cyber); }
+.host-avatar { display: grid; place-items: center; width: 26px; height: 26px; flex-shrink: 0; border-radius: 9999px; border: 1px solid color-mix(in oklab, var(--primary) 40%, transparent); background: linear-gradient(135deg, color-mix(in oklab, var(--primary) 30%, var(--card)), color-mix(in oklab, var(--primary) 20%, var(--card))); font-family: var(--font-mono, monospace); font-size: 11px; font-weight: 600; color: var(--primary); }
+.tile-badge { display: inline-flex; align-items: center; gap: 2px; border-radius: 9999px; border: 1px solid color-mix(in oklab, var(--prize) 45%, transparent); background: color-mix(in oklab, var(--prize) 12%, transparent); padding: 2px 7px; font-size: 10px; line-height: 1.4; color: var(--prize); white-space: nowrap; }
+.tile-badge-cyber { border-color: color-mix(in oklab, var(--primary) 45%, transparent); background: color-mix(in oklab, var(--primary) 12%, transparent); color: var(--primary); }
 .tile-badge-success { border-color: color-mix(in oklab, var(--success) 45%, transparent); background: color-mix(in oklab, var(--success) 12%, transparent); color: var(--success); }
 .ending-soon { animation: ending-heartbeat 2.8s ease-in-out infinite; }
 .ending-soon:hover { animation-play-state: paused; }
 .ending-soon .my-4 { color: var(--prize); }
 @keyframes ending-heartbeat { 0%, 40%, 100% { box-shadow: 0 0 8px -3px color-mix(in oklab, var(--prize) 15%, transparent); } 12%, 25% { box-shadow: 0 0 25px -4px color-mix(in oklab, var(--prize) 45%, transparent); border-color: color-mix(in oklab, var(--prize) 65%, var(--border)); } }
-@keyframes border-pulse { to { border-top-color: var(--success); border-right-color: color-mix(in oklab, var(--cyber) 65%, transparent); } }
+@keyframes border-pulse { to { border-top-color: var(--success); border-right-color: color-mix(in oklab, var(--prize) 65%, transparent); } }
 .campaign-art { position: relative; height: 125px; overflow: hidden; margin: -20px -20px 20px; border-bottom: 1px solid var(--border); }
 .campaign-art img { width: 300%; max-width: none; height: 100%; object-fit: cover; transition: transform 700ms; }
 .campaign-art[data-art="1"] img { margin-left: -100%; }
@@ -264,8 +261,7 @@
 .tile-actions a { transition: transform 200ms, box-shadow 200ms, border-color 200ms; }
 .tile-actions a:hover, .tile-actions a:focus-visible { transform: translateY(-2px); box-shadow: var(--shadow-ambient); border-color: var(--prize); }
 .leader-name { color: var(--prize); background: linear-gradient(110deg, var(--prize) 15%, var(--foreground) 45%, var(--prize) 55%, var(--prize) 85%); background-size: 250% 100%; background-clip: text; color: transparent; animation: text-flow 5s linear infinite; }
-.hero-annotation { right: 7%; top: 10%; border-left-color: var(--prize); }
-.coin-profile-link { position: absolute; z-index: 2; transform: translate(-50%, -50%); border-radius: 50%; cursor: pointer; }
+.coin-profile-link { position: absolute; z-index: var(--z-hit); transform: translate(-50%, -50%); border-radius: 50%; cursor: pointer; }
 .coin-profile-link:focus-visible { outline: 2px solid var(--prize); outline-offset: 4px; }
 @media (max-width: 950px) { .campaign-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
 @media (max-width: 620px) { .campaign-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; } .hub-nav { top: 60px; } .hub-nav button { font-size: 10px; padding-inline: 6px; } .rank-row { padding-inline: 12px; } .hero-annotation { display: block; right: 6%; top: auto; bottom: 25px; } }

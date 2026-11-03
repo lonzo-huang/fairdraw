@@ -111,7 +111,7 @@ function CampaignPage() {
 
       <div className="space-y-5">
         <div className="ticket p-6">
-          <p className="font-serif text-2xl font-semibold">{c.prize}</p>
+          <p className="font-display text-2xl font-semibold">{c.prize}</p>
           <p className="mt-1 text-sm opacity-70">{c.winners_count} {t("c.winners")}</p>
           <div className="perforation my-4" />
           <div className="flex justify-between font-mono text-sm">
@@ -183,7 +183,7 @@ function EntryForm({ campaignId, userId, questions, acceptsCrypto, onDone }: { c
 
   return (
     <form onSubmit={submit} className="space-y-4 rounded-xl border border-border bg-card p-5">
-      <p className="font-serif text-xl font-semibold">{t("c.enter")}</p>
+      <p className="font-display text-xl font-semibold">{t("c.enter")}</p>
       <div className="space-y-1.5"><Label>{t("c.handle")}</Label><Input required value={handle} onChange={(e) => setHandle(e.target.value)} /></div>
       <div className="space-y-1.5"><Label>{t("c.post")}</Label><Input required type="url" placeholder="https://x.com/…" value={post} onChange={(e) => setPost(e.target.value)} /></div>
       {acceptsCrypto && (

@@ -58,7 +58,7 @@ function Dashboard() {
               className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border bg-card p-5 transition-colors hover:border-primary"
             >
               <div>
-                <p className="font-serif text-xl font-semibold">{c.title}</p>
+                <p className="font-display text-xl font-semibold">{c.title}</p>
                 <p className="text-sm text-muted-foreground">{c.prize}</p>
               </div>
               <div className="flex items-center gap-4 font-mono text-sm text-muted-foreground">
