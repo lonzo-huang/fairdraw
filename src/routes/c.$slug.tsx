@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { StatusBadge } from "@/components/status-badge";
+import { ArrowUpRight } from "lucide-react";
 import { getCampaignShare } from "@/lib/campaign-share.functions";
 import { conditionSummary, prizeSummary } from "@/lib/campaign-share";
 import { translate } from "@/lib/i18n";
@@ -91,33 +92,31 @@ function CampaignPage() {
         {c.description && <p className="mt-4 whitespace-pre-line text-muted-foreground">{c.description}</p>}
         {c.requirement && (
           <div className="mt-6 rounded-xl border border-border bg-card p-5">
-            <p className="font-mono text-xs uppercase tracking-widest text-primary">{t("f.req")}</p>
+            <p className="text-xs font-medium text-muted-foreground">{t("f.req")}</p>
             <p className="mt-2 whitespace-pre-line">{c.requirement}</p>
           </div>
         )}
-        {c.target_url && (
-          <Button asChild variant="outline" className="mt-6">
-            <a href={`/go/${c.slug}`} target="_blank" rel="noreferrer">{t("c.visit")} ↗</a>
-          </Button>
-        )}
-        {c.tweet_url && (
-          <Button asChild variant="outline" className="mt-3">
-            <a href={c.tweet_url} target="_blank" rel="noreferrer">𝕏 {t("m.tweetUrl")} ↗</a>
-          </Button>
+        {(c.target_url || c.tweet_url) && (
+          <div className="mt-6 flex flex-wrap gap-5 text-sm">
+            {c.target_url && <a href={`/go/${c.slug}`} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 text-muted-foreground transition-colors hover:text-foreground"><ArrowUpRight className="size-3.5" />{t("c.visit")}</a>}
+            {c.tweet_url && <a href={c.tweet_url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 text-muted-foreground transition-colors hover:text-foreground"><span className="font-black">𝕏</span>{t("m.tweetUrl")}</a>}
+          </div>
         )}
         <ConditionProgress conditionsRaw={c.conditions} participants={count} snap={data.snap} />
-        {share.imageUrl && <img src={share.imageUrl} alt={translate(c.share_language === "en" ? "en" : "zh", "share.imageAlt", { title: c.title, prize: c.prize })} width={1200} height={630} className="mt-6 aspect-[1200/630] w-full rounded-lg border border-border object-contain" />}
+        {share.imageUrl && <details className="mt-6"><summary className="cursor-pointer text-xs text-muted-foreground transition-colors hover:text-foreground">{t("c.sharePreview")}</summary><img src={share.imageUrl} alt={translate(c.share_language === "en" ? "en" : "zh", "share.imageAlt", { title: c.title, prize: c.prize })} width={1200} height={630} className="mt-3 aspect-[1200/630] w-full rounded-lg border border-border object-contain" /></details>}
       </div>
 
       <div className="space-y-5">
         <div className="ticket p-6">
-          <p className="font-display text-2xl font-semibold">{c.prize}</p>
+          <p className="text-xs font-medium text-muted-foreground">{t("cy.total")}</p>
+          <p className="mt-1 font-display text-3xl font-bold">{c.prize_amount ? `${c.prize_amount} ${c.currency}` : c.prize}</p>
           <p className="mt-1 text-sm opacity-70">{c.winners_count} {t("c.winners")}</p>
           <div className="perforation my-4" />
-          <div className="flex justify-between font-mono text-sm">
-            <span>{count} {t("c.participants")}</span>
-            <span>{cd && !closed ? `${cd.text} ${t("c.left")}` : t("c.closed")}</span>
+          <div className="rounded-lg bg-background/60 px-3 py-2.5 text-center">
+            <p className="text-[10px] text-muted-foreground">{t("c.countdownLabel")}</p>
+            <p className="mt-0.5 font-mono text-2xl font-semibold tabular-nums">{cd && !closed ? cd.text : t("c.closed")}</p>
           </div>
+          <p className="mt-3 text-center font-mono text-sm"><span className="font-semibold text-prize">{count}</span> {t("c.participants")}</p>
         </div>
 
         {c.status === "drawn" ? (
@@ -183,15 +182,23 @@ function EntryForm({ campaignId, userId, questions, acceptsCrypto, onDone }: { c
 
   return (
     <form onSubmit={submit} className="space-y-4 rounded-xl border border-border bg-card p-5">
-      <p className="font-display text-xl font-semibold">{t("c.enter")}</p>
-      <div className="space-y-1.5"><Label>{t("c.handle")}</Label><Input required value={handle} onChange={(e) => setHandle(e.target.value)} /></div>
+      <p className="flex items-center gap-2 font-display text-xl font-semibold"><span className="font-black text-primary">𝕏</span>{t("c.enter")}</p>
+      <div className="space-y-1.5">
+        <Label>{t("c.handle")}</Label>
+        <div className="flex items-center rounded-md border border-input bg-background focus-within:border-primary">
+          <span className="pl-3 text-sm text-muted-foreground">@</span>
+          <Input required value={handle} onChange={(e) => setHandle(e.target.value)} className="border-0 pl-1 focus-visible:ring-0" />
+        </div>
+      </div>
       <div className="space-y-1.5"><Label>{t("c.post")}</Label><Input required type="url" placeholder="https://x.com/…" value={post} onChange={(e) => setPost(e.target.value)} /></div>
       {acceptsCrypto && (
-        <div className="space-y-1.5">
-          <Label>{t("c.wallet")}</Label>
-          <Input placeholder="0x…" value={wallet} onChange={(e) => setWallet(e.target.value)} className="font-mono text-xs" />
-          <p className="text-xs text-muted-foreground">{t("c.walletHint")}</p>
-        </div>
+        <details className="text-sm">
+          <summary className="cursor-pointer text-muted-foreground transition-colors hover:text-foreground">{t("c.cryptoOpt")}</summary>
+          <div className="mt-2 space-y-1.5">
+            <Input placeholder="0x…" value={wallet} onChange={(e) => setWallet(e.target.value)} className="font-mono text-xs" />
+            <p className="text-xs text-muted-foreground">{t("c.walletHint")}</p>
+          </div>
+        </details>
       )}
       {questions.map((q, i) => (
         <div key={i} className="space-y-1.5">
@@ -199,7 +206,7 @@ function EntryForm({ campaignId, userId, questions, acceptsCrypto, onDone }: { c
           <Input required maxLength={500} value={answers[i]} onChange={(e) => setAnswers(answers.map((a, j) => (j === i ? e.target.value : a)))} />
         </div>
       ))}
-      <Button type="submit" className="w-full" disabled={busy}>{t("c.submit")}</Button>
+      <Button type="submit" variant="neon" className="w-full" disabled={busy}>{t("c.submit")}</Button>
     </form>
   );
 }
@@ -228,7 +235,7 @@ function ConditionProgress({
   return (
     <div className="mt-8 rounded-xl border border-border bg-card p-5">
       <div className="flex items-center justify-between">
-        <p className="font-mono text-xs uppercase tracking-widest text-primary">{t("cond.title")}</p>
+        <p className="text-xs font-medium text-muted-foreground">{t("cond.title")}</p>
         <span className="font-mono text-sm font-semibold">{progress}%</span>
       </div>
       <div className="mt-3 h-2.5 overflow-hidden rounded-full bg-muted">
