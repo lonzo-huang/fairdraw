@@ -53,6 +53,7 @@ function Manage() {
   const [drawMode, setDrawMode] = useState<"all" | "verified" | "weighted">("all");
   const [wBlue, setWBlue] = useState("1.2");
   const [wNormal, setWNormal] = useState("0.4");
+  const [shownRows, setShownRows] = useState(25);
 
   const { data, isLoading } = useQuery({
     queryKey: ["manage", id],
@@ -320,10 +321,12 @@ function Manage() {
         {entries.length === 0 ? (
           <p className="mt-6 text-muted-foreground">{t("m.noEntries")}</p>
         ) : (
+          <>
           <div className="mt-4 overflow-x-auto rounded-xl border border-border bg-card">
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-border text-left text-xs text-muted-foreground">
+                  <th className="w-10 px-4 py-3 font-medium">#</th>
                   <th className="px-4 py-3 font-medium">{t("m.colName")}</th>
                   <th className="px-4 py-3 font-medium">@</th>
                   <th className="px-4 py-3 font-medium">{t("m.blueV")}</th>
@@ -333,11 +336,12 @@ function Manage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
-                {entries.map((e) => {
+                {entries.slice(0, shownRows).map((e, i) => {
                   const meta = e.fetched_meta as { author_name?: string; text?: string; handle_match?: boolean | null; reply_time?: string; x_verified?: boolean | null } | null;
                   const answers = (e.answers as string[]) ?? [];
                   return (
                     <tr key={e.id} className="align-top">
+                      <td className="px-4 py-3 text-muted-foreground">{i + 1}</td>
                       <td className="max-w-[10rem] truncate px-4 py-3 font-medium">{meta?.author_name ?? "—"}</td>
                       <td className="whitespace-nowrap px-4 py-3 font-mono text-muted-foreground">
                         @{e.handle}
@@ -353,7 +357,8 @@ function Manage() {
                       </td>
                       <td className="whitespace-nowrap px-4 py-3">
                         <div className="flex items-center gap-1">
-                          <EntryBadge status={e.eligibility_status} />
+                          {/* "verified" (post read) is always true for reply-imports — only show badges that carry information */}
+                          {e.eligibility_status !== "verified" && <EntryBadge status={e.eligibility_status} />}
                           {open && (
                             <>
                               <Button size="sm" variant="ghost" disabled={busy} onClick={() => runCheck([e.id])}>{t("m.check")}</Button>
@@ -369,6 +374,14 @@ function Manage() {
               </tbody>
             </table>
           </div>
+          {entries.length > shownRows && (
+            <div className="mt-3 text-center">
+              <Button variant="outline" size="sm" onClick={() => setShownRows((s) => s + 25)}>
+                {t("m.loadMore")}（{entries.length - shownRows}）
+              </Button>
+            </div>
+          )}
+          </>
         )}
       </section>
 

@@ -338,6 +338,7 @@ const dict = {
   "m.colName": { zh: "用户名", en: "Name" },
   "m.colTime": { zh: "回贴时间", en: "Replied" },
   "m.colReply": { zh: "回贴内容", en: "Reply" },
+  "m.loadMore": { zh: "加载更多", en: "Load more" },
   "m.draw": { zh: "锁定名单并开奖", en: "Lock list & draw" },
   "m.drawConfirm": { zh: "开奖后名单将锁定且无法修改，确定吗？", en: "The list will be locked permanently. Continue?" },
   "m.noEntries": { zh: "还没有人报名。", en: "No entries yet." },
