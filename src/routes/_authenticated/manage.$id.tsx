@@ -5,7 +5,7 @@ import { useState } from "react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useI18n } from "@/lib/i18n";
-import { CANCEL_WINDOW_MS, cancelCampaign, checkCampaignConditions, checkEntries, drawCampaign, refundEscrow, updateCampaignConditions } from "@/lib/campaign.functions";
+import { CANCEL_WINDOW_MS, cancelCampaign, checkCampaignConditions, drawCampaign, refundEscrow, updateCampaignConditions } from "@/lib/campaign.functions";
 import { payoutViaStripe, recordChainPayout, refundChainEscrow, updateCampaignAmount } from "@/lib/payment.functions";
 import { parseConditions, type ConditionCheck, type Conditions } from "@/lib/conditions";
 import { campaignTweet } from "@/lib/campaign-share";
@@ -13,7 +13,7 @@ import { hasEthereum, sendTokenTransfer } from "@/lib/wallet";
 import { FundingPanel } from "@/components/funding-panel";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { StatusBadge, EntryBadge } from "@/components/status-badge";
+import { StatusBadge } from "@/components/status-badge";
 
 export const NUM_COND_KEYS = ["min_likes", "min_replies", "min_reposts", "min_quotes", "min_views", "min_participants", "min_verified"] as const;
 const COND_LABEL: Record<(typeof NUM_COND_KEYS)[number], "cond.likes" | "cond.replies" | "cond.reposts" | "cond.quotes" | "cond.views" | "cond.participants" | "cond.verified"> = {
@@ -39,7 +39,6 @@ function Manage() {
   const { t } = useI18n();
   const qc = useQueryClient();
   const navigate = useNavigate();
-  const check = useServerFn(checkEntries);
   const checkConds = useServerFn(checkCampaignConditions);
   const refund = useServerFn(refundEscrow);
   const cancel = useServerFn(cancelCampaign);
@@ -73,24 +72,6 @@ function Manage() {
   const open = c.status === "open";
   const shareUrl = typeof window !== "undefined" ? `${window.location.origin}/c/${c.slug}` : "";
 
-  async function runCheck(ids: string[]) {
-    if (!ids.length) return;
-    setBusy(true);
-    try {
-      const r = await check({ data: { entryIds: ids } });
-      toast.success(`${r.found} / ${r.checked}`);
-      refresh();
-    } catch (e) {
-      toast.error((e as Error).message);
-    } finally {
-      setBusy(false);
-    }
-  }
-  async function setStatus(entryId: string, status: "eligible" | "ineligible") {
-    const { error } = await supabase.from("entries").update({ eligibility_status: status }).eq("id", entryId);
-    if (error) toast.error(error.message);
-    refresh();
-  }
   async function doDraw() {
     if (!confirm(t("m.drawConfirm"))) return;
     setBusy(true);
@@ -294,9 +275,6 @@ function Manage() {
           <h2 className="text-2xl font-semibold">{entries.length} {t("c.participants")}</h2>
           {open && (
             <div className="flex flex-wrap items-center gap-2">
-              <Button variant="outline" size="sm" disabled={busy} onClick={() => runCheck(entries.filter((e) => e.eligibility_status === "unverified").map((e) => e.id))}>
-                {t("m.checkAll")}
-              </Button>
               <select
                 className="h-9 rounded-md border border-border bg-background px-2 text-sm"
                 value={drawMode}
@@ -333,7 +311,6 @@ function Manage() {
                   <th className="px-4 py-3 font-medium">{t("m.blueV")}</th>
                   <th className="px-4 py-3 font-medium">{t("m.colTime")}</th>
                   <th className="px-4 py-3 font-medium">{t("m.colReply")}</th>
-                  <th className="px-4 py-3"></th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
@@ -355,19 +332,6 @@ function Manage() {
                           {meta?.text ?? e.post_url}
                         </a>
                         {answers.map((a, i) => <p key={i}>• {a}</p>)}
-                      </td>
-                      <td className="whitespace-nowrap px-4 py-3">
-                        <div className="flex items-center gap-1">
-                          {/* "verified" (post read) is always true for reply-imports — only show badges that carry information */}
-                          {e.eligibility_status !== "verified" && <EntryBadge status={e.eligibility_status} />}
-                          {open && (
-                            <>
-                              <Button size="sm" variant="ghost" disabled={busy} onClick={() => runCheck([e.id])}>{t("m.check")}</Button>
-                              <Button size="sm" variant="ghost" onClick={() => setStatus(e.id, "eligible")}>{t("m.eligible")}</Button>
-                              <Button size="sm" variant="ghost" onClick={() => setStatus(e.id, "ineligible")}>{t("m.ineligible")}</Button>
-                            </>
-                          )}
-                        </div>
                       </td>
                     </tr>
                   );
