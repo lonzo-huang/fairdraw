@@ -94,7 +94,7 @@ def _tweet_result(node):
     return r
 
 
-def parse_detail(response, tid: str, focal_seen: bool):
+def parse_detail(response, tid: str, focal_seen: bool, thread_ids: set):
     """One TweetDetail page → (stats|None, replies[rid→row], cursor|None,
     focal_seen). Tweets before the focal entry are ancestors, not replies."""
     entries = []
@@ -152,10 +152,14 @@ def parse_detail(response, tid: str, focal_seen: bool):
             handle = (ulegacy.get("screen_name") or "").lower()
             if not handle or rid in replies:
                 continue
+            if t.get("promotedMetadata"):
+                continue  # paid injection
+            parent = legacy.get("in_reply_to_status_id_str") or ""
+            if parent != tid and parent not in thread_ids:
+                continue  # not part of this conversation (promoted/related module)
+            thread_ids.add(rid)  # real reply — nested replies may attach to it
             if focal_handle and handle == focal_handle:
                 continue  # the campaign owner's own replies can't enter their raffle
-            if not legacy.get("in_reply_to_status_id_str"):
-                continue  # promoted/related injections, not actual replies
             replies[rid] = {
                 "reply_id": rid,
                 "handle": handle,
@@ -206,7 +210,8 @@ async def poll_campaign(client, camp: dict) -> None:
     if not isinstance(response, dict) or response.get("errors"):
         return  # gone/protected — the worker's oEmbed probe handles cancellation
 
-    stats, replies, cursor, focal = parse_detail(response, tid, focal_seen=False)
+    thread_ids = {tid}
+    stats, replies, cursor, focal = parse_detail(response, tid, False, thread_ids)
     if not focal:
         return
     prev = None
@@ -243,7 +248,7 @@ async def poll_campaign(client, camp: dict) -> None:
                 response, _ = await client.gql.tweet_detail(tid, cursor)
             except Exception:
                 break
-            _, more, cursor, focal = parse_detail(response, tid, focal_seen=focal)
+            _, more, cursor, focal = parse_detail(response, tid, focal, thread_ids)
             replies.update(more)
             if not more:
                 break
