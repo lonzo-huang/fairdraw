@@ -65,7 +65,6 @@ export function CampaignHub() {
         })}</div> : <div className="flex items-center justify-center gap-3 py-7 text-xs text-muted-foreground"><Gift className="size-4 text-primary" />{t("cy.empty")}</div>;
       })()}
     </section>)}
-    <p className="mt-4 text-[10px] text-muted-foreground">{t("cy.poolNote")}</p>
   </section>;
 }
 function CampaignCard({ c, now, index, hostName, metrics, progress, winners }: { c: HubCampaign; now: number; index: number; hostName: string; metrics: Partial<Metrics> | undefined; progress: number | undefined; winners: string[] }) {
