@@ -74,7 +74,8 @@ function CampaignPage() {
   const snaps = data.snaps;
   const latestSnap = snaps[snaps.length - 1];
   const latestM = asMetrics(latestSnap?.metrics);
-  const firstM = asMetrics(snaps[0]?.metrics);
+  // Baseline = the earliest snapshot that actually captured followers; older rows never had the field.
+  const firstM = asMetrics(snaps.find((s) => typeof asMetrics(s.metrics)?.followers === "number")?.metrics);
   const closed = c.status !== "open" || (cd ? cd.ms === 0 : false);
 
   return (
@@ -116,9 +117,7 @@ function CampaignPage() {
           <Button asChild className="w-full"><Link to="/r/$slug" params={{ slug }}>{t("c.result")}</Link></Button>
         ) : closed ? (
           <p className="text-center text-muted-foreground">{t("c.closed")}</p>
-        ) : (
-          <p className="rounded-xl border border-primary/30 bg-primary/5 p-4 text-center text-sm text-muted-foreground">{t("c.replyToJoin")}</p>
-        )}
+        ) : null}
         <Button variant="ghost" className="w-full" onClick={() => { navigator.clipboard.writeText(window.location.href); toast.success(t("c.copied")); }}>
           {t("c.share")}
         </Button>
