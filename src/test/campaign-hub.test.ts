@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { campaignBadges, filterHub, hostInitial, simulateCost, rankSponsors, periodStart, todayLeader, type HubCampaign } from "@/lib/campaign-hub";
+import { campaignBadges, filterHub, hostInitial, simulateCost, periodStart, todayLeader, type HubCampaign } from "@/lib/campaign-hub";
 const now = Date.parse("2026-10-28T12:00:00Z");
 const campaign = (id: string, values: Partial<HubCampaign> = {}): HubCampaign => ({ id, slug: id, title: id, prize: "", prize_amount: 50, currency: "USDT", winners_count: 2, ends_at: "2026-10-29T12:00:00Z", created_at: "2026-10-28T10:00:00Z", status: "open", tweet_url: null, owner_id: "owner", clicks: 0, ...values });
 describe("Campaign hub", () => {
@@ -44,11 +44,6 @@ describe("Sponsor boards", () => {
     expect(periodStart(at, "month")).toBe(Date.parse("2026-10-01T00:00:00Z"));
     expect(periodStart(at, "week")).toBe(Date.parse("2026-10-26T00:00:00Z"));
     expect(periodStart(at, "day")).toBe(Date.parse("2026-10-29T00:00:00Z"));
-  });
-  it("ranks declared pools only after drawing, by draw time and same currency", () => {
-    const campaigns = [campaign("one", { status: "drawn", prize_amount: 50, tweet_url: "https://x.com/MirrortekUK/status/1" }), campaign("two", { status: "drawn", prize_amount: 100, tweet_url: "https://x.com/mirrortekuk/status/2" }), campaign("old", { status: "drawn", prize_amount: 500 }), campaign("usd", { status: "drawn", prize_amount: 1000, currency: "USD" }), campaign("open", { prize_amount: 2000 })];
-    const draws = campaigns.map((c) => ({ campaign_id: c.id, drawn_at: c.id === "old" ? "2026-10-28T23:59:59Z" : "2026-10-29T12:00:00Z", winners: [] }));
-    expect(rankSponsors(campaigns, draws, at, "day", "USDT").map((v) => [v.amount, v.count])).toEqual([[150, 2]]);
   });
   it("today's leader is the largest pool published today in the selected currency", () => {
     expect(todayLeader([campaign("yesterday", { prize_amount: 9999 }), campaign("today", { created_at: "2026-10-29T01:00:00Z", prize_amount: 100 }), campaign("usd", { created_at: "2026-10-29T02:00:00Z", prize_amount: 500, currency: "USD" })], at, "USDT")?.id).toBe("today");

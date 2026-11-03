@@ -47,20 +47,6 @@ export function periodStart(now: number, period: RankPeriod) {
   if (period === "week") d.setUTCDate(d.getUTCDate() - (d.getUTCDay() + 6) % 7);
   return d.getTime();
 }
-/** Rank declared drawn pools, not payments, in one currency and UTC calendar period. */
-export function rankSponsors(campaigns: HubCampaign[], draws: HubDraw[], now: number, period: RankPeriod, currency: string) {
-  const start = periodStart(now, period);
-  const ranked = new Map<string, { campaign: HubCampaign; amount: number; count: number }>();
-  for (const draw of draws) {
-    const at = Date.parse(draw.drawn_at);
-    const c = campaigns.find((v) => v.id === draw.campaign_id);
-    if (!c || c.status !== "drawn" || c.currency !== currency || c.prize_amount === null || at < start || at > now) continue;
-    const key = xHandleFromUrl(c.tweet_url)?.toLowerCase() ?? c.owner_id;
-    const prev = ranked.get(key);
-    ranked.set(key, { campaign: prev?.campaign ?? c, amount: (prev?.amount ?? 0) + c.prize_amount, count: (prev?.count ?? 0) + 1 });
-  }
-  return [...ranked.values()].sort((a, b) => b.amount - a.amount || a.campaign.id.localeCompare(b.campaign.id));
-}
 export function todayLeader(campaigns: HubCampaign[], now: number, currency: string) {
   return campaigns.filter((c) => c.currency === currency && c.prize_amount !== null && Date.parse(c.created_at) >= periodStart(now, "day") && Date.parse(c.created_at) <= now && ["open", "drawn"].includes(c.status)).sort((a, b) => (b.prize_amount ?? 0) - (a.prize_amount ?? 0))[0];
 }
