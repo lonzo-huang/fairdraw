@@ -55,7 +55,7 @@ const dict = {
   "rank.back": { zh: "返回增长排行榜", en: "Back to growth leaderboard" },
   "rank.limit": { zh: "TOP 50 · 最多展示前50名", en: "TOP 50 · Up to 50 sponsors" },
   "cy.todayLeader": { zh: "当前热度 MVP", en: "TRENDING MVP" },
-  "cy.exposureNote": { zh: "按推广链接真实点击统计", en: "Counted from real tracked-link clicks" },
+  "cy.exposureNote": { zh: "活动帖在 X 上的曝光量（impressions），由条件检查器定期读取", en: "Campaign post impressions on X, read periodically by the condition checker" },
   "cy.drawProgress": { zh: "开奖完成进度", en: "Draw readiness" },
   "cy.winnersTitle": { zh: "中奖者", en: "WINNERS" },
   "cy.winnersPending": { zh: "开奖后在此公布", en: "Announced after the draw" },
