@@ -21,6 +21,11 @@ export type Metrics = {
   views?: number | null;
   /** Campaign author's follower count at snapshot time — diff snapshots for new followers. */
   followers?: number | null;
+  /** Original-post identity for the analytics preview card. */
+  post_text?: string | null;
+  author_handle?: string | null;
+  author_name?: string | null;
+  author_verified?: boolean | null;
   keyword_found: boolean | null;
   participants: number;
   verified: number;

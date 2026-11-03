@@ -314,6 +314,10 @@ export async function runConditionCheckCore(db: any, c: CheckableCampaign): Prom
           metrics.bookmarks = stats.bookmarks;
           metrics.views = stats.views;
           metrics.followers = stats.followers;
+          metrics.post_text = stats.text;
+          metrics.author_handle = stats.author_handle;
+          metrics.author_name = stats.author_name;
+          metrics.author_verified = stats.author_verified;
           if (conditions.keyword && stats.text) {
             metrics.keyword_found = stats.text.toLowerCase().includes(conditions.keyword.toLowerCase());
           }
