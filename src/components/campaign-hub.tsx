@@ -12,7 +12,6 @@ import { MotionSurface, MotionReveal } from "@/components/motion-surface";
 import { parseConditions, type Metrics } from "@/lib/conditions";
 import { AnimatedNumber, AnimatedProgress } from "@/components/animated-value";
 import logoAsset from "@/assets/fairdraw-logo.png.asset.json";
-import testAvatar from "@/assets/mirrortek-avatar.jpg.asset.json";
 
 const sections = [{ id: "drawn", key: "cy.drawn", icon: Trophy }, { id: "top", key: "cy.top", icon: Flame }, { id: "latest", key: "cy.latest", icon: Zap }, { id: "ending", key: "cy.ending", icon: Clock3 }] as const;
 export function CampaignHub() {
@@ -100,7 +99,7 @@ function SponsorLink({ handle, className, children }: { handle: string | null; c
   if (!handle) return <div className={className}>{children}</div>;
   return <a href={`https://x.com/${handle}`} target="_blank" rel="noopener noreferrer" className={`${className ?? ""} transition-opacity hover:opacity-80`}>{children}</a>;
 }
-function avatarUrl(handle: string) { return handle.toLowerCase() === "mirrortekuk" ? testAvatar.url : `https://unavatar.io/x/${handle}`; }
+function avatarUrl(handle: string) { return `https://unavatar.io/x/${handle}`; }
 function Avatar({ handle, name, size }: { handle: string | null; name: string; size: "md" | "sm" }) {
   const [failed, setFailed] = useState(false);
   const cls = size === "md" ? "sponsor-avatar size-8 text-xs" : "sponsor-avatar size-6 text-[9px]";

@@ -4,7 +4,6 @@ import { ArrowUpRight, Code2, Crown, Zap } from "lucide-react";
 import { useI18n } from "@/lib/i18n";
 import { todayLeader, xHandleFromUrl } from "@/lib/campaign-hub";
 import { usePublicHub } from "@/hooks/use-public-hub";
-import testAvatar from "@/assets/mirrortek-avatar.jpg.asset.json";
 import { Button } from "@/components/ui/button";
 import { DrawScene } from "@/components/draw-scene";
 import { xDisplayName } from "@/lib/sponsor-ranking";
@@ -32,7 +31,7 @@ function Index() {
   const leaderHandle = xHandleFromUrl(leader?.tweet_url);
   const handle = leaderHandle ?? "MirrortekUK";
   const displayName = xDisplayName(handle);
-  const avatar = handle.toLowerCase() === "mirrortekuk" ? testAvatar.url : `https://unavatar.io/x/${handle}`;
+  const avatar = `https://unavatar.io/x/${handle}`;
   return <>
     <LiveTicker />
     <section className="cyber-hero border-b border-border">
