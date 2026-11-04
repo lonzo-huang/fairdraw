@@ -1,4 +1,4 @@
-import { createFileRoute, Link, useLocation } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useEffect, useState } from "react";
@@ -54,17 +54,18 @@ function ResultPage() {
     },
   });
 
-  // When the winner returns from Stripe hosted onboarding (?claimed=1), fire
-  // the committed transfer automatically — no organiser action needed.
+  // Fire the committed transfer automatically whenever a signed-in visitor
+  // sees a pending payout with a claimed account — the server checks the
+  // stripe_transfers capability and only transfers once it's active.
   const autoPay = useServerFn(autoStripePayout);
-  const claimedBack = useLocation().searchStr.includes("claimed=");
   useEffect(() => {
+    if (!user) return;
     const p = data?.payouts?.find((x) => x.status !== "paid" && x.stripe_account_id);
-    if (!claimedBack || !p) return;
+    if (!p) return;
     autoPay({ data: { payoutId: p.id } })
       .then((r) => { if (r?.paid) { toast.success(t("r.paid")); refetch(); } })
       .catch((e) => toast.error((e as Error).message));
-  }, [claimedBack, data?.payouts, autoPay, refetch, t]);
+  }, [user, data?.payouts, autoPay, refetch, t]);
 
   if (isLoading) return <p className="p-10 text-center text-muted-foreground">{t("common.loading")}</p>;
   if (!data) return <p className="p-10 text-center text-muted-foreground">404</p>;
