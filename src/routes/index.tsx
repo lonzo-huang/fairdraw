@@ -27,7 +27,7 @@ function Index() {
   const campaigns = usePublicHub();
   const [now, setNow] = useState(0);
   useEffect(() => { setNow(Date.now()); const timer = setInterval(() => setNow(Date.now()), 60000); return () => clearInterval(timer); }, []);
-  const leader = todayLeader(campaigns.data ?? [], now, "USDT");
+  const leader = todayLeader(campaigns.data ?? [], now);
   const leaderHandle = xHandleFromUrl(leader?.tweet_url);
   const handle = leaderHandle ?? "MirrortekUK";
   const displayName = xDisplayName(handle);

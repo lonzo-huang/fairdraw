@@ -4,11 +4,19 @@ export type HubCampaign = {
   status: string; tweet_url: string | null; owner_id: string; clicks: number; conditions?: unknown;
 };
 export type HubTab = "latest" | "ending" | "top" | "drawn";
-export function filterHub(campaigns: HubCampaign[], tab: HubTab, now: number, currency = "USDT") {
+/** Rough USD equivalents — used only to order cross-currency boards. Displayed amounts keep the declared currency. Unknown currencies rate 0 so they can never top a board on unpriced numbers. */
+const USD_RATES: Record<string, number> = { USD: 1, USDT: 1, CNY: 0.14, EUR: 1.08, GBP: 1.27 };
+export function usdValue(amount: number | null, currency: string): number {
+  return (amount ?? 0) * (USD_RATES[currency.toUpperCase()] ?? 0);
+}
+export function filterHub(campaigns: HubCampaign[], tab: HubTab, now: number, currency = "ALL") {
   const active = campaigns.filter((c) => c.status === "open" && Date.parse(c.ends_at) > now);
   if (tab === "drawn") return campaigns.filter((c) => c.status === "drawn").sort((a, b) => Date.parse(b.created_at) - Date.parse(a.created_at)).slice(0, 12);
   if (tab === "ending") return active.filter((c) => Date.parse(c.ends_at) - now < 8 * 60 * 60 * 1000).sort((a, b) => Date.parse(a.ends_at) - Date.parse(b.ends_at)).slice(0, 12);
-  if (tab === "top") return active.filter((c) => c.currency === currency && c.prize_amount !== null).sort((a, b) => (b.prize_amount ?? 0) - (a.prize_amount ?? 0)).slice(0, 5);
+  if (tab === "top") {
+    const pools = currency === "ALL" ? active : active.filter((c) => c.currency === currency);
+    return pools.filter((c) => c.prize_amount !== null).sort((a, b) => usdValue(b.prize_amount, b.currency) - usdValue(a.prize_amount, a.currency)).slice(0, 5);
+  }
   return active.sort((a, b) => Date.parse(b.created_at) - Date.parse(a.created_at)).slice(0, 12);
 }
 export function simulateCost(pool: number, target: number) { return pool / (target * 2); }
@@ -59,8 +67,8 @@ export async function fetchAllSnaps<T>(page: (from: number, size: number) => Pro
   }
   return out;
 }
-export function todayLeader(campaigns: HubCampaign[], now: number, currency: string) {
-  return campaigns.filter((c) => c.currency === currency && c.prize_amount !== null && Date.parse(c.created_at) >= periodStart(now, "day") && Date.parse(c.created_at) <= now && ["open", "drawn"].includes(c.status)).sort((a, b) => (b.prize_amount ?? 0) - (a.prize_amount ?? 0))[0];
+export function todayLeader(campaigns: HubCampaign[], now: number) {
+  return campaigns.filter((c) => c.prize_amount !== null && Date.parse(c.created_at) >= periodStart(now, "day") && Date.parse(c.created_at) <= now && ["open", "drawn"].includes(c.status)).sort((a, b) => usdValue(b.prize_amount, b.currency) - usdValue(a.prize_amount, a.currency))[0];
 }
 export function winnerHandles(raw: unknown): string[] {
   if (!Array.isArray(raw)) return [];

@@ -6,8 +6,10 @@ describe("Campaign hub", () => {
   it("ending soon includes only active campaigns under eight hours", () => {
     expect(filterHub([campaign("soon", { ends_at: "2026-10-28T19:59:59Z" }), campaign("boundary", { ends_at: "2026-10-28T20:00:00Z" }), campaign("expired", { ends_at: "2026-10-28T11:59:00Z" })], "ending", now).map((c) => c.id)).toEqual(["soon"]);
   });
-  it("ranks total pools only within the selected currency", () => {
-    expect(filterHub([campaign("small"), campaign("large", { prize_amount: 100 }), campaign("usd", { prize_amount: 1000, currency: "USD" })], "top", now).map((c) => c.id)).toEqual(["large", "small"]);
+  it("ranks total pools across currencies by USD value", () => {
+    // 1000 CNY ≈ 140 USD — outranks a 100 USDT pool but not a 200 USD pool.
+    expect(filterHub([campaign("small"), campaign("large", { prize_amount: 100 }), campaign("cny", { prize_amount: 1000, currency: "CNY" }), campaign("usd", { prize_amount: 200, currency: "USD" })], "top", now).map((c) => c.id)).toEqual(["usd", "cny", "large", "small"]);
+    expect(filterHub([campaign("small"), campaign("cny", { prize_amount: 1000, currency: "CNY" })], "top", now, "CNY").map((c) => c.id)).toEqual(["cny"]);
   });
   it("draw hall does not imply payment or include undrawn campaigns", () => {
     expect(filterHub([campaign("open"), campaign("drawn", { status: "drawn" })], "drawn", now).map((c) => c.id)).toEqual(["drawn"]);
@@ -45,7 +47,9 @@ describe("Sponsor boards", () => {
     expect(periodStart(at, "week")).toBe(Date.parse("2026-10-26T00:00:00Z"));
     expect(periodStart(at, "day")).toBe(Date.parse("2026-10-29T00:00:00Z"));
   });
-  it("today's leader is the largest pool published today in the selected currency", () => {
-    expect(todayLeader([campaign("yesterday", { prize_amount: 9999 }), campaign("today", { created_at: "2026-10-29T01:00:00Z", prize_amount: 100 }), campaign("usd", { created_at: "2026-10-29T02:00:00Z", prize_amount: 500, currency: "USD" })], at, "USDT")?.id).toBe("today");
+  it("today's leader is the largest pool published today, priced in USD", () => {
+    // 500 CNY ≈ 70 USD < 100 USDT, but a 2000 CNY pool ≈ 280 USD would lead.
+    expect(todayLeader([campaign("yesterday", { prize_amount: 9999 }), campaign("today", { created_at: "2026-10-29T01:00:00Z", prize_amount: 100 }), campaign("cny", { created_at: "2026-10-29T02:00:00Z", prize_amount: 500, currency: "CNY" })], at)?.id).toBe("today");
+    expect(todayLeader([campaign("cny", { created_at: "2026-10-29T02:00:00Z", prize_amount: 2000, currency: "CNY" }), campaign("today", { created_at: "2026-10-29T01:00:00Z", prize_amount: 100 })], at)?.id).toBe("cny");
   });
 });

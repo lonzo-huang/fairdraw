@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { ArrowUpRight, Clock3, Gift, Flame, Trophy, Zap, Users, RefreshCw, TrendingUp } from "lucide-react";
@@ -17,18 +17,11 @@ const sections = [{ id: "drawn", key: "cy.drawn", icon: Trophy }, { id: "top", k
 export function CampaignHub() {
   const { t } = useI18n();
   const [active, setActive] = useState<HubTab>("drawn");
-  const [currency, setCurrency] = useState("USDT");
+  const [currency, setCurrency] = useState("ALL");
   const [now, setNow] = useState(0);
   const [sampleRanking, setSampleRanking] = useState(true);
-  const currencyPicked = useRef(false);
   useEffect(() => { setNow(Date.now()); const timer = setInterval(() => setNow(Date.now()), 1000); return () => clearInterval(timer); }, []);
   const query = usePublicHub();
-  // Default the currency selector to the currency holding the largest active pool, so top pools is never empty by a mismatch.
-  useEffect(() => {
-    if (currencyPicked.current || !query.data?.length) return;
-    const top = query.data.filter((c) => c.status === "open" && Date.parse(c.ends_at) > Date.now() && c.prize_amount !== null).sort((a, b) => (b.prize_amount ?? 0) - (a.prize_amount ?? 0))[0];
-    if (top && top.currency !== currency) setCurrency(top.currency);
-  }, [query.data]);
   const snapshots = useQuery({ queryKey: ["public-hub-progress"], queryFn: async () => {
     const { data, error } = await supabase.from("condition_snapshots").select("campaign_id,progress,fetched_at,metrics").order("fetched_at", { ascending: false });
     if (error) throw error; return data;
@@ -53,7 +46,7 @@ export function CampaignHub() {
     </MotionReveal>
     <nav aria-label={t("cy.hub")} className="hub-nav sticky top-16 z-20 mt-5 flex flex-wrap items-center justify-between gap-2 border-y border-border py-2">
       <div className="flex flex-wrap gap-1">{sections.map(({ id, key, icon: Icon }) => <Button key={id} variant={active === id ? "glass" : "ghost"} size="sm" onClick={() => jump(id)} aria-current={active === id ? "location" : undefined} className={active === id ? "text-prize" : "text-muted-foreground"}><Icon className="size-3.5" />{t(key)}</Button>)}</div>
-      <div className="flex items-center gap-3"><select aria-label={t("f.currency")} value={currency} onChange={(e) => { currencyPicked.current = true; setCurrency(e.target.value); }} className="rounded-md border border-border bg-card px-2 py-1 text-xs">{["CNY", "USD", "USDT", "EUR", "GBP"].map((c) => <option key={c}>{c}</option>)}</select><span className="hidden items-center gap-1 text-[10px] text-muted-foreground sm:flex"><RefreshCw className="size-3" />{t("cond.refresh")}</span></div>
+      <div className="flex items-center gap-3"><select aria-label={t("f.currency")} value={currency} onChange={(e) => setCurrency(e.target.value)} className="rounded-md border border-border bg-card px-2 py-1 text-xs">{["ALL", "CNY", "USD", "USDT", "EUR", "GBP"].map((c) => <option key={c} value={c}>{c === "ALL" ? t("m.tabAll") : c}</option>)}</select><span className="hidden items-center gap-1 text-[10px] text-muted-foreground sm:flex"><RefreshCw className="size-3" />{t("cond.refresh")}</span></div>
     </nav>
     {sections.map(({ id, key, icon: Icon }) => <section key={id} id={`hub-${id}`} className="hub-section scroll-mt-36 border-b border-border py-6">
       <div className="mb-4 flex items-center gap-2"><Icon className={`size-4 ${id === "drawn" || id === "top" ? "text-prize" : "text-primary"}`} /><h3 className="text-lg font-semibold">{t(key)}</h3></div>
