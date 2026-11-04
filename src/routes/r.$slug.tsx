@@ -57,7 +57,7 @@ function ResultPage() {
   // When the winner returns from Stripe hosted onboarding (?claimed=1), fire
   // the committed transfer automatically — no organiser action needed.
   const autoPay = useServerFn(autoStripePayout);
-  const claimedBack = useLocation().search.includes("claimed=1");
+  const claimedBack = useLocation().searchStr.includes("claimed=");
   useEffect(() => {
     const p = data?.payouts?.find((x) => x.status !== "paid" && x.stripe_account_id);
     if (!claimedBack || !p) return;
