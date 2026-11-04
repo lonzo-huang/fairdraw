@@ -6,6 +6,8 @@ export type ShareCampaign = {
   prize_amount?: number | null; currency?: string | null;
   share_language?: string; share_duration?: number; conditions?: unknown; requirement?: string;
   escrow_status?: string | null;
+  /** Campaign length in hours (e.g. 24/48/72 or 1 for test campaigns). */
+  share_hours?: number; created_at?: string; ends_at?: string;
 };
 
 export function shareModel(c: ShareCampaign) {
@@ -45,7 +47,24 @@ export function conditionSummary(c: ShareCampaign) {
 
 export function campaignTweet(c: ShareCampaign, origin: string) {
   const m = shareModel(c);
-  return [c.title, "", prizeSummary(c), conditionSummary(c),
-    ...(c.requirement?.trim() ? [translate(m.language, "share.requirement", { requirement: c.requirement.trim() })] : []),
-    translate(m.language, "share.prepaid"), `${origin.replace(/\/$/, "")}/c/${encodeURIComponent(c.slug)}`].join("\n");
+  const lang = m.language;
+  const amount = c.prize_amount && c.prize_amount > 0 ? `${Number(c.prize_amount.toFixed(6))} ${c.currency || "USDT"}` : c.prize;
+  const goalParts: string[] = [];
+  const fields = [["min_replies", "share.g.replies"], ["min_likes", "share.g.likes"], ["min_reposts", "share.g.reposts"], ["min_quotes", "share.g.quotes"], ["min_views", "share.g.views"], ["min_participants", "share.g.participants"], ["min_verified", "share.g.verified"]] as const;
+  for (const [field, key] of fields) {
+    const count = m.conditions[field];
+    if (count) goalParts.push(translate(lang, key, { count }));
+  }
+  if (m.conditions.keyword) goalParts.push(translate(lang, "share.g.keyword", { keyword: m.conditions.keyword }));
+  const hours = c.share_hours ?? (c.ends_at && c.created_at ? Math.max(1, Math.round((Date.parse(c.ends_at) - Date.parse(c.created_at)) / 3600e3)) : m.days * 24);
+  return [
+    translate(lang, "share.head", { amount }),
+    translate(lang, "share.draw2", { count: m.winners, amount }),
+    translate(lang, "share.howto"),
+    ...(goalParts.length ? [translate(lang, "share.goal", { conditions: goalParts.join(" + ") })] : []),
+    translate(lang, "share.deadline", { hours }),
+    translate(lang, "share.prepaid2"),
+    translate(lang, "share.luck"),
+    `👉 ${origin.replace(/\/$/, "")}/c/${encodeURIComponent(c.slug)}`,
+  ].join("\n");
 }

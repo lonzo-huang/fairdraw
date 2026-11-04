@@ -88,6 +88,7 @@ function NewCampaign() {
     title: "", slug: "preview", prize: "",
     prize_amount: amount, currency: f.currency, winners_count: winners,
     share_language: lang, share_duration: f.days === "1h" ? 1 : Number(f.days), conditions, requirement: f.requirement,
+    share_hours: f.days === "1h" ? 1 : Number(f.days) * 24,
   };
 
   // Prize description and title auto-generate until the user edits them by hand.
