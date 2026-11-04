@@ -151,8 +151,12 @@ function ResultPage() {
   );
 }
 
-/** Countries where Stripe recipient onboarding is supported (Express-equivalent). Mainland China is not — winners there use the payout-info field instead. */
-const RECIPIENT_COUNTRIES = ["AU","AT","BE","BR","BG","CA","HR","CY","CZ","DK","EE","FI","FR","DE","GR","HK","HU","IN","ID","IE","IT","JP","LV","LI","LT","LU","MY","MT","MX","NL","NZ","NO","PL","PT","RO","SG","SK","SI","ES","SE","CH","TH","AE","GB","US"];
+/**
+ * Countries the GB platform may transfer to — Stripe only allows /v1/transfers
+ * to connected accounts in the platform's own region (GB/EEA/CH/NO/IS/LI).
+ * Winners elsewhere claim via the payout-info field and get paid manually.
+ */
+const RECIPIENT_COUNTRIES = ["AT","BE","BG","HR","CY","CZ","DK","EE","FI","FR","DE","GR","HU","IS","IE","IT","LV","LI","LT","LU","MT","NL","NO","PL","PT","RO","SK","SI","ES","SE","CH","GB"];
 
 function ClaimInfo({ payoutId, claimInfo, stripe, onboarded, onDone }: { payoutId: string; claimInfo: string | null; stripe: boolean; onboarded: boolean; onDone: () => void }) {
   const { t } = useI18n();

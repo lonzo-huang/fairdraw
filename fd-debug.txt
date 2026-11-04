@@ -1,4 +1,2 @@
-﻿PAYOUT status=pending acct=acct_1UY4tpDA4lUuSQEz
-transfers.status=active
-payouts.status=active
-REMAINING: 
+﻿CLOSE_ERR {"error": {"code": "wsp_415_illegal_request_content_type", "message": "The Content-Type is not supported for this endpoint. For v2 API endpoints, only JSON is supported. Visit https://docs.stripe.com/api-v2-overview to learn more about v2 API differences. Allowed Content-Type is: application/json. If you need any help, you can reach us at https://support.stripe.com/contact."}}
+PAYOUT acct= status=pending

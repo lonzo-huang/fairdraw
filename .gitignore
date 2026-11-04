@@ -44,3 +44,8 @@ sidecar/__pycache__/
 # local VPS ssh keys / ops
 vps/
 *.key
+
+# local diagnostic scratch files
+fd-*.txt
+fd-*.log
+_v2probe.mjs

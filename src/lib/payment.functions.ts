@@ -587,7 +587,7 @@ async function executeStripeTransfer(
       .eq("campaign_id", c.id)
       .eq("provider", "stripe")
       .eq("kind", "pool")
-      .eq("status", "paid")
+      .in("status", ["paid", "confirmed"])
       .order("created_at", { ascending: false })
       .limit(1)
       .maybeSingle();
