@@ -513,6 +513,7 @@ const dict = {
   "r.winners": { zh: "中奖者", en: "Winners" },
   "r.claim": { zh: "通过 Stripe 领奖", en: "Claim via Stripe" },
   "r.claimWise": { zh: "Wise 跨境收款", en: "Claim via Wise" },
+  "r.fiatCurrency": { zh: "收款币种（按实时汇率折算）", en: "Payout currency (converted at live rate)" },
   "r.wiseHolder": { zh: "收款人姓名（与账户一致）", en: "Account holder name" },
   "r.wiseType": { zh: "收款方式", en: "Payout method" },
   "r.wiseSent": { zh: "已提交 Wise 转账，到账后自动标记", en: "Wise transfer submitted — will confirm automatically" },

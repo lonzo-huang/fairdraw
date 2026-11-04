@@ -748,12 +748,12 @@ export const autoStripePayout = createServerFn({ method: "POST" })
  */
 export const claimWisePayout = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: { payoutId: string; recipientType: string; accountHolderName: string; details: Record<string, string> }) => input)
+  .inputValidator((input: { payoutId: string; recipientType: string; accountHolderName: string; details: Record<string, string>; targetCurrency?: string }) => input)
   .handler(async ({ data, context }) => {
     const { supabase, userId } = context;
     const { data: p } = await supabase
       .from("payouts")
-      .select("id, campaign_id, winner_handle, status, stripe_account_id, wise_transfer_id")
+      .select("id, campaign_id, winner_handle, status, stripe_account_id, wise_transfer_id, tx_hash")
       .eq("id", data.payoutId)
       .single();
     if (!p) throw new Error("Payout not found");
@@ -798,16 +798,59 @@ export const claimWisePayout = createServerFn({ method: "POST" })
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { wiseQuote, wiseRecipient, wiseCreateTransfer, wiseFundTransfer } = await import("@/lib/wise.server");
     const source = process.env["WISE_SOURCE_CURRENCY"] ?? "GBP";
+    const { chainConfig } = await import("@/lib/payments");
+    const cfg = chainConfig();
+    const isTokenPool = c.currency.toUpperCase() === cfg.tokenSymbol;
 
-    const quote = await wiseQuote(source, c.currency, share);
-    const recipient = await wiseRecipient({ currency: c.currency, type: recipientType, accountHolderName: holder, legalType: details["legalType"] === "BUSINESS" ? "BUSINESS" : "PRIVATE", details });
+    // Token pool claiming fiat: pay the winner's committed share to the
+    // platform treasury on-chain (Paid event = public proof), then deliver
+    // the fiat equivalent via Wise at the quoted USDT→fiat rate.
+    const target = isTokenPool
+      ? (data.targetCurrency ?? "CNY").toUpperCase()
+      : c.currency.toUpperCase();
+
+    if (isTokenPool) {
+      const chain = await import("@/lib/chain.server");
+      const escrow = await chain.escrowCampaign(c.id);
+      if (escrow && escrow.pool > 0n && !p.tx_hash) {
+        // Shares are committed at resolve(); the oracle pays idx to the
+        // treasury — the contract enforces amount and single payment.
+        const { data: d } = await supabase
+          .from("draws")
+          .select("winners")
+          .eq("campaign_id", c.id)
+          .maybeSingle();
+        const winners = Array.isArray(d?.winners) ? (d.winners as { handle?: string }[]) : [];
+        const idx = winners.findIndex((w) => normHandle(String(w.handle ?? "")) === normHandle(p.winner_handle));
+        if (idx < 0) throw new Error("Winner is not in the committed draw");
+        if (!escrow.resolved) {
+          const rTx = await chain.escrowResolve(c.id, winners.length, Number(c.prize_amount ?? 0));
+          await chain.chainClient().waitForTransactionReceipt({ hash: rTx });
+        }
+        const tx = await chain.escrowPay(c.id, idx, chain.oracleAddress());
+        // Record the treasury-release tx so a failed Wise leg can retry
+        // without re-paying — the contract also rejects a second pay().
+        await supabaseAdmin
+          .from("payouts")
+          .update({ tx_hash: tx, wallet_address: chain.oracleAddress(), updated_at: new Date().toISOString() })
+          .eq("id", p.id)
+          .eq("status", "pending");
+      }
+    }
+
+    const { usdtToFiat } = await import("@/lib/fx.server");
+    const rate = isTokenPool ? await usdtToFiat(target) : 1;
+    const fiatAmount = Math.round(share * rate * 100) / 100;
+
+    const quote = await wiseQuote(source, target, fiatAmount);
+    const recipient = await wiseRecipient({ currency: target, type: recipientType, accountHolderName: holder, legalType: details["legalType"] === "BUSINESS" ? "BUSINESS" : "PRIVATE", details });
     const transfer = await wiseCreateTransfer({ recipientId: recipient.id, quoteUuid: quote.id, reference: `FairDraw prize — ${p.winner_handle}` });
     await wiseFundTransfer(transfer.id);
 
     // Not paid yet — Wise delivers asynchronously; syncWisePayout confirms.
     await supabaseAdmin
       .from("payouts")
-      .update({ wise_transfer_id: transfer.id, claim_info: `Wise ${recipientType} → ${holder}`, updated_at: new Date().toISOString() })
+      .update({ wise_transfer_id: transfer.id, claim_info: `Wise ${recipientType} → ${holder}${isTokenPool ? ` (${share} ${cfg.tokenSymbol} ≈ ${fiatAmount} ${target} @ ${rate.toFixed(4)})` : ""}`, updated_at: new Date().toISOString() })
       .eq("id", p.id)
       .eq("status", "pending");
     return { ok: true, transferId: transfer.id };

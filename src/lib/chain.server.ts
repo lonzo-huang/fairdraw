@@ -107,6 +107,11 @@ function oracleWallet() {
   return createWalletClient({ account, chain: evmChain(), transport: http() });
 }
 
+/** Oracle account = platform treasury: receives released shares for fiat claims. */
+export function oracleAddress(): `0x${string}` {
+  return oracleWallet().account.address;
+}
+
 /**
  * Sends a prize payout in the configured token from the platform hot wallet.
  * Legacy path for pools funded directly to the platform wallet before the

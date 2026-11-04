@@ -4,9 +4,10 @@ import { useServerFn } from "@tanstack/react-start";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
+import { chainConfig, FIAT_CURRENCIES } from "@/lib/payments";
 import { useI18n } from "@/lib/i18n";
 import { useAuth } from "@/hooks/use-auth";
-import { autoStripePayout, claimStripePayout, claimWisePayout, getWiseClaimRequirements, submitPayoutInfo, syncWisePayout } from "@/lib/payment.functions";
+import { autoStripePayout, claimChainPayout, claimStripePayout, claimWisePayout, getWiseClaimRequirements, submitPayoutInfo, syncWisePayout } from "@/lib/payment.functions";
 import { runDraw, type Candidate } from "@/lib/draw";
 import { Button } from "@/components/ui/button";
 
@@ -172,7 +173,11 @@ function WiseClaim({ payoutId, currency, busy, setBusy, onDone }: { payoutId: st
   const [holder, setHolder] = useState("");
   const [rtype, setRtype] = useState("");
   const [dets, setDets] = useState<Record<string, string>>({});
-  const { data: reqs } = useQuery({ queryKey: ["wise-reqs", currency], queryFn: () => getReqs({ data: { targetCurrency: currency } }) });
+  // Token pools let the winner pick their receiving fiat (USDT→CNY etc.).
+  const isToken = currency.toUpperCase() === chainConfig().tokenSymbol;
+  const [fiat, setFiat] = useState("CNY");
+  const target = isToken ? fiat : currency;
+  const { data: reqs } = useQuery({ queryKey: ["wise-reqs", target], queryFn: () => getReqs({ data: { targetCurrency: target } }) });
   const types = (reqs ?? []) as WiseReq[];
   const sel = types.find((r) => r.type === rtype) ?? types[0];
   const groups = (sel?.fields ?? []).flatMap((f) => f.group ?? []).filter((g) => g.key !== "accountHolderName");
@@ -181,7 +186,7 @@ function WiseClaim({ payoutId, currency, busy, setBusy, onDone }: { payoutId: st
     if (!sel) return;
     setBusy(true);
     try {
-      await claim({ data: { payoutId, recipientType: sel.type, accountHolderName: holder, details: dets } });
+      await claim({ data: { payoutId, recipientType: sel.type, accountHolderName: holder, details: dets, ...(isToken ? { targetCurrency: target } : {}) } });
       toast.success(t("r.wiseSent"));
       onDone();
     } catch (e) {
@@ -192,6 +197,16 @@ function WiseClaim({ payoutId, currency, busy, setBusy, onDone }: { payoutId: st
 
   return (
     <span className="flex flex-col gap-2 rounded-md border border-input p-2">
+      {isToken && (
+        <select
+          aria-label={t("r.fiatCurrency")}
+          className="h-8 rounded-md border border-input bg-background px-1.5 text-xs"
+          value={fiat}
+          onChange={(e) => setFiat(e.target.value)}
+        >
+          {[...FIAT_CURRENCIES].map((fc) => <option key={fc} value={fc}>{fc}</option>)}
+        </select>
+      )}
       <input
         className="h-8 rounded-md border border-input bg-background px-2 text-xs"
         placeholder={t("r.wiseHolder")}
