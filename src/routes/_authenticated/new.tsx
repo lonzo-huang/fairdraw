@@ -87,7 +87,7 @@ function NewCampaign() {
   const shareBase: ShareCampaign = {
     title: "", slug: "preview", prize: "",
     prize_amount: amount, currency: f.currency, winners_count: winners,
-    share_language: lang, share_duration: Number(f.days), conditions, requirement: f.requirement,
+    share_language: lang, share_duration: f.days === "1h" ? 1 : Number(f.days), conditions, requirement: f.requirement,
   };
 
   // Prize description and title auto-generate until the user edits them by hand.
@@ -145,8 +145,9 @@ function NewCampaign() {
         escrow_status: "awaiting",
         winners_count: winners,
         share_language: lang,
-        share_duration: Number(f.days),
-        ends_at: endsAtFromDays(Number(f.days)),
+        share_duration: f.days === "1h" ? 1 : Number(f.days),
+        // Temporary test option: "1h" ends the campaign one hour from now.
+        ends_at: f.days === "1h" ? new Date(Date.now() + 3600e3).toISOString() : endsAtFromDays(Number(f.days)),
         requirement: f.requirement.trim(),
         tweet_url: f.tweet_url.trim() || null,
         conditions,
@@ -175,7 +176,7 @@ function NewCampaign() {
         </div>
         <div className="grid gap-5 sm:grid-cols-2">
           <Field label={t("f.winners")}><><Input type="number" min={1} max={100} required list="winner-options" value={f.winners_count} onChange={set("winners_count")} /><datalist id="winner-options">{[1, 2, 3, 5, 10, 20, 50, 100].map((n) => <option key={n} value={n} />)}</datalist></></Field>
-          <Field label={t("f.ends")}><select className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm" value={f.days} onChange={set("days")}>{DURATIONS.map((d) => <option key={d} value={d}>{t(`f.day${d}` as "f.day1")}</option>)}</select></Field>
+          <Field label={t("f.ends")}><select className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm" value={f.days} onChange={set("days")}><option value="1h">{t("f.hour1")}</option>{DURATIONS.map((d) => <option key={d} value={d}>{t(`f.day${d}` as "f.day1")}</option>)}</select></Field>
         </div>
 
         <div className="rounded-xl border border-border p-4">

@@ -236,6 +236,7 @@ const dict = {
   "f.winners": { zh: "中奖人数", en: "Number of winners" },
   "f.ends": { zh: "活动时长", en: "Duration" },
   "new.popupBlocked": { zh: "浏览器拦截了新窗口，文案已复制，请手动打开 x.com 发布", en: "Popup blocked — text copied, please open x.com and post manually" },
+  "f.hour1": { zh: "1 小时（测试）", en: "1 hour (test)" },
   "f.day1": { zh: "1 天", en: "1 day" },
   "f.day2": { zh: "2 天", en: "2 days" },
   "f.day3": { zh: "3 天", en: "3 days" },
