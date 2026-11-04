@@ -546,43 +546,34 @@ export const claimStripePayout = createServerFn({ method: "POST" })
   });
 
 /**
- * Organiser side: transfers the winner's share from the platform Stripe
- * balance to the winner's onboarded Express account. Stripe then pays it
- * out to their bank automatically.
+ * Executes the committed Stripe transfer for a pending payout. Amount and
+ * destination come only from DB rows committed at draw time, so any caller
+ * may safely trigger it. Flips status pending → paying first so concurrent
+ * calls cannot double-transfer; reverts on failure.
  */
-export const payoutViaStripe = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
-  .inputValidator((input: { payoutId: string }) => input)
-  .handler(async ({ data, context }) => {
-    const { supabase, userId } = context;
-    const { data: p, error } = await supabase
-      .from("payouts")
-      .select("id, campaign_id, winner_handle, status, stripe_account_id")
-      .eq("id", data.payoutId)
-      .single();
-    if (error || !p) throw new Error("Payout not found");
-    if (p.status === "paid") throw new Error("Already paid");
-    if (!p.stripe_account_id) throw new Error("Winner has not claimed via Stripe yet");
+async function executeStripeTransfer(
+  p: { id: string; stripe_account_id: string; winner_handle: string },
+  c: { id: string; prize_amount: number | null; currency: string; winners_count: number },
+  actorId: string,
+): Promise<{ ok: boolean; reason?: "not_ready" | "in_progress"; transferId?: string }> {
+  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+  const { stripe, stripeV2 } = await import("@/lib/stripe.server");
 
-    const { data: c } = await supabase
-      .from("campaigns")
-      .select("id, owner_id, prize_amount, currency, winners_count, payment_method, escrow_status")
-      .eq("id", p.campaign_id)
-      .single();
-    if (!c) throw new Error("Campaign not found");
-    if (c.owner_id !== userId) throw new Error("Forbidden");
-    if (c.payment_method !== "stripe") throw new Error("Campaign is not Stripe-funded");
-    if (c.escrow_status !== "charged" && c.escrow_status !== "funded")
-      throw new Error("Pool is not funded");
+  // v2 readiness: the recipient can receive transfers once the capability is active.
+  const account = await stripeV2("GET", `/v2/core/accounts/${p.stripe_account_id}?include[0]=configuration.recipient`);
+  const ready = account?.configuration?.recipient?.capabilities?.stripe_balance?.stripe_transfers?.status === "active";
+  if (!ready) return { ok: false, reason: "not_ready" };
 
-    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const { stripe, stripeV2 } = await import("@/lib/stripe.server");
+  // Optimistic lock — the first caller to flip pending → paying owns the transfer.
+  const { data: locked } = await supabaseAdmin
+    .from("payouts")
+    .update({ status: "paying", updated_at: new Date().toISOString() })
+    .eq("id", p.id)
+    .eq("status", "pending")
+    .select("id");
+  if (!locked?.length) return { ok: false, reason: "in_progress" };
 
-    // v2 readiness: the recipient can receive transfers once the capability is active.
-    const account = await stripeV2("GET", `/v2/core/accounts/${p.stripe_account_id}?include[0]=configuration.recipient`);
-    const ready = account?.configuration?.recipient?.capabilities?.stripe_balance?.stripe_transfers?.status === "active";
-    if (!ready) throw new Error("Winner has not finished Stripe onboarding");
-
+  try {
     const share = c.prize_amount && c.winners_count > 0 ? Number(c.prize_amount) / c.winners_count : 0;
     const units = toMinorUnits(share);
     if (!units) throw new Error("Invalid amount");
@@ -622,11 +613,10 @@ export const payoutViaStripe = createServerFn({ method: "POST" })
     await supabaseAdmin
       .from("payouts")
       .update({ status: "paid", proof: `stripe:transfer:${transfer.id}`, updated_at: new Date().toISOString() })
-      .eq("id", p.id)
-      .eq("status", "pending");
+      .eq("id", p.id);
     await supabaseAdmin.from("payments").insert({
       campaign_id: c.id,
-      user_id: userId,
+      user_id: actorId,
       provider: "stripe",
       kind: "payout",
       status: "confirmed",
@@ -636,6 +626,92 @@ export const payoutViaStripe = createServerFn({ method: "POST" })
       meta: { winner: p.winner_handle, destination: p.stripe_account_id } as unknown as Json,
     });
     return { ok: true, transferId: transfer.id };
+  } catch (err) {
+    // Release the lock so the payout can be retried.
+    await supabaseAdmin
+      .from("payouts")
+      .update({ status: "pending", updated_at: new Date().toISOString() })
+      .eq("id", p.id)
+      .eq("status", "paying");
+    throw err;
+  }
+}
+
+/**
+ * Organiser side: manually triggers the committed Stripe transfer to the
+ * winner's onboarded account. Kept as a fallback — autoStripePayout normally
+ * fires it when the winner returns from hosted onboarding.
+ */
+export const payoutViaStripe = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: { payoutId: string }) => input)
+  .handler(async ({ data, context }) => {
+    const { supabase, userId } = context;
+    const { data: p, error } = await supabase
+      .from("payouts")
+      .select("id, campaign_id, winner_handle, status, stripe_account_id")
+      .eq("id", data.payoutId)
+      .single();
+    if (error || !p) throw new Error("Payout not found");
+    if (p.status === "paid") throw new Error("Already paid");
+    if (!p.stripe_account_id) throw new Error("Winner has not claimed via Stripe yet");
+
+    const { data: c } = await supabase
+      .from("campaigns")
+      .select("id, owner_id, prize_amount, currency, winners_count, payment_method, escrow_status")
+      .eq("id", p.campaign_id)
+      .single();
+    if (!c) throw new Error("Campaign not found");
+    if (c.owner_id !== userId) throw new Error("Forbidden");
+    if (c.payment_method !== "stripe") throw new Error("Campaign is not Stripe-funded");
+    if (c.escrow_status !== "charged" && c.escrow_status !== "funded")
+      throw new Error("Pool is not funded");
+
+    const r = await executeStripeTransfer(
+      { id: p.id, stripe_account_id: p.stripe_account_id, winner_handle: p.winner_handle },
+      c,
+      userId,
+    );
+    if (!r.ok) {
+      if (r.reason === "not_ready") throw new Error("Winner has not finished Stripe onboarding");
+      throw new Error("Payout already in progress");
+    }
+    return { ok: true, transferId: r.transferId };
+  });
+
+/**
+ * Winner/auto side: fires the committed transfer once the recipient's
+ * stripe_transfers capability is active. Safe for any signed-in caller — the
+ * amount and destination are committed in the payout row and a status lock
+ * prevents double transfers. Called by the result page when the winner
+ * returns from hosted onboarding (?claimed=1).
+ */
+export const autoStripePayout = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: { payoutId: string }) => input)
+  .handler(async ({ data, context }) => {
+    const { supabase, userId } = context;
+    const { data: p } = await supabase
+      .from("payouts")
+      .select("id, campaign_id, winner_handle, status, stripe_account_id")
+      .eq("id", data.payoutId)
+      .single();
+    if (!p || p.status !== "pending" || !p.stripe_account_id) return { paid: false };
+
+    const { data: c } = await supabase
+      .from("campaigns")
+      .select("id, prize_amount, currency, winners_count, payment_method, escrow_status")
+      .eq("id", p.campaign_id)
+      .single();
+    if (!c || c.payment_method !== "stripe" || (c.escrow_status !== "charged" && c.escrow_status !== "funded"))
+      return { paid: false };
+
+    const r = await executeStripeTransfer(
+      { id: p.id, stripe_account_id: p.stripe_account_id, winner_handle: p.winner_handle },
+      c,
+      userId,
+    );
+    return { paid: r.ok };
   });
 
 /** Public config for the funding UI (no secrets). */

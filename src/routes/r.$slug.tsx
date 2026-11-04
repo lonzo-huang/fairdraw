@@ -1,12 +1,12 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, useLocation } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useI18n } from "@/lib/i18n";
 import { useAuth } from "@/hooks/use-auth";
-import { claimStripePayout, submitPayoutInfo } from "@/lib/payment.functions";
+import { autoStripePayout, claimStripePayout, submitPayoutInfo } from "@/lib/payment.functions";
 import { runDraw, type Candidate } from "@/lib/draw";
 import { Button } from "@/components/ui/button";
 
@@ -53,6 +53,18 @@ function ResultPage() {
       return (rows ?? []).map((r) => r.handle);
     },
   });
+
+  // When the winner returns from Stripe hosted onboarding (?claimed=1), fire
+  // the committed transfer automatically — no organiser action needed.
+  const autoPay = useServerFn(autoStripePayout);
+  const claimedBack = useLocation().search.includes("claimed=1");
+  useEffect(() => {
+    const p = data?.payouts?.find((x) => x.status !== "paid" && x.stripe_account_id);
+    if (!claimedBack || !p) return;
+    autoPay({ data: { payoutId: p.id } })
+      .then((r) => { if (r?.paid) { toast.success(t("r.paid")); refetch(); } })
+      .catch((e) => toast.error((e as Error).message));
+  }, [claimedBack, data?.payouts, autoPay, refetch, t]);
 
   if (isLoading) return <p className="p-10 text-center text-muted-foreground">{t("common.loading")}</p>;
   if (!data) return <p className="p-10 text-center text-muted-foreground">404</p>;
