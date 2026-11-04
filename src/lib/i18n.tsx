@@ -538,6 +538,7 @@ const dict = {
   "my.won": { zh: "中奖！", en: "Won!" },
   "common.loading": { zh: "加载中…", en: "Loading…" },
   "common.save": { zh: "保存", en: "Save" },
+  "common.edit": { zh: "编辑", en: "Edit" },
   "common.error": { zh: "出错了", en: "Something went wrong" },
   "footer.note": {
     zh: "FairDraw 帮助组织有意义的社区活动，不提供购买点赞或关注服务。",
