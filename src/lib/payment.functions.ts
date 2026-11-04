@@ -467,7 +467,7 @@ export const submitPayoutInfo = createServerFn({ method: "POST" })
  */
 export const claimStripePayout = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: { payoutId: string; origin: string }) => input)
+  .inputValidator((input: { payoutId: string; origin: string; country?: string }) => input)
   .handler(async ({ data, context }) => {
     const { supabase, userId } = context;
     const { data: p, error } = await supabase
@@ -501,13 +501,26 @@ export const claimStripePayout = createServerFn({ method: "POST" })
       throw new Error("Your X account does not match the winning handle");
 
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const { stripe } = await import("@/lib/stripe.server");
+    const { stripeV2 } = await import("@/lib/stripe.server");
 
     let accountId = p.stripe_account_id;
     if (!accountId) {
-      const account = await stripe().accounts.create({
-        type: "express",
-        capabilities: { transfers: { requested: true } },
+      // Accounts v2 requires the recipient's country upfront — the hosted
+      // onboarding form renders payout fields based on it.
+      const country = (data.country ?? "").trim().toUpperCase();
+      if (!/^[A-Z]{2}$/.test(country)) throw new Error("Select your country before claiming via Stripe");
+      const email = (await supabase.auth.getUser()).data.user?.email ?? undefined;
+      const account = await stripeV2("POST", "/v2/core/accounts", {
+        display_name: `FairDraw winner @${p.winner_handle}`,
+        ...(email ? { contact_email: email } : {}),
+        identity: { entity_type: "individual", country },
+        dashboard: "express",
+        configuration: {
+          // stripe_transfers (receive /v1/transfers) requires merchant.card_payments.
+          merchant: { capabilities: { card_payments: { requested: true } } },
+          recipient: { capabilities: { stripe_balance: { stripe_transfers: { requested: true } } } },
+        },
+        defaults: { responsibilities: { fees_collector: "application", losses_collector: "application" } },
         metadata: { campaign_id: c.id, payout_id: p.id, winner: p.winner_handle },
       });
       accountId = account.id;
@@ -518,11 +531,16 @@ export const claimStripePayout = createServerFn({ method: "POST" })
     }
 
     const origin = data.origin.replace(/\/$/, "");
-    const link = await stripe().accountLinks.create({
+    const link = await stripeV2("POST", "/v2/core/account_links", {
       account: accountId,
-      type: "account_onboarding",
-      refresh_url: `${origin}/r/${c.slug}`,
-      return_url: `${origin}/r/${c.slug}?claimed=1`,
+      use_case: {
+        type: "account_onboarding",
+        account_onboarding: {
+          configurations: ["merchant", "recipient"],
+          refresh_url: `${origin}/r/${c.slug}`,
+          return_url: `${origin}/r/${c.slug}?claimed=1`,
+        },
+      },
     });
     return { url: link.url };
   });
@@ -558,10 +576,12 @@ export const payoutViaStripe = createServerFn({ method: "POST" })
       throw new Error("Pool is not funded");
 
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const { stripe } = await import("@/lib/stripe.server");
+    const { stripe, stripeV2 } = await import("@/lib/stripe.server");
 
-    const account = await stripe().accounts.retrieve(p.stripe_account_id);
-    if (!account.details_submitted) throw new Error("Winner has not finished Stripe onboarding");
+    // v2 readiness: the recipient can receive transfers once the capability is active.
+    const account = await stripeV2("GET", `/v2/core/accounts/${p.stripe_account_id}?include[0]=configuration.recipient`);
+    const ready = account?.configuration?.recipient?.capabilities?.stripe_balance?.stripe_transfers?.status === "active";
+    if (!ready) throw new Error("Winner has not finished Stripe onboarding");
 
     const share = c.prize_amount && c.winners_count > 0 ? Number(c.prize_amount) / c.winners_count : 0;
     const units = toMinorUnits(share);

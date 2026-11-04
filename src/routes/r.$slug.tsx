@@ -138,6 +138,9 @@ function ResultPage() {
   );
 }
 
+/** Countries where Stripe recipient onboarding is supported (Express-equivalent). Mainland China is not — winners there use the payout-info field instead. */
+const RECIPIENT_COUNTRIES = ["AU","AT","BE","BR","BG","CA","HR","CY","CZ","DK","EE","FI","FR","DE","GR","HK","HU","IN","ID","IE","IT","JP","LV","LI","LT","LU","MY","MT","MX","NL","NZ","NO","PL","PT","RO","SG","SK","SI","ES","SE","CH","TH","AE","GB","US"];
+
 function ClaimInfo({ payoutId, claimInfo, stripe, onboarded, onDone }: { payoutId: string; claimInfo: string | null; stripe: boolean; onboarded: boolean; onDone: () => void }) {
   const { t } = useI18n();
   const submit = useServerFn(submitPayoutInfo);
@@ -145,6 +148,7 @@ function ClaimInfo({ payoutId, claimInfo, stripe, onboarded, onDone }: { payoutI
   const [info, setInfo] = useState(claimInfo ?? "");
   const [open, setOpen] = useState(!claimInfo);
   const [busy, setBusy] = useState(false);
+  const [country, setCountry] = useState("");
 
   async function save() {
     setBusy(true);
@@ -162,7 +166,7 @@ function ClaimInfo({ payoutId, claimInfo, stripe, onboarded, onDone }: { payoutI
   async function stripeOnboard() {
     setBusy(true);
     try {
-      const r = await claim({ data: { payoutId, origin: window.location.origin } });
+      const r = await claim({ data: { payoutId, origin: window.location.origin, country } });
       if (r.url) {
         window.location.href = r.url;
         return;
@@ -196,7 +200,13 @@ function ClaimInfo({ payoutId, claimInfo, stripe, onboarded, onDone }: { payoutI
       {stripe && (
         <span className="flex items-center gap-2">
           {onboarded && <span className="text-xs opacity-70">{t("r.claimedInfo")}</span>}
-          <Button size="sm" variant="ghost" className="h-7 px-2 text-xs" disabled={busy} onClick={stripeOnboard}>
+          {!onboarded && (
+            <select aria-label={t("r.claimCountry")} value={country} onChange={(e) => setCountry(e.target.value)} className="h-7 rounded-md border border-input bg-background px-1.5 text-xs">
+              <option value="">{t("r.claimCountry")}</option>
+              {RECIPIENT_COUNTRIES.map((cc) => <option key={cc} value={cc}>{cc}</option>)}
+            </select>
+          )}
+          <Button size="sm" variant="ghost" className="h-7 px-2 text-xs" disabled={busy || (!onboarded && !country)} onClick={stripeOnboard}>
             {onboarded ? t("r.claimAgain") : t("r.claim")}
           </Button>
         </span>

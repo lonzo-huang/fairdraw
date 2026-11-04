@@ -511,6 +511,7 @@ const dict = {
   "r.title": { zh: "开奖结果", en: "Draw result" },
   "r.winners": { zh: "中奖者", en: "Winners" },
   "r.claim": { zh: "通过 Stripe 领奖", en: "Claim via Stripe" },
+  "r.claimCountry": { zh: "你的国家/地区（Stripe 开户必填）", en: "Your country/region (required by Stripe)" },
   "r.claimAgain": { zh: "继续 Stripe 认证", en: "Continue Stripe setup" },
   "r.claimedInfo": { zh: "已提交收款信息，等待转账", en: "Payout details submitted — awaiting transfer" },
   "r.claimInfoPlaceholder": { zh: "收款方式：PayPal 邮箱 / USDT 地址 / Wise / 支付宝…", en: "How to pay you: PayPal email / USDT address / Wise / bank…" },
