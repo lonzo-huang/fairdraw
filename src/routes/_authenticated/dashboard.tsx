@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Activity, ArrowUpRight, Eye, Gift, Search, TrendingUp, Zap } from "lucide-react";
 import type { Metrics } from "@/lib/conditions";
+import { fetchAllSnaps } from "@/lib/campaign-hub";
 
 export const Route = createFileRoute("/_authenticated/dashboard")({
   head: () => ({ meta: [
@@ -48,10 +49,10 @@ function Dashboard() {
       const { data: campaigns } = await supabase.from("campaigns").select("*").eq("owner_id", uid).order("created_at", { ascending: false });
       const ids = (campaigns ?? []).map((c) => c.id);
       const counts = await Promise.all(ids.map(async (id) => (await supabase.rpc("entry_count", { _campaign_id: id })).data ?? 0));
-      const { data: snaps } = ids.length
-        ? await supabase.from("condition_snapshots").select("campaign_id, metrics, fetched_at").in("campaign_id", ids).order("fetched_at", { ascending: true }).limit(4000)
-        : { data: [] as SnapRow[] };
-      return { campaigns: (campaigns ?? []).map((c, i) => ({ ...c, entries: counts[i] })) as Camp[], snaps: (snaps ?? []) as SnapRow[] };
+      const snaps = ids.length
+        ? await fetchAllSnaps<SnapRow>((from, size) => supabase.from("condition_snapshots").select("campaign_id, metrics, fetched_at").in("campaign_id", ids).order("fetched_at", { ascending: true }).range(from, from + size - 1))
+        : [];
+      return { campaigns: (campaigns ?? []).map((c, i) => ({ ...c, entries: counts[i] })) as Camp[], snaps };
     },
   });
 

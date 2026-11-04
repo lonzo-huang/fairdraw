@@ -47,6 +47,18 @@ export function periodStart(now: number, period: RankPeriod) {
   if (period === "week") d.setUTCDate(d.getUTCDate() - (d.getUTCDay() + 6) % 7);
   return d.getTime();
 }
+/** Page through an ascending snapshot query so a row cap never truncates history. */
+export async function fetchAllSnaps<T>(page: (from: number, size: number) => PromiseLike<{ data: T[] | null; error: { message: string } | null }>, size = 1000, maxPages = 100): Promise<T[]> {
+  const out: T[] = [];
+  for (let i = 0; i < maxPages; i++) {
+    const { data, error } = await page(out.length, size);
+    if (error) throw new Error(error.message);
+    const batch = data ?? [];
+    out.push(...batch);
+    if (batch.length < size) break;
+  }
+  return out;
+}
 export function todayLeader(campaigns: HubCampaign[], now: number, currency: string) {
   return campaigns.filter((c) => c.currency === currency && c.prize_amount !== null && Date.parse(c.created_at) >= periodStart(now, "day") && Date.parse(c.created_at) <= now && ["open", "drawn"].includes(c.status)).sort((a, b) => (b.prize_amount ?? 0) - (a.prize_amount ?? 0))[0];
 }

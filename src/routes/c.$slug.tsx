@@ -10,6 +10,7 @@ import { StatusBadge } from "@/components/status-badge";
 import { Activity, ArrowUpRight, Clock3, Trophy, Zap } from "lucide-react";
 import { getCampaignShare } from "@/lib/campaign-share.functions";
 import { conditionSummary, prizeSummary } from "@/lib/campaign-share";
+import { fetchAllSnaps } from "@/lib/campaign-hub";
 import { translate } from "@/lib/i18n";
 
 export const Route = createFileRoute("/c/$slug")({
@@ -58,11 +59,11 @@ function CampaignPage() {
       const { data: c } = await supabase.from("campaigns").select("*").eq("slug", slug).maybeSingle();
       if (!c) return null;
       const { data: count } = await supabase.rpc("entry_count", { _campaign_id: c.id });
-      const [{ data: snaps }, { data: draw }] = await Promise.all([
-        supabase.from("condition_snapshots").select("metrics, progress, fetched_at").eq("campaign_id", c.id).order("fetched_at", { ascending: true }).limit(500),
+      const [snaps, { data: draw }] = await Promise.all([
+        fetchAllSnaps((from, size) => supabase.from("condition_snapshots").select("metrics, progress, fetched_at").eq("campaign_id", c.id).order("fetched_at", { ascending: true }).range(from, from + size - 1)),
         supabase.from("draws").select("drawn_at").eq("campaign_id", c.id).maybeSingle(),
       ]);
-      return { c, count: count ?? 0, snaps: snaps ?? [], drawAt: draw?.drawn_at ?? null };
+      return { c, count: count ?? 0, snaps, drawAt: draw?.drawn_at ?? null };
     },
   });
   const cd = useCountdown(data?.c?.ends_at);
