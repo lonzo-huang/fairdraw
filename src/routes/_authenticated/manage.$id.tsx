@@ -256,7 +256,50 @@ function Manage() {
 
       <div className="mt-6 grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_330px]">
         <div className="space-y-6">
-          {/* Campaign progress — the visual focus of the page */}
+          {/* X post integration — the first step in the campaign flow sits on top */}
+          <section className="rounded-xl border border-border bg-card p-5">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <h2 className="flex items-center gap-2 text-xl font-semibold"><Link2 className="size-5" />{t("m.postTitle")}</h2>
+              {c.tweet_url && !postEdit && <Button variant="ghost" size="sm" onClick={() => setPostEdit(true)}>{t("m.postChange")}</Button>}
+            </div>
+            {c.tweet_url && !postEdit ? (
+              <div className="mt-4 flex items-center justify-between gap-3 rounded-lg border border-border bg-background p-4">
+                <div className="min-w-0">
+                  <p className="truncate font-medium">
+                    {snapM?.author_name ?? t("m.postLinked")}
+                    {snapM?.author_handle ? <span className="ml-1 font-mono text-xs text-muted-foreground">@{snapM.author_handle}</span> : null}
+                  </p>
+                  {snapM?.post_text && <p className="mt-1 line-clamp-2 text-sm text-muted-foreground">{snapM.post_text}</p>}
+                  <p className="mt-1 truncate font-mono text-xs text-muted-foreground">{c.tweet_url}</p>
+                </div>
+                <Button asChild variant="outline" size="sm" className="shrink-0">
+                  <a href={c.tweet_url} target="_blank" rel="noopener noreferrer">{t("m.openPost")}<ArrowUpRight className="size-4" /></a>
+                </Button>
+              </div>
+            ) : (
+              <div className="mt-4 space-y-3">
+                <div className="flex flex-col gap-2 sm:flex-row">
+                  <Input
+                    placeholder="https://x.com/you/status/…"
+                    value={tweetUrl ?? c.tweet_url ?? ""}
+                    onChange={(e) => setTweetUrl(e.target.value)}
+                  />
+                  <Button size="sm" variant="secondary" onClick={saveTweet} disabled={tweetUrl === null}>{t("m.postLinkAction")}</Button>
+                </div>
+                <p className="text-xs text-muted-foreground">{t("m.postHint")}</p>
+                {open && !c.tweet_url && (c.escrow_status === "funded" || c.escrow_status === "preauthorized" || c.escrow_status === "charged" || c.payment_method === "manual") && (
+                  <a
+                    href={`https://x.com/intent/post?text=${encodeURIComponent(campaignTweet(c, typeof window !== "undefined" ? window.location.origin : ""))}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1 text-sm font-medium text-primary hover:underline"
+                  >{t("new.postToX")}<ArrowUpRight className="size-4" /></a>
+                )}
+              </div>
+            )}
+          </section>
+
+          {/* Campaign progress */}
           <section className="rounded-xl border border-border bg-card p-5">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <h2 className="text-xl font-semibold">{t("m.progressTitle")}</h2>
@@ -301,49 +344,6 @@ function Manage() {
               {pastDeadline ? t("m.ended") : `${t("m.timeLeft")} ${fmtLeft(leftMs)}`}
               {snap && <span className="ml-auto">{t("m.lastSync")} {new Date(snap.fetched_at).toLocaleTimeString()}</span>}
             </div>
-          </section>
-
-          {/* X post integration */}
-          <section className="rounded-xl border border-border bg-card p-5">
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <h2 className="flex items-center gap-2 text-xl font-semibold"><Link2 className="size-5" />{t("m.postTitle")}</h2>
-              {c.tweet_url && !postEdit && <Button variant="ghost" size="sm" onClick={() => setPostEdit(true)}>{t("m.postChange")}</Button>}
-            </div>
-            {c.tweet_url && !postEdit ? (
-              <div className="mt-4 flex items-center justify-between gap-3 rounded-lg border border-border bg-background p-4">
-                <div className="min-w-0">
-                  <p className="truncate font-medium">
-                    {snapM?.author_name ?? t("m.postLinked")}
-                    {snapM?.author_handle ? <span className="ml-1 font-mono text-xs text-muted-foreground">@{snapM.author_handle}</span> : null}
-                  </p>
-                  {snapM?.post_text && <p className="mt-1 line-clamp-2 text-sm text-muted-foreground">{snapM.post_text}</p>}
-                  <p className="mt-1 truncate font-mono text-xs text-muted-foreground">{c.tweet_url}</p>
-                </div>
-                <Button asChild variant="outline" size="sm" className="shrink-0">
-                  <a href={c.tweet_url} target="_blank" rel="noopener noreferrer">{t("m.openPost")}<ArrowUpRight className="size-4" /></a>
-                </Button>
-              </div>
-            ) : (
-              <div className="mt-4 space-y-3">
-                <div className="flex flex-col gap-2 sm:flex-row">
-                  <Input
-                    placeholder="https://x.com/you/status/…"
-                    value={tweetUrl ?? c.tweet_url ?? ""}
-                    onChange={(e) => setTweetUrl(e.target.value)}
-                  />
-                  <Button size="sm" variant="secondary" onClick={saveTweet} disabled={tweetUrl === null}>{t("m.postLinkAction")}</Button>
-                </div>
-                <p className="text-xs text-muted-foreground">{t("m.postHint")}</p>
-                {open && !c.tweet_url && (c.escrow_status === "funded" || c.escrow_status === "preauthorized" || c.escrow_status === "charged" || c.payment_method === "manual") && (
-                  <a
-                    href={`https://x.com/intent/post?text=${encodeURIComponent(campaignTweet(c, typeof window !== "undefined" ? window.location.origin : ""))}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1 text-sm font-medium text-primary hover:underline"
-                  >{t("new.postToX")}<ArrowUpRight className="size-4" /></a>
-                )}
-              </div>
-            )}
           </section>
 
           {/* Participants + draw */}
