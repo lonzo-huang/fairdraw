@@ -788,6 +788,93 @@ export const claimWisePayout = createServerFn({ method: "POST" })
   });
 
 /**
+ * Winner claims the prize to an EVM wallet: the platform hot wallet
+ * broadcasts an ERC-20 transfer and the tx hash becomes public payment
+ * proof. Only pools denominated in the configured token qualify — fiat
+ * pools have no on-chain equivalent.
+ */
+export const claimChainPayout = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: { payoutId: string; address: string }) => input)
+  .handler(async ({ data, context }) => {
+    const { supabase, userId } = context;
+    const { data: p } = await supabase
+      .from("payouts")
+      .select("id, campaign_id, winner_handle, status, stripe_account_id, wise_transfer_id, tx_hash")
+      .eq("id", data.payoutId)
+      .single();
+    if (!p) throw new Error("Payout not found");
+    if (p.status !== "pending") throw new Error("Payout already processed");
+    if (p.stripe_account_id || p.wise_transfer_id || p.tx_hash) throw new Error("Payout already claimed");
+
+    const { data: c } = await supabase
+      .from("campaigns")
+      .select("id, prize_amount, currency, winners_count, escrow_status")
+      .eq("id", p.campaign_id)
+      .single();
+    if (!c) throw new Error("Campaign not found");
+    if (c.escrow_status !== "charged" && c.escrow_status !== "funded") throw new Error("Pool is not funded");
+
+    // Only the account that owns the winning entry may claim.
+    const { data: mine } = await supabase
+      .from("entries")
+      .select("id")
+      .eq("campaign_id", c.id)
+      .eq("user_id", userId)
+      .eq("handle", p.winner_handle)
+      .maybeSingle();
+    if (!mine) throw new Error("This prize does not belong to your account");
+
+    const bound = await boundXHandle(supabase);
+    if (bound && bound !== normHandle(p.winner_handle))
+      throw new Error("Your X account does not match the winning handle");
+
+    const { chainConfig } = await import("@/lib/payments");
+    const cfg = chainConfig();
+    if (c.currency.toUpperCase() !== cfg.tokenSymbol)
+      throw new Error(`On-chain payout only supports ${cfg.tokenSymbol} pools`);
+
+    const { isValidAddress, sendTokenPayout } = await import("@/lib/chain.server");
+    const to = data.address.trim();
+    if (!isValidAddress(to)) throw new Error("Invalid wallet address");
+
+    const share = c.prize_amount && c.winners_count > 0 ? Number(c.prize_amount) / c.winners_count : 0;
+    if (share <= 0) throw new Error("Invalid amount");
+
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    // Lock before broadcasting so a retried request can't send twice.
+    const { data: locked } = await supabaseAdmin
+      .from("payouts")
+      .update({ status: "paying", claim_info: `${cfg.tokenSymbol} → ${to}`, updated_at: new Date().toISOString() })
+      .eq("id", p.id)
+      .eq("status", "pending")
+      .select("id");
+    if (!locked?.length) throw new Error("Payout already processing");
+
+    try {
+      const tx = await sendTokenPayout(to as `0x${string}`, share);
+      await supabaseAdmin
+        .from("payouts")
+        .update({
+          status: "paid",
+          tx_hash: tx,
+          wallet_address: to,
+          proof: `${cfg.explorerTx}${tx}`,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", p.id);
+      return { ok: true, tx };
+    } catch (e) {
+      await supabaseAdmin
+        .from("payouts")
+        .update({ status: "pending", updated_at: new Date().toISOString() })
+        .eq("id", p.id)
+        .eq("status", "paying");
+      throw e;
+    }
+  });
+
+/**
  * Re-reads an in-flight Wise transfer. Completed/sent → mark paid with proof;
  * bounced/cancelled/refunded → release the payout so the winner can claim
  * again. Any signed-in visitor may trigger — it only reads committed state.

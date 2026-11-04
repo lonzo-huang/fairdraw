@@ -120,6 +120,7 @@ function ResultPage() {
                     stripe={c.payment_method === "stripe"}
                     onboarded={!!p.stripe_account_id}
                     wise={!!p.wise_transfer_id}
+                    paying={p.status === "paying"}
                     currency={c.currency}
                     onDone={refetch}
                   />
@@ -219,8 +220,38 @@ function WiseClaim({ payoutId, currency, busy, setBusy, onDone }: { payoutId: st
     </span>
   );
 }
+function ChainClaim({ payoutId, busy, setBusy, onDone }: { payoutId: string; busy: boolean; setBusy: (b: boolean) => void; onDone: () => void }) {
+  const { t } = useI18n();
+  const claim = useServerFn(claimChainPayout);
+  const [addr, setAddr] = useState("");
 
-function ClaimInfo({ payoutId, claimInfo, stripe, onboarded, wise, currency, onDone }: { payoutId: string; claimInfo: string | null; stripe: boolean; onboarded: boolean; wise: boolean; currency: string; onDone: () => void }) {
+  async function go() {
+    setBusy(true);
+    try {
+      await claim({ data: { payoutId, address: addr } });
+      toast.success(t("r.chainSent"));
+      onDone();
+    } catch (e) {
+      toast.error((e as Error).message);
+      setBusy(false);
+    }
+  }
+
+  return (
+    <span className="flex flex-col gap-2 rounded-md border border-input p-2 sm:flex-row">
+      <input
+        className="h-8 flex-1 rounded-md border border-input bg-background px-2 font-mono text-xs"
+        placeholder={t("r.chainAddr")}
+        value={addr}
+        maxLength={42}
+        onChange={(e) => setAddr(e.target.value)}
+      />
+      <Button size="sm" disabled={busy || !/^0x[0-9a-fA-F]{40}$/.test(addr.trim())} onClick={go}>{t("r.claimChain")}</Button>
+    </span>
+  );
+}
+
+function ClaimInfo({ payoutId, claimInfo, stripe, onboarded, wise, paying, currency, onDone }: { payoutId: string; claimInfo: string | null; stripe: boolean; onboarded: boolean; wise: boolean; paying: boolean; currency: string; onDone: () => void }) {
   const { t } = useI18n();
   const submit = useServerFn(submitPayoutInfo);
   const claim = useServerFn(claimStripePayout);
@@ -291,14 +322,19 @@ function ClaimInfo({ payoutId, claimInfo, stripe, onboarded, wise, currency, onD
           </Button>
         </span>
       )}
-      {wise ? (
-        <span className="text-xs opacity-70">{t("r.wisePending")}</span>
+      {wise || paying ? (
+        <span className="text-xs opacity-70">{t(wise ? "r.wisePending" : "r.payPending")}</span>
       ) : wiseOpen ? (
         <WiseClaim payoutId={payoutId} currency={currency} busy={busy} setBusy={setBusy} onDone={onDone} />
       ) : (
-        <Button size="sm" variant="ghost" className="h-7 self-start px-2 text-xs" onClick={() => setWiseOpen(true)}>
-          {t("r.claimWise")}
-        </Button>
+        <span className="flex flex-col gap-2">
+          <Button size="sm" variant="ghost" className="h-7 self-start px-2 text-xs" onClick={() => setWiseOpen(true)}>
+            {t("r.claimWise")}
+          </Button>
+          {currency.toUpperCase() === chainConfig().tokenSymbol && (
+            <ChainClaim payoutId={payoutId} busy={busy} setBusy={setBusy} onDone={onDone} />
+          )}
+        </span>
       )}
     </span>
   );

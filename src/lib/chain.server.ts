@@ -5,6 +5,7 @@
  */
 import {
   createPublicClient,
+  createWalletClient,
   decodeEventLog,
   defineChain,
   formatUnits,
@@ -14,6 +15,7 @@ import {
   parseUnits,
   type Address,
 } from "viem";
+import { privateKeyToAccount } from "viem/accounts";
 import { chainConfig } from "@/lib/payments";
 
 const TRANSFER_EVENT = parseAbiItem("event Transfer(address indexed from, address indexed to, uint256 value)");
@@ -87,4 +89,27 @@ export async function verifyTokenTransfer(
 
 export function isValidAddress(value: string): boolean {
   return /^0x[0-9a-fA-F]{40}$/.test(value.trim());
+}
+
+const ERC20_TRANSFER = parseAbiItem("function transfer(address to, uint256 amount) returns (bool)");
+
+/**
+ * Sends a prize payout in the configured token from the platform hot wallet.
+ * The wallet's private key lives in the CHAIN_PAYOUT_KEY secret; the wallet
+ * must hold the token plus a little native currency for gas. Returns the tx
+ * hash once the node accepts it (the caller marks the payout paid with the
+ * hash as public proof on the explorer).
+ */
+export async function sendTokenPayout(to: `0x${string}`, amount: number): Promise<`0x${string}`> {
+  const key = process.env["CHAIN_PAYOUT_KEY"];
+  if (!key) throw new Error("On-chain payouts are not configured");
+  const cfg = chainConfig();
+  const account = privateKeyToAccount((key.startsWith("0x") ? key : `0x${key}`) as `0x${string}`);
+  const wallet = createWalletClient({ account, chain: evmChain(), transport: http() });
+  return wallet.writeContract({
+    address: cfg.tokenAddress,
+    abi: [ERC20_TRANSFER],
+    functionName: "transfer",
+    args: [to, parseUnits(String(amount), cfg.tokenDecimals)],
+  });
 }
