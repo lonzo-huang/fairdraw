@@ -6,7 +6,7 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useI18n } from "@/lib/i18n";
 import { useAuth } from "@/hooks/use-auth";
-import { autoStripePayout, claimStripePayout, submitPayoutInfo } from "@/lib/payment.functions";
+import { autoStripePayout, claimStripePayout, claimWisePayout, getWiseClaimRequirements, submitPayoutInfo, syncWisePayout } from "@/lib/payment.functions";
 import { runDraw, type Candidate } from "@/lib/draw";
 import { Button } from "@/components/ui/button";
 
@@ -55,17 +55,19 @@ function ResultPage() {
   });
 
   // Fire the committed transfer automatically whenever a signed-in visitor
-  // sees a pending payout with a claimed account — the server checks the
-  // stripe_transfers capability and only transfers once it's active.
+  // sees a pending payout with a claimed account — Stripe transfers once the
+  // capability is active; Wise transfers sync their delivery status.
   const autoPay = useServerFn(autoStripePayout);
+  const wiseSync = useServerFn(syncWisePayout);
   useEffect(() => {
     if (!user) return;
-    const p = data?.payouts?.find((x) => x.status !== "paid" && x.stripe_account_id);
+    const p = data?.payouts?.find((x) => x.status !== "paid" && (x.stripe_account_id || x.wise_transfer_id));
     if (!p) return;
-    autoPay({ data: { payoutId: p.id } })
+    const fn = p.wise_transfer_id ? wiseSync : autoPay;
+    fn({ data: { payoutId: p.id } })
       .then((r) => { if (r?.paid) { toast.success(t("r.paid")); refetch(); } })
       .catch((e) => toast.error((e as Error).message));
-  }, [user, data?.payouts, autoPay, refetch, t]);
+  }, [user, data?.payouts, autoPay, wiseSync, refetch, t]);
 
   if (isLoading) return <p className="p-10 text-center text-muted-foreground">{t("common.loading")}</p>;
   if (!data) return <p className="p-10 text-center text-muted-foreground">404</p>;
@@ -117,6 +119,8 @@ function ResultPage() {
                     claimInfo={p.claim_info}
                     stripe={c.payment_method === "stripe"}
                     onboarded={!!p.stripe_account_id}
+                    wise={!!p.wise_transfer_id}
+                    currency={c.currency}
                     onDone={refetch}
                   />
                 )}
@@ -154,16 +158,75 @@ function ResultPage() {
 /**
  * Countries the GB platform may transfer to — Stripe only allows /v1/transfers
  * to connected accounts in the platform's own region (GB/EEA/CH/NO/IS/LI).
- * Winners elsewhere claim via the payout-info field and get paid manually.
+ * Winners elsewhere claim via Wise.
  */
 const RECIPIENT_COUNTRIES = ["AT","BE","BG","HR","CY","CZ","DK","EE","FI","FR","DE","GR","HU","IS","IE","IT","LV","LI","LT","LU","MT","NL","NO","PL","PT","RO","SK","SI","ES","SE","CH","GB"];
 
-function ClaimInfo({ payoutId, claimInfo, stripe, onboarded, onDone }: { payoutId: string; claimInfo: string | null; stripe: boolean; onboarded: boolean; onDone: () => void }) {
+type WiseReq = { type: string; title: string; fields?: { name: string; group?: { key: string; name?: string; type?: string; required?: boolean; valuesAllowed?: { key: string; name: string }[] }[] }[] };
+
+function WiseClaim({ payoutId, currency, busy, setBusy, onDone }: { payoutId: string; currency: string; busy: boolean; setBusy: (b: boolean) => void; onDone: () => void }) {
+  const { t } = useI18n();
+  const getReqs = useServerFn(getWiseClaimRequirements);
+  const claim = useServerFn(claimWisePayout);
+  const [holder, setHolder] = useState("");
+  const [rtype, setRtype] = useState("");
+  const [dets, setDets] = useState<Record<string, string>>({});
+  const { data: reqs } = useQuery({ queryKey: ["wise-reqs", currency], queryFn: () => getReqs({ data: { targetCurrency: currency } }) });
+  const types = (reqs ?? []) as WiseReq[];
+  const sel = types.find((r) => r.type === rtype) ?? types[0];
+  const groups = (sel?.fields ?? []).flatMap((f) => f.group ?? []).filter((g) => g.key !== "accountHolderName");
+
+  async function go() {
+    if (!sel) return;
+    setBusy(true);
+    try {
+      await claim({ data: { payoutId, recipientType: sel.type, accountHolderName: holder, details: dets } });
+      toast.success(t("r.wiseSent"));
+      onDone();
+    } catch (e) {
+      toast.error((e as Error).message);
+      setBusy(false);
+    }
+  }
+
+  return (
+    <span className="flex flex-col gap-2 rounded-md border border-input p-2">
+      <input
+        className="h-8 rounded-md border border-input bg-background px-2 text-xs"
+        placeholder={t("r.wiseHolder")}
+        value={holder}
+        onChange={(e) => setHolder(e.target.value)}
+      />
+      <select
+        aria-label={t("r.wiseType")}
+        className="h-8 rounded-md border border-input bg-background px-1.5 text-xs"
+        value={sel?.type ?? ""}
+        onChange={(e) => { setRtype(e.target.value); setDets({}); }}
+      >
+        {types.map((r) => <option key={r.type} value={r.type}>{r.title || r.type}</option>)}
+      </select>
+      {groups.map((g) =>
+        g.valuesAllowed?.length ? (
+          <select key={g.key} className="h-8 rounded-md border border-input bg-background px-1.5 text-xs" value={dets[g.key] ?? ""} onChange={(e) => setDets((d) => ({ ...d, [g.key]: e.target.value }))}>
+            <option value="">{g.name ?? g.key}</option>
+            {g.valuesAllowed.map((v) => <option key={v.key} value={v.key}>{v.name}</option>)}
+          </select>
+        ) : (
+          <input key={g.key} className="h-8 rounded-md border border-input bg-background px-2 text-xs" placeholder={g.name ?? g.key} value={dets[g.key] ?? ""} onChange={(e) => setDets((d) => ({ ...d, [g.key]: e.target.value }))} />
+        ),
+      )}
+      <Button size="sm" disabled={busy || !sel || !holder.trim() || groups.some((g) => !(dets[g.key] ?? "").trim())} onClick={go}>{t("r.claimWise")}</Button>
+    </span>
+  );
+}
+
+function ClaimInfo({ payoutId, claimInfo, stripe, onboarded, wise, currency, onDone }: { payoutId: string; claimInfo: string | null; stripe: boolean; onboarded: boolean; wise: boolean; currency: string; onDone: () => void }) {
   const { t } = useI18n();
   const submit = useServerFn(submitPayoutInfo);
   const claim = useServerFn(claimStripePayout);
   const [info, setInfo] = useState(claimInfo ?? "");
   const [open, setOpen] = useState(!claimInfo);
+  const [wiseOpen, setWiseOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [country, setCountry] = useState("");
 
@@ -227,6 +290,15 @@ function ClaimInfo({ payoutId, claimInfo, stripe, onboarded, onDone }: { payoutI
             {onboarded ? t("r.claimAgain") : t("r.claim")}
           </Button>
         </span>
+      )}
+      {wise ? (
+        <span className="text-xs opacity-70">{t("r.wisePending")}</span>
+      ) : wiseOpen ? (
+        <WiseClaim payoutId={payoutId} currency={currency} busy={busy} setBusy={setBusy} onDone={onDone} />
+      ) : (
+        <Button size="sm" variant="ghost" className="h-7 self-start px-2 text-xs" onClick={() => setWiseOpen(true)}>
+          {t("r.claimWise")}
+        </Button>
       )}
     </span>
   );

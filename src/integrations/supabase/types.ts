@@ -314,6 +314,7 @@ export type Database = {
           updated_at: string
           wallet_address: string | null
           winner_handle: string
+          wise_transfer_id: number | null
         }
         Insert: {
           campaign_id: string
@@ -327,6 +328,7 @@ export type Database = {
           updated_at?: string
           wallet_address?: string | null
           winner_handle: string
+          wise_transfer_id?: number | null
         }
         Update: {
           campaign_id?: string
@@ -340,6 +342,7 @@ export type Database = {
           updated_at?: string
           wallet_address?: string | null
           winner_handle?: string
+          wise_transfer_id?: number | null
         }
         Relationships: [
           {

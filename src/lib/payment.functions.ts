@@ -714,6 +714,134 @@ export const autoStripePayout = createServerFn({ method: "POST" })
     return { paid: r.ok };
   });
 
+/**
+ * Winner side (non-EU region): claims the prize via Wise. Corridor-specific
+ * recipient fields come from getWiseClaimRequirements; the transfer is funded
+ * from the platform's Wise balance immediately and syncWisePayout flips it to
+ * paid once Wise sends it out.
+ */
+export const claimWisePayout = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: { payoutId: string; recipientType: string; accountHolderName: string; details: Record<string, string> }) => input)
+  .handler(async ({ data, context }) => {
+    const { supabase, userId } = context;
+    const { data: p } = await supabase
+      .from("payouts")
+      .select("id, campaign_id, winner_handle, status, stripe_account_id, wise_transfer_id")
+      .eq("id", data.payoutId)
+      .single();
+    if (!p) throw new Error("Payout not found");
+    if (p.status !== "pending") throw new Error("Payout already processed");
+    if (p.stripe_account_id || p.wise_transfer_id) throw new Error("Payout already claimed");
+
+    const { data: c } = await supabase
+      .from("campaigns")
+      .select("id, prize_amount, currency, winners_count, escrow_status")
+      .eq("id", p.campaign_id)
+      .single();
+    if (!c) throw new Error("Campaign not found");
+    if (c.escrow_status !== "charged" && c.escrow_status !== "funded") throw new Error("Pool is not funded");
+
+    // Only the account that owns the winning entry may claim.
+    const { data: mine } = await supabase
+      .from("entries")
+      .select("id")
+      .eq("campaign_id", c.id)
+      .eq("user_id", userId)
+      .eq("handle", p.winner_handle)
+      .maybeSingle();
+    if (!mine) throw new Error("This prize does not belong to your account");
+
+    const bound = await boundXHandle(supabase);
+    if (bound && bound !== normHandle(p.winner_handle))
+      throw new Error("Your X account does not match the winning handle");
+
+    const recipientType = data.recipientType.trim();
+    const holder = data.accountHolderName.trim();
+    const details = Object.fromEntries(
+      Object.entries(data.details ?? {})
+        .map(([k, v]) => [k.trim(), String(v).trim()] as const)
+        .filter(([k, v]) => k && v),
+    );
+    if (!recipientType || !holder || !Object.keys(details).length)
+      throw new Error("Fill in all recipient details");
+
+    const share = c.prize_amount && c.winners_count > 0 ? Number(c.prize_amount) / c.winners_count : 0;
+    if (share <= 0) throw new Error("Invalid amount");
+
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { wiseQuote, wiseRecipient, wiseCreateTransfer, wiseFundTransfer } = await import("@/lib/wise.server");
+    const source = process.env["WISE_SOURCE_CURRENCY"] ?? "GBP";
+
+    const quote = await wiseQuote(source, c.currency, share);
+    const recipient = await wiseRecipient({ currency: c.currency, type: recipientType, accountHolderName: holder, details });
+    const transfer = await wiseCreateTransfer({ recipientId: recipient.id, quoteUuid: quote.id, reference: `FairDraw prize — ${p.winner_handle}` });
+    await wiseFundTransfer(transfer.id);
+
+    // Not paid yet — Wise delivers asynchronously; syncWisePayout confirms.
+    await supabaseAdmin
+      .from("payouts")
+      .update({ wise_transfer_id: transfer.id, claim_info: `Wise ${recipientType} → ${holder}`, updated_at: new Date().toISOString() })
+      .eq("id", p.id)
+      .eq("status", "pending");
+    return { ok: true, transferId: transfer.id };
+  });
+
+/**
+ * Re-reads an in-flight Wise transfer. Completed/sent → mark paid with proof;
+ * bounced/cancelled/refunded → release the payout so the winner can claim
+ * again. Any signed-in visitor may trigger — it only reads committed state.
+ */
+export const syncWisePayout = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: { payoutId: string }) => input)
+  .handler(async ({ data, context }) => {
+    const { supabase } = context;
+    const { data: p } = await supabase
+      .from("payouts")
+      .select("id, status, wise_transfer_id")
+      .eq("id", data.payoutId)
+      .single();
+    if (!p?.wise_transfer_id || p.status === "paid") return { paid: false };
+
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { wiseTransferStatus } = await import("@/lib/wise.server");
+    const t = await wiseTransferStatus(p.wise_transfer_id);
+
+    if (t.status === "outgoing_payment_sent" || t.status === "completed") {
+      await supabaseAdmin
+        .from("payouts")
+        .update({ status: "paid", proof: `wise:transfer:${t.id}`, updated_at: new Date().toISOString() })
+        .eq("id", p.id)
+        .eq("status", "pending");
+      return { paid: true };
+    }
+    if (["cancelled", "bounced_back", "funds_refunded", "failed"].includes(t.status)) {
+      // Release the payout — winner can re-claim with corrected details.
+      await supabaseAdmin
+        .from("payouts")
+        .update({ wise_transfer_id: null, updated_at: new Date().toISOString() })
+        .eq("id", p.id)
+        .eq("status", "pending");
+      return { paid: false, failed: true };
+    }
+    return { paid: false };
+  });
+
+/**
+ * Dynamic recipient form spec for the claim UI — Wise returns which fields
+ * each account type needs for this corridor (alipay, unionpay, iban, aba…).
+ */
+export const getWiseClaimRequirements = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: { targetCurrency: string }) => input)
+  .handler(async ({ data }) => {
+    const { wiseAccountRequirements } = await import("@/lib/wise.server");
+    const source = process.env["WISE_SOURCE_CURRENCY"] ?? "GBP";
+    // Field specs are amount-independent for our purposes — fixed estimate.
+    return wiseAccountRequirements({ sourceCurrency: source, sourceAmount: 1000, targetCurrency: data.targetCurrency });
+  });
+
 /** Public config for the funding UI (no secrets). */
 export const getPaymentConfig = createServerFn({ method: "GET" }).handler(async () => {
   const cfg = chainConfig();
