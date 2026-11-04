@@ -19,6 +19,8 @@ export type ChainConfig = {
   receiverAddress: `0x${string}` | null;
   /** FairDrawEscrow contract that locks pools. Null = pre-escrow deployment. */
   escrowAddress: `0x${string}` | null;
+  /** Oracle/treasury wallet — walletless organizers send USDT here; the oracle wraps it into escrow. */
+  treasuryAddress: `0x${string}` | null;
   /** Public block explorer base URL for tx links. */
   explorerTx: string;
   /** Symbol shown to users, e.g. USDT. */
@@ -34,16 +36,17 @@ const CHAIN_DEFAULTS: Record<number, Pick<ChainConfig, "explorerTx" | "tokenSymb
 /** Public chain config. Env-overridable so staging can point at a testnet. */
 export function chainConfig(): ChainConfig {
   const env = typeof import.meta !== "undefined" ? import.meta.env : ({} as Record<string, string | undefined>);
-  const chainId = Number(env.VITE_CHAIN_ID ?? 56) || 56;
+  const chainId = Number(env["VITE_CHAIN_ID"] ?? 56) || 56;
   const defaults = CHAIN_DEFAULTS[chainId] ?? { explorerTx: "", tokenSymbol: "USDT", tokenDecimals: 18 };
   return {
     chainId,
-    tokenAddress: (env.VITE_USDT_TOKEN ?? "0x55d398326f99059fF775485246999027B3197955") as `0x${string}`,
-    tokenDecimals: Number(env.VITE_USDT_DECIMALS ?? defaults.tokenDecimals) || defaults.tokenDecimals,
-    receiverAddress: (env.VITE_PLATFORM_WALLET || null) as `0x${string}` | null,
-    escrowAddress: (env.VITE_ESCROW_ADDRESS || null) as `0x${string}` | null,
+    tokenAddress: (env["VITE_USDT_TOKEN"] ?? "0x55d398326f99059fF775485246999027B3197955") as `0x${string}`,
+    tokenDecimals: Number(env["VITE_USDT_DECIMALS"] ?? defaults.tokenDecimals) || defaults.tokenDecimals,
+    receiverAddress: (env["VITE_PLATFORM_WALLET"] || null) as `0x${string}` | null,
+    escrowAddress: (env["VITE_ESCROW_ADDRESS"] || null) as `0x${string}` | null,
+    treasuryAddress: ((env["VITE_TREASURY_ADDRESS"] || env["VITE_PLATFORM_WALLET"]) || null) as `0x${string}` | null,
     explorerTx: defaults.explorerTx,
-    tokenSymbol: env.VITE_TOKEN_SYMBOL ?? defaults.tokenSymbol,
+    tokenSymbol: env["VITE_TOKEN_SYMBOL"] ?? defaults.tokenSymbol,
   };
 }
 

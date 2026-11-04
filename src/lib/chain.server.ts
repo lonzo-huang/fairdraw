@@ -234,3 +234,39 @@ export async function escrowPay(campaignId: string, idx: number, to: `0x${string
     args: [escrowCampaignId(campaignId), BigInt(idx), to],
   });
 }
+
+const ERC20_APPROVE = parseAbiItem("function approve(address spender, uint256 amount) returns (bool)");
+
+/**
+ * Walletless funding: the organizer sent pool+fee to the treasury (oracle
+ * wallet) from an exchange; the oracle approves the escrow contract and calls
+ * fund() so the pool still locks on-chain. The treasury becomes the recorded
+ * funder — refunds return here and the platform forwards them to the
+ * organizer off-band. Waits for the fund receipt and returns its hash.
+ */
+export async function oracleFundEscrow(
+  campaignId: string,
+  pool: number,
+  fee: number,
+  cancelAfterSec: number,
+): Promise<`0x${string}`> {
+  const cfg = chainConfig();
+  if (!cfg.escrowAddress) throw new Error("Escrow is not configured");
+  const wallet = oracleWallet();
+  const total = parseUnits(String(pool + fee), cfg.tokenDecimals);
+  const approveTx = await wallet.writeContract({
+    address: cfg.tokenAddress,
+    abi: [ERC20_APPROVE],
+    functionName: "approve",
+    args: [cfg.escrowAddress, total],
+  });
+  await chainClient().waitForTransactionReceipt({ hash: approveTx });
+  const fundTx = await wallet.writeContract({
+    address: cfg.escrowAddress,
+    abi: ESCROW_ABI,
+    functionName: "fund",
+    args: [escrowCampaignId(campaignId), parseUnits(String(pool), cfg.tokenDecimals), parseUnits(String(fee), cfg.tokenDecimals), BigInt(cancelAfterSec)],
+  });
+  await chainClient().waitForTransactionReceipt({ hash: fundTx });
+  return fundTx;
+}

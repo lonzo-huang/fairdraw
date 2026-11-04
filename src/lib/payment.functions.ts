@@ -13,7 +13,7 @@ function isValidAddress(value: string): boolean {
 async function loadCampaign(supabase: any, campaignId: string, userId: string) {
   const { data: c, error } = await supabase
     .from("campaigns")
-    .select("id, owner_id, status, title, prize_amount, currency, escrow_status, payment_method, winners_count")
+    .select("id, owner_id, status, title, prize_amount, currency, escrow_status, payment_method, winners_count, ends_at")
     .eq("id", campaignId)
     .single();
   if (error || !c) throw new Error("Campaign not found");
@@ -236,17 +236,22 @@ export const confirmChainPayment = createServerFn({ method: "POST" })
     const { pool, fee, total } = await fundingTotals(supabaseAdmin, c);
     const { verifyTokenTransfer, verifyEscrowDeposit } = await import("@/lib/chain.server");
 
-    // Escrow path: the tx calls escrow.fund → Deposited(id, funder, pool, fee).
-    // Fallback: a plain transfer to the platform wallet (pre-escrow pools and
-    // manual funding while the contract is unconfigured).
+    // Escrow paths: (A) the organizer's wallet called escrow.fund directly →
+    // Deposited event. (B) walletless: they sent USDT to the treasury from an
+    // exchange — the oracle wraps it into the contract with itself as funder.
+    // Fallback (no escrow configured): plain transfer to the platform wallet.
     let funder: string;
+    let wrapTx: string | null = null;
     if (cfg.escrowAddress) {
       try {
         const dep = await verifyEscrowDeposit(data.txHash as `0x${string}`, c.id, pool);
         funder = dep.funder;
       } catch {
-        const tx = await verifyTokenTransfer(data.txHash as `0x${string}`, cfg.receiverAddress!, total);
+        const { oracleAddress, oracleFundEscrow } = await import("@/lib/chain.server");
+        const tx = await verifyTokenTransfer(data.txHash as `0x${string}`, oracleAddress(), total);
         funder = tx.from;
+        const cancelAfter = Math.max(Math.floor(Date.now() / 1000), Math.floor(Date.parse(c.ends_at ?? "") / 1000) || 0);
+        wrapTx = await oracleFundEscrow(c.id, pool, fee, cancelAfter);
       }
     } else {
       const tx = await verifyTokenTransfer(data.txHash as `0x${string}`, cfg.receiverAddress!, total);
@@ -258,7 +263,7 @@ export const confirmChainPayment = createServerFn({ method: "POST" })
         campaign_id: c.id,
         user_id: userId,
         provider: "chain",
-        kind: "pool",
+        kind: "pool",wrap_tx: wrapTx, 
         status: "confirmed",
         amount: total,
         currency: cfg.tokenSymbol,
@@ -1026,6 +1031,11 @@ export const getWiseClaimRequirements = createServerFn({ method: "GET" })
 /** Public config for the funding UI (no secrets). */
 export const getPaymentConfig = createServerFn({ method: "GET" }).handler(async () => {
   const cfg = chainConfig();
+  let treasury = cfg.treasuryAddress;
+  try {
+    const { oracleAddress } = await import("@/lib/chain.server");
+    treasury = oracleAddress();
+  } catch { /* payout key unset — fall back to env value */ }
   return {
     chain: {
       chainId: cfg.chainId,
@@ -1034,6 +1044,7 @@ export const getPaymentConfig = createServerFn({ method: "GET" }).handler(async 
       tokenSymbol: cfg.tokenSymbol,
       receiverAddress: cfg.receiverAddress,
       escrowAddress: cfg.escrowAddress,
+      treasuryAddress: treasury,
       explorerTx: cfg.explorerTx,
     },
     stripeEnabled: !!process.env["STRIPE_SECRET_KEY"],

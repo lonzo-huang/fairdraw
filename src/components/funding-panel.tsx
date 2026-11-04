@@ -2,7 +2,8 @@ import { useState } from "react";
 import { toast } from "sonner";
 import { useServerFn } from "@tanstack/react-start";
 import { useI18n } from "@/lib/i18n";
-import { confirmChainPayment, startStripeCheckout } from "@/lib/payment.functions";
+import { useQuery } from "@tanstack/react-query";
+import { confirmChainPayment, getPaymentConfig, startStripeCheckout } from "@/lib/payment.functions";
 import { chainConfig } from "@/lib/payments";
 import { feeAmount } from "@/lib/fees";
 import { useFeeTiers } from "@/hooks/use-fee-tiers";
@@ -20,6 +21,8 @@ export function FundingPanel({ c, busy, setBusy, onDone }: { c: FundingCampaign;
   const confirmChain = useServerFn(confirmChainPayment);
   const [txHash, setTxHash] = useState("");
   const cfg = chainConfig();
+  const { data: paycfg } = useQuery({ queryKey: ["paycfg"], queryFn: () => getPaymentConfig() });
+  const depositTo = paycfg?.chain.treasuryAddress ?? cfg.treasuryAddress ?? cfg.receiverAddress;
   const pool = c.prize_amount ?? 0;
   const fee = feeAmount(fees, pool);
   const total = pool + fee;
@@ -36,7 +39,7 @@ export function FundingPanel({ c, busy, setBusy, onDone }: { c: FundingCampaign;
   }
   async function payChain() {
     if (!hasEthereum()) { toast.error(t("m.noMetaMask")); return; }
-    if (!cfg.escrowAddress && !cfg.receiverAddress) { toast.error(t("m.noReceiver")); return; }
+    if (!cfg.escrowAddress && !cfg.receiverAddress && !cfg.treasuryAddress) { toast.error(t("m.noReceiver")); return; }
     setBusy(true);
     try {
       const hash = cfg.escrowAddress
@@ -69,8 +72,8 @@ export function FundingPanel({ c, busy, setBusy, onDone }: { c: FundingCampaign;
       <h2 className="text-xl font-semibold">{t("m.funding")}</h2>
       <p className="mt-1 text-sm text-muted-foreground">
         {t("m.fundNeed")}: <span className="font-mono font-semibold text-foreground">{total.toFixed(2)} {c.currency}</span>
-        {c.payment_method === "chain" && (cfg.escrowAddress ?? cfg.receiverAddress) && (
-          <span className="mt-1 block break-all font-mono text-xs">→ {cfg.escrowAddress ?? cfg.receiverAddress}</span>
+        {c.payment_method === "chain" && depositTo && (
+          <span className="mt-1 block break-all font-mono text-xs">→ {depositTo}</span>
         )}
       </p>
       <div className="mt-4 flex flex-wrap gap-2">
