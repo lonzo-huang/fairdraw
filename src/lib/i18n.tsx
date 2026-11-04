@@ -607,14 +607,17 @@ const dict = {
 
 export type DictKey = keyof typeof dict;
 
+/** Missing keys can surface when a page holds chunks from different deploys — degrade to the raw key instead of crashing. */
+const entry = (key: DictKey) => (dict as Record<string, { zh: string; en: string } | undefined>)[key];
+
 export function translate(lang: Lang, key: DictKey, values: Record<string, string | number> = {}): string {
-  return Object.entries(values).reduce<string>((text, [name, value]) => text.replaceAll(`{${name}}`, String(value)), dict[key][lang]);
+  return Object.entries(values).reduce<string>((text, [name, value]) => text.replaceAll(`{${name}}`, String(value)), entry(key)?.[lang] ?? key);
 }
 
 const Ctx = createContext<{ lang: Lang; setLang: (l: Lang) => void; t: (k: DictKey) => string }>({
   lang: "zh",
   setLang: () => {},
-  t: (k) => dict[k].zh,
+  t: (k) => entry(k)?.zh ?? k,
 });
 
 export function I18nProvider({ children }: { children: ReactNode }) {
@@ -631,7 +634,7 @@ export function I18nProvider({ children }: { children: ReactNode }) {
     setLangState(l);
     localStorage.setItem("fd-lang", l);
   };
-  return <Ctx.Provider value={{ lang, setLang, t: (k) => dict[k][lang] }}>{children}</Ctx.Provider>;
+  return <Ctx.Provider value={{ lang, setLang, t: (k) => entry(k)?.[lang] ?? k }}>{children}</Ctx.Provider>;
 }
 
 export const useI18n = () => useContext(Ctx);
