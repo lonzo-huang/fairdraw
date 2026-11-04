@@ -774,7 +774,7 @@ export const claimWisePayout = createServerFn({ method: "POST" })
     const source = process.env["WISE_SOURCE_CURRENCY"] ?? "GBP";
 
     const quote = await wiseQuote(source, c.currency, share);
-    const recipient = await wiseRecipient({ currency: c.currency, type: recipientType, accountHolderName: holder, details });
+    const recipient = await wiseRecipient({ currency: c.currency, type: recipientType, accountHolderName: holder, legalType: details["legalType"] === "BUSINESS" ? "BUSINESS" : "PRIVATE", details });
     const transfer = await wiseCreateTransfer({ recipientId: recipient.id, quoteUuid: quote.id, reference: `FairDraw prize — ${p.winner_handle}` });
     await wiseFundTransfer(transfer.id);
 

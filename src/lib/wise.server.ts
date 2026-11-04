@@ -79,6 +79,7 @@ export async function wiseRecipient(account: {
   currency: string;
   type: string;
   accountHolderName: string;
+  legalType?: string;
   details: Record<string, string>;
 }) {
   return wise("POST", "/v1/accounts", {
@@ -86,7 +87,7 @@ export async function wiseRecipient(account: {
     type: account.type,
     profile: Number(wiseProfileId()),
     accountHolderName: account.accountHolderName,
-    legalType: "PRIVATE",
+    legalType: account.legalType ?? "PRIVATE",
     details: account.details,
   });
 }
