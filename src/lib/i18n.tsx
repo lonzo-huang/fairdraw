@@ -503,6 +503,7 @@ const dict = {
   "m.claimInfo": { zh: "中奖者收款方式", en: "Winner payout info" },
   "m.handleMismatch": { zh: "帖子作者与填写账号不符", en: "post author ≠ declared handle" },
   "m.chainRefund": { zh: "链上退款（管理员）", en: "On-chain refund (admin)" },
+  "m.escrowRefund": { zh: "从托管合约退款（MetaMask）", en: "Refund from escrow contract (MetaMask)" },
   "m.delete": { zh: "删除活动", en: "Delete campaign" },
   "st.unverified": { zh: "未验证", en: "Unverified" },
   "st.verified": { zh: "帖子已读取", en: "Post found" },

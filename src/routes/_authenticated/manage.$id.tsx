@@ -9,7 +9,8 @@ import { CANCEL_WINDOW_MS, cancelCampaign, checkCampaignConditions, drawCampaign
 import { payoutViaStripe, recordChainPayout, refundChainEscrow, updateCampaignAmount } from "@/lib/payment.functions";
 import { computeProgress, parseConditions, type ConditionCheck, type Conditions, type Metrics } from "@/lib/conditions";
 import { campaignTweet } from "@/lib/campaign-share";
-import { hasEthereum, sendTokenTransfer } from "@/lib/wallet";
+import { hasEthereum, refundEscrowTx, sendTokenTransfer } from "@/lib/wallet";
+import { chainConfig } from "@/lib/payments";
 import { FundingPanel } from "@/components/funding-panel";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -595,12 +596,27 @@ function ChainRefund({ campaignId, busy, setBusy, onDone }: { campaignId: string
   const { t } = useI18n();
   const refundChain = useServerFn(refundChainEscrow);
   const [txHash, setTxHash] = useState("");
+  async function submit(hash: string) {
+    await refundChain({ data: { campaignId, txHash: hash } });
+    toast.success(t("escrow.refunded"));
+    onDone();
+  }
   async function run() {
     setBusy(true);
     try {
-      await refundChain({ data: { campaignId, txHash: txHash.trim() } });
-      toast.success(t("escrow.refunded"));
-      onDone();
+      await submit(txHash.trim());
+    } catch (e) {
+      toast.error((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+  async function runContract() {
+    if (!hasEthereum()) { toast.error(t("m.noMetaMask")); return; }
+    setBusy(true);
+    try {
+      const hash = await refundEscrowTx(campaignId);
+      await submit(hash);
     } catch (e) {
       toast.error((e as Error).message);
     } finally {
@@ -608,9 +624,14 @@ function ChainRefund({ campaignId, busy, setBusy, onDone }: { campaignId: string
     }
   }
   return (
-    <div className="mt-3 flex flex-col gap-2 rounded-xl border border-border bg-card p-4 sm:flex-row">
-      <Input placeholder={`${t("m.chainRefund")} · tx hash`} value={txHash} onChange={(e) => setTxHash(e.target.value)} />
-      <Button size="sm" variant="outline" disabled={busy || !txHash.trim()} onClick={run}>{t("m.chainRefund")}</Button>
+    <div className="mt-3 flex flex-col gap-2 rounded-xl border border-border bg-card p-4">
+      {!!chainConfig().escrowAddress && (
+        <Button size="sm" variant="outline" className="self-start" disabled={busy} onClick={runContract}>{t("m.escrowRefund")}</Button>
+      )}
+      <div className="flex flex-col gap-2 sm:flex-row">
+        <Input placeholder={`${t("m.chainRefund")} · tx hash`} value={txHash} onChange={(e) => setTxHash(e.target.value)} />
+        <Button size="sm" variant="outline" disabled={busy || !txHash.trim()} onClick={run}>{t("m.chainRefund")}</Button>
+      </div>
     </div>
   );
 }

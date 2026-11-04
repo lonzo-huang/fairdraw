@@ -120,6 +120,18 @@ export const drawCampaign = createServerFn({ method: "POST" })
     await supabaseAdmin
       .from("payouts")
       .insert(winners.map((w) => ({ campaign_id: c.id, winner_handle: w.handle, wallet_address: payoutAddr.get(w.handle) ?? null })));
+
+    // Escrow pools: commit winner shares on-chain so pay() can settle claims.
+    // Best-effort — a failed broadcast is retried lazily on the first claim.
+    if (camp?.payment_method === "chain" && camp.prize_amount) {
+      try {
+        const { escrowCampaign, escrowResolve } = await import("@/lib/chain.server");
+        const esc = await escrowCampaign(c.id);
+        if (esc && !esc.resolved) await escrowResolve(c.id, winners.length, Number(camp.prize_amount));
+      } catch (err) {
+        console.error("escrow resolve deferred to claim:", err);
+      }
+    }
     return { ok: true };
   });
 

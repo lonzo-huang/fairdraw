@@ -16,6 +16,7 @@ declare global {
 }
 
 const ERC20_TRANSFER = parseAbiItem("function transfer(address to, uint256 amount) returns (bool)");
+const ERC20_APPROVE = parseAbiItem("function approve(address spender, uint256 amount) returns (bool)");
 
 export function hasEthereum(): boolean {
   return typeof window !== "undefined" && !!window.ethereum;
@@ -70,6 +71,59 @@ export async function sendTokenTransfer(to: `0x${string}`, amount: number): Prom
   })) as `0x${string}`;
 }
 
+/** Sends a raw contract call from the connected wallet account. */
+async function sendCall(to: `0x${string}`, data: `0x${string}`): Promise<`0x${string}`> {
+  const from = await connectWallet();
+  await ensureChain();
+  return (await window.ethereum!.request({
+    method: "eth_sendTransaction",
+    params: [{ from, to, data, value: "0x0" }],
+  })) as `0x${string}`;
+}
+
+/**
+ * Deposits pool + platform fee into the escrow contract. Two wallet
+ * confirmations: ERC-20 approve(pool+fee) → escrow.fund(id, pool, fee,
+ * cancelAfter). cancelAfter = unix seconds after which the funder may
+ * reclaim an unresolved pool (the campaign deadline).
+ */
+export async function fundEscrow(
+  campaignId: string,
+  pool: number,
+  fee: number,
+  cancelAfterSec: number,
+): Promise<`0x${string}`> {
+  const cfg = chainConfig();
+  if (!cfg.escrowAddress) throw new Error("Escrow is not configured");
+  const { escrowCampaignId, ESCROW_ABI } = await import("@/lib/escrow");
+  const poolUnits = parseUnits(String(pool), cfg.tokenDecimals);
+  const feeUnits = parseUnits(String(fee), cfg.tokenDecimals);
+  await sendCall(
+    cfg.tokenAddress,
+    encodeFunctionData({ abi: [ERC20_APPROVE], functionName: "approve", args: [cfg.escrowAddress, poolUnits + feeUnits] }),
+  );
+  return sendCall(
+    cfg.escrowAddress,
+    encodeFunctionData({
+      abi: ESCROW_ABI,
+      functionName: "fund",
+      args: [escrowCampaignId(campaignId), poolUnits, feeUnits, BigInt(cancelAfterSec)],
+    }),
+  );
+}
+
+/** Calls escrow.refund(id) — returns the unresolved pool to the funder. */
+export async function refundEscrowTx(campaignId: string): Promise<`0x${string}`> {
+  const cfg = chainConfig();
+  if (!cfg.escrowAddress) throw new Error("Escrow is not configured");
+  const { escrowCampaignId, ESCROW_ABI } = await import("@/lib/escrow");
+  return sendCall(
+    cfg.escrowAddress,
+    encodeFunctionData({ abi: ESCROW_ABI, functionName: "refund", args: [escrowCampaignId(campaignId)] }),
+  );
+}
+
+/** 
 /** Asks MetaMask to sign a proof-of-ownership message. */
 export async function signWalletMessage(address: string): Promise<{ message: string; signature: string }> {
   if (!window.ethereum) throw new Error("MetaMask not detected");

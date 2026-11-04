@@ -15,8 +15,10 @@ export type ChainConfig = {
   tokenAddress: `0x${string}`;
   /** Token decimals (USDT on BSC/Ethereum = 18 / 6 depending on chain). */
   tokenDecimals: number;
-  /** Platform wallet that receives pool + fee transfers. */
+  /** Platform wallet that receives pool + fee transfers (legacy / fee split). */
   receiverAddress: `0x${string}` | null;
+  /** FairDrawEscrow contract that locks pools. Null = pre-escrow deployment. */
+  escrowAddress: `0x${string}` | null;
   /** Public block explorer base URL for tx links. */
   explorerTx: string;
   /** Symbol shown to users, e.g. USDT. */
@@ -39,6 +41,7 @@ export function chainConfig(): ChainConfig {
     tokenAddress: (env.VITE_USDT_TOKEN ?? "0x55d398326f99059fF775485246999027B3197955") as `0x${string}`,
     tokenDecimals: Number(env.VITE_USDT_DECIMALS ?? defaults.tokenDecimals) || defaults.tokenDecimals,
     receiverAddress: (env.VITE_PLATFORM_WALLET || null) as `0x${string}` | null,
+    escrowAddress: (env.VITE_ESCROW_ADDRESS || null) as `0x${string}` | null,
     explorerTx: defaults.explorerTx,
     tokenSymbol: env.VITE_TOKEN_SYMBOL ?? defaults.tokenSymbol,
   };

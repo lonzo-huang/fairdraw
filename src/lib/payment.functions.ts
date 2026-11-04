@@ -234,8 +234,24 @@ export const confirmChainPayment = createServerFn({ method: "POST" })
 
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { pool, fee, total } = await fundingTotals(supabaseAdmin, c);
-    const { verifyTokenTransfer } = await import("@/lib/chain.server");
-    const tx = await verifyTokenTransfer(data.txHash as `0x${string}`, cfg.receiverAddress, total);
+    const { verifyTokenTransfer, verifyEscrowDeposit } = await import("@/lib/chain.server");
+
+    // Escrow path: the tx calls escrow.fund → Deposited(id, funder, pool, fee).
+    // Fallback: a plain transfer to the platform wallet (pre-escrow pools and
+    // manual funding while the contract is unconfigured).
+    let funder: string;
+    if (cfg.escrowAddress) {
+      try {
+        const dep = await verifyEscrowDeposit(data.txHash as `0x${string}`, c.id, pool);
+        funder = dep.funder;
+      } catch {
+        const tx = await verifyTokenTransfer(data.txHash as `0x${string}`, cfg.receiverAddress!, total);
+        funder = tx.from;
+      }
+    } else {
+      const tx = await verifyTokenTransfer(data.txHash as `0x${string}`, cfg.receiverAddress!, total);
+      funder = tx.from;
+    }
 
     await supabaseAdmin.from("payments").upsert(
       {
@@ -247,7 +263,7 @@ export const confirmChainPayment = createServerFn({ method: "POST" })
         amount: total,
         currency: cfg.tokenSymbol,
         external_ref: data.txHash,
-        meta: { pool, fee, from: tx.from, chain_id: cfg.chainId } as unknown as Json,
+        meta: { pool, fee, from: funder, chain_id: cfg.chainId, escrow: !!cfg.escrowAddress } as unknown as Json,
       },
       { onConflict: "provider,external_ref" },
     );
@@ -257,7 +273,7 @@ export const confirmChainPayment = createServerFn({ method: "POST" })
       .eq("id", c.id)
       .eq("escrow_status", "awaiting");
     if (error) throw new Error(error.message);
-    return { ok: true, from: tx.from, amount: tx.amount };
+    return { ok: true, from: funder, amount: total };
   });
 
 /** Links a MetaMask address to the account via a personal-sign challenge. */
@@ -391,9 +407,19 @@ export const refundChainEscrow = createServerFn({ method: "POST" })
     const funder = (funding?.meta as { from?: string } | null)?.from;
     if (!funder) throw new Error("Original funder address unknown");
 
-    const { verifyTokenTransfer } = await import("@/lib/chain.server");
+    const { verifyTokenTransfer, verifyEscrowRefund, escrowCampaign } = await import("@/lib/chain.server");
     const cfg = chainConfig();
-    const tx = await verifyTokenTransfer(data.txHash as `0x${string}`, funder as `0x${string}`, Number(c.prize_amount ?? 0));
+    // Escrow pools prove a Refunded(id, funder, amount) event; legacy pools
+    // prove a token transfer back to the recorded funder.
+    const escrow = await escrowCampaign(c.id);
+    let amount: number;
+    if (escrow) {
+      const r = await verifyEscrowRefund(data.txHash as `0x${string}`, c.id);
+      amount = Number(r.amount);
+    } else {
+      const tx = await verifyTokenTransfer(data.txHash as `0x${string}`, funder as `0x${string}`, Number(c.prize_amount ?? 0));
+      amount = Number(tx.amount);
+    }
 
     await supabaseAdmin.from("payments").upsert(
       {
@@ -402,15 +428,15 @@ export const refundChainEscrow = createServerFn({ method: "POST" })
         provider: "chain",
         kind: "refund",
         status: "confirmed",
-        amount: Number(tx.amount),
+        amount,
         currency: cfg.tokenSymbol,
         external_ref: data.txHash,
-        meta: { to: tx.to, from: tx.from, chain_id: cfg.chainId } as unknown as Json,
+        meta: { to: funder, escrow: !!escrow, chain_id: cfg.chainId } as unknown as Json,
       },
       { onConflict: "provider,external_ref" },
     );
     await supabaseAdmin.from("campaigns").update({ escrow_status: "refunded" }).eq("id", c.id);
-    return { ok: true, amount: tx.amount };
+    return { ok: true, amount };
   });
 
 /**
@@ -852,7 +878,30 @@ export const claimChainPayout = createServerFn({ method: "POST" })
     if (!locked?.length) throw new Error("Payout already processing");
 
     try {
-      const tx = await sendTokenPayout(to as `0x${string}`, share);
+      const chain = await import("@/lib/chain.server");
+      const escrow = await chain.escrowCampaign(c.id);
+      let tx: `0x${string}`;
+      if (escrow && escrow.pool > 0n) {
+        // Escrow path: the contract holds the pool. Shares are committed by
+        // resolve(); the oracle then relays the winner's address to pay(),
+        // which enforces amount + single payment on-chain.
+        const { data: d } = await supabase
+          .from("draws")
+          .select("winners")
+          .eq("campaign_id", c.id)
+          .maybeSingle();
+        const winners = Array.isArray(d?.winners) ? (d.winners as { handle?: string }[]) : [];
+        const idx = winners.findIndex((w) => normHandle(String(w.handle ?? "")) === normHandle(p.winner_handle));
+        if (idx < 0) throw new Error("Winner is not in the committed draw");
+        if (!escrow.resolved) {
+          const rTx = await chain.escrowResolve(c.id, winners.length, Number(c.prize_amount ?? 0));
+          await chain.chainClient().waitForTransactionReceipt({ hash: rTx });
+        }
+        tx = await chain.escrowPay(c.id, idx, to as `0x${string}`);
+      } else {
+        // Legacy path: pool funded directly to the platform wallet.
+        tx = await chain.sendTokenPayout(to as `0x${string}`, share);
+      }
       await supabaseAdmin
         .from("payouts")
         .update({
@@ -865,6 +914,8 @@ export const claimChainPayout = createServerFn({ method: "POST" })
         .eq("id", p.id);
       return { ok: true, tx };
     } catch (e) {
+      // Safe to release: the escrow contract rejects a second pay() for the
+      // same winner index, so a retried claim can never double-send.
       await supabaseAdmin
         .from("payouts")
         .update({ status: "pending", updated_at: new Date().toISOString() })
@@ -939,6 +990,7 @@ export const getPaymentConfig = createServerFn({ method: "GET" }).handler(async 
       tokenDecimals: cfg.tokenDecimals,
       tokenSymbol: cfg.tokenSymbol,
       receiverAddress: cfg.receiverAddress,
+      escrowAddress: cfg.escrowAddress,
       explorerTx: cfg.explorerTx,
     },
     stripeEnabled: !!process.env["STRIPE_SECRET_KEY"],

@@ -6,11 +6,11 @@ import { confirmChainPayment, startStripeCheckout } from "@/lib/payment.function
 import { chainConfig } from "@/lib/payments";
 import { feeAmount } from "@/lib/fees";
 import { useFeeTiers } from "@/hooks/use-fee-tiers";
-import { hasEthereum, sendTokenTransfer } from "@/lib/wallet";
+import { fundEscrow, hasEthereum, sendTokenTransfer } from "@/lib/wallet";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
-type FundingCampaign = { id: string; prize_amount?: number | null; currency?: string | null; payment_method: string };
+type FundingCampaign = { id: string; prize_amount?: number | null; currency?: string | null; payment_method: string; ends_at?: string | null };
 
 /** Pool + platform-fee prepayment: Stripe Checkout redirect or inline MetaMask transfer. */
 export function FundingPanel({ c, busy, setBusy, onDone }: { c: FundingCampaign; busy: boolean; setBusy: (b: boolean) => void; onDone: () => void }) {
@@ -20,7 +20,9 @@ export function FundingPanel({ c, busy, setBusy, onDone }: { c: FundingCampaign;
   const confirmChain = useServerFn(confirmChainPayment);
   const [txHash, setTxHash] = useState("");
   const cfg = chainConfig();
-  const total = (c.prize_amount ?? 0) + feeAmount(fees, c.prize_amount ?? 0);
+  const pool = c.prize_amount ?? 0;
+  const fee = feeAmount(fees, pool);
+  const total = pool + fee;
 
   async function payStripe() {
     setBusy(true);
@@ -34,10 +36,12 @@ export function FundingPanel({ c, busy, setBusy, onDone }: { c: FundingCampaign;
   }
   async function payChain() {
     if (!hasEthereum()) { toast.error(t("m.noMetaMask")); return; }
-    if (!cfg.receiverAddress) { toast.error(t("m.noReceiver")); return; }
+    if (!cfg.escrowAddress && !cfg.receiverAddress) { toast.error(t("m.noReceiver")); return; }
     setBusy(true);
     try {
-      const hash = await sendTokenTransfer(cfg.receiverAddress, total);
+      const hash = cfg.escrowAddress
+        ? await fundEscrow(c.id, pool, fee, Math.max(Math.floor(Date.now() / 1000), Math.floor(Date.parse(c.ends_at ?? "") / 1000) || 0))
+        : await sendTokenTransfer(cfg.receiverAddress!, total);
       await confirmChain({ data: { campaignId: c.id, txHash: hash } });
       toast.success(t("pay.funded"));
       onDone();
@@ -65,8 +69,8 @@ export function FundingPanel({ c, busy, setBusy, onDone }: { c: FundingCampaign;
       <h2 className="text-xl font-semibold">{t("m.funding")}</h2>
       <p className="mt-1 text-sm text-muted-foreground">
         {t("m.fundNeed")}: <span className="font-mono font-semibold text-foreground">{total.toFixed(2)} {c.currency}</span>
-        {c.payment_method === "chain" && cfg.receiverAddress && (
-          <span className="mt-1 block break-all font-mono text-xs">→ {cfg.receiverAddress}</span>
+        {c.payment_method === "chain" && (cfg.escrowAddress ?? cfg.receiverAddress) && (
+          <span className="mt-1 block break-all font-mono text-xs">→ {cfg.escrowAddress ?? cfg.receiverAddress}</span>
         )}
       </p>
       <div className="mt-4 flex flex-wrap gap-2">
