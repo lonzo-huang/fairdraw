@@ -20,7 +20,7 @@ describe("Impact leaderboard", () => {
   it("aggregates reach per campaign and growth once per handle", () => {
     const campaigns = [
       campaign("a", { tweet_url: "https://x.com/alice/status/1" }),
-      campaign("b", { tweet_url: "https://x.com/alice/status/2" }),
+      campaign("b", { tweet_url: "https://x.com/alice/status/2", created_at: "2026-10-29T10:00:00Z" }),
     ];
     const snaps = [
       snap("a", "2026-10-29T10:00:00Z", { likes: 10, replies: 5, reposts: 2, quotes: 0, bookmarks: 1, views: 1000, followers: 100, author_handle: "alice" }),
@@ -34,6 +34,7 @@ describe("Impact leaderboard", () => {
     // growth = last followers (130) - first followers (100), counted once, not per campaign
     expect(rows[0]?.growth).toBe(30);
     expect(rows[0]?.campaigns).toBe(2);
+    expect(rows[0]?.campList.map((cmp) => cmp.slug)).toEqual(["b", "a"]);
   });
   it("missing metrics stay null, not zero", () => {
     const campaigns = [campaign("a", { tweet_url: "https://x.com/bob/status/1" })];

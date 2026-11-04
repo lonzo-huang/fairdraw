@@ -13,6 +13,8 @@ export type ImpactRow = {
   /** Account-level follower delta within the period (never summed across campaigns). */
   growth: number | null;
   campaigns: number;
+  /** In-period campaigns behind this handle, newest first — links to their detail pages. */
+  campList: { slug: string; title: string }[];
   /** 0-100 weighted percentile score; see WEIGHTS. */
   score: number;
   reachScore: number | null;
@@ -93,6 +95,7 @@ export function sampleImpactRanking(period: RankPeriod): ImpactRow[] {
       engagement: Math.round(96_000 * k * je * scale),
       growth: Math.round(9_600 * k * jg * scale),
       campaigns: Math.max(1, Math.round((accounts.length - i) / 2)),
+      campList: [],
       sample: true,
     };
   });
@@ -114,7 +117,7 @@ export function liveImpactRanking(campaigns: HubCampaign[], snaps: SnapLite[], n
     (byCamp.get(s.campaign_id) ?? byCamp.set(s.campaign_id, []).get(s.campaign_id)!).push(s);
   }
   const camps = new Map(campaigns.map((c) => [c.id, c]));
-  type Acc = { handle: string | null; owner: string; reach: number[]; eng: number[]; followers: [number, number][]; count: number };
+  type Acc = { handle: string | null; owner: string; reach: number[]; eng: number[]; followers: [number, number][]; count: number; camps: { slug: string; title: string; created_at: string }[] };
   const acc = new Map<string, Acc>();
   for (const [cid, arr] of byCamp) {
     const c = camps.get(cid);
@@ -123,8 +126,9 @@ export function liveImpactRanking(campaigns: HubCampaign[], snaps: SnapLite[], n
     const last = asM(arr[arr.length - 1]!.metrics);
     const handle = last?.author_handle ?? xHandleFromUrl(c.tweet_url);
     const key = handle?.toLowerCase() ?? `u:${c.owner_id}`;
-    const e = acc.get(key) ?? { handle, owner: c.owner_id, reach: [], eng: [], followers: [], count: 0 };
+    const e = acc.get(key) ?? { handle, owner: c.owner_id, reach: [], eng: [], followers: [], count: 0, camps: [] };
     e.count += 1;
+    e.camps.push({ slug: c.slug, title: c.title, created_at: c.created_at });
     if (typeof last?.views === "number") e.reach.push(last.views);
     const eg = engOf(last);
     if (eg !== null) e.eng.push(eg);
@@ -145,6 +149,7 @@ export function liveImpactRanking(campaigns: HubCampaign[], snaps: SnapLite[], n
       engagement: a.eng.length ? a.eng.reduce((s, v) => s + v, 0) : null,
       growth,
       campaigns: a.count,
+      campList: [...a.camps].sort((x, y) => Date.parse(y.created_at) - Date.parse(x.created_at)).map(({ slug, title }) => ({ slug, title })),
       sample: false,
     };
   });
