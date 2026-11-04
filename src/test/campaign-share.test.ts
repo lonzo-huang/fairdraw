@@ -21,7 +21,7 @@ describe("campaign sharing rules", () => {
   it("builds the reply-to-win template from the campaign data", () => {
     const tweet = campaignTweet(campaign, "https://example.org");
     expect(tweet).toContain("回贴赢40 USDT");
-    expect(tweet).toContain("我们将抽取2位幸运用户，送出40 USDT！");
+    expect(tweet).toContain("我们将通过FairDraw平台抽取2位幸运用户，送出40 USDT！");
     expect(tweet).toContain("🎯 目标：达到 100条回复 + 100个点赞 + 100次转发 + 100名蓝V");
     expect(tweet).toContain("⏳ 截止时间：从现在开始后的24小时内");
   });

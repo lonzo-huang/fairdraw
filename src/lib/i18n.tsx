@@ -268,7 +268,7 @@ const dict = {
   "share.draw": { zh: "满足条件后通过FairDraw随机抽取{count}名用户，奖品由发起者发放。", en: "Once conditions are met, FairDraw randomly selects {count} winners; the organiser delivers the prizes." },
   "share.prepaid": { zh: "💰 奖金已预付给FairDraw平台，请放心加入来领奖金，祝您好运", en: "💰 Prize is prepaid to the FairDraw platform — join in and win. Good luck!" },
   "share.head": { zh: "回贴赢{amount}", en: "Reply to win {amount}" },
-  "share.draw2": { zh: "我们将抽取{count}位幸运用户，送出{amount}！", en: "We'll draw {count} lucky winner(s) to share {amount}!" },
+  "share.draw2": { zh: "我们将通过FairDraw平台抽取{count}位幸运用户，送出{amount}！", en: "We'll draw {count} lucky winner(s) via the FairDraw platform to share {amount}!" },
   "share.howto": { zh: "💬 参与方式：回复本帖", en: "💬 How to enter: reply to this post" },
   "share.goal": { zh: "🎯 目标：达到 {conditions}", en: "🎯 Goal: reach {conditions}" },
   "share.g.replies": { zh: "{count}条回复", en: "{count} replies" },
