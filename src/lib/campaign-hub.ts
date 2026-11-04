@@ -7,7 +7,7 @@ export type HubTab = "latest" | "ending" | "top" | "drawn";
 export function filterHub(campaigns: HubCampaign[], tab: HubTab, now: number, currency = "USDT") {
   const active = campaigns.filter((c) => c.status === "open" && Date.parse(c.ends_at) > now);
   if (tab === "drawn") return campaigns.filter((c) => c.status === "drawn").sort((a, b) => Date.parse(b.created_at) - Date.parse(a.created_at)).slice(0, 12);
-  if (tab === "ending") return active.filter((c) => Date.parse(c.ends_at) - now < 2 * 60 * 60 * 1000).sort((a, b) => Date.parse(a.ends_at) - Date.parse(b.ends_at)).slice(0, 12);
+  if (tab === "ending") return active.filter((c) => Date.parse(c.ends_at) - now < 8 * 60 * 60 * 1000).sort((a, b) => Date.parse(a.ends_at) - Date.parse(b.ends_at)).slice(0, 12);
   if (tab === "top") return active.filter((c) => c.currency === currency && c.prize_amount !== null).sort((a, b) => (b.prize_amount ?? 0) - (a.prize_amount ?? 0)).slice(0, 5);
   return active.sort((a, b) => Date.parse(b.created_at) - Date.parse(a.created_at)).slice(0, 12);
 }
@@ -21,7 +21,7 @@ export function campaignBadges(c: HubCampaign, progress: number | null, now: num
   const big = c.prize_amount !== null && (c.currency === "CNY" ? c.prize_amount >= 5000 : c.prize_amount >= 1000);
   if (big) badges.push("big");
   const remaining = Date.parse(c.ends_at) - now;
-  if (c.status === "open" && remaining > 0 && remaining < 2 * 60 * 60 * 1000) badges.push("ending");
+  if (c.status === "open" && remaining > 0 && remaining < 8 * 60 * 60 * 1000) badges.push("ending");
   return badges;
 }
 export function hostInitial(name: string | null | undefined) {
