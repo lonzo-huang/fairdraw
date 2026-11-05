@@ -9,38 +9,18 @@ import { chainConfig } from "@/lib/payments";
 import { feeAmount } from "@/lib/fees";
 import { useFeeTiers } from "@/hooks/use-fee-tiers";
 import { fundEscrow, hasEthereum, sendTokenTransfer } from "@/lib/wallet";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 
-type FundingCampaign = { id: string; prize_amount?: number | null; currency?: string | null; payment_method: string; ends_at?: string | null };
+export type FundingCampaign = { id: string; prize_amount?: number | null; currency?: string | null; payment_method: string; ends_at?: string | null };
 
 /** Pool + platform-fee prepayment: Stripe Checkout redirect or inline MetaMask transfer. */
 export function FundingPanel({ c, busy, setBusy, onDone }: { c: FundingCampaign; busy: boolean; setBusy: (b: boolean) => void; onDone: () => void }) {
   const { t } = useI18n();
   const { data: fees = [] } = useFeeTiers();
   const checkout = useServerFn(startStripeCheckout);
-  const confirmChain = useServerFn(confirmChainPayment);
-  const [tab, setTab] = useState<"wallet" | "transfer">("wallet");
-  const [txHash, setTxHash] = useState("");
-  const [hashError, setHashError] = useState("");
-  const [payStep, setPayStep] = useState<"idle" | "wallet" | "chain">("idle");
-  const [copied, setCopied] = useState(false);
-  const [qrUrl, setQrUrl] = useState<string | null>(null);
   const cfg = chainConfig();
-  const { data: paycfg } = useQuery({ queryKey: ["paycfg"], queryFn: () => getPaymentConfig() });
-  const depositTo = paycfg?.chain.treasuryAddress ?? cfg.treasuryAddress ?? cfg.receiverAddress;
   const pool = c.prize_amount ?? 0;
   const fee = feeAmount(fees, pool);
   const total = pool + fee;
-
-  useEffect(() => {
-    if (!depositTo || c.payment_method !== "chain") return;
-    import("qrcode").then(({ default: QRCode }) => {
-      QRCode.toDataURL(depositTo, { width: 112, margin: 1 }).then(setQrUrl).catch(() => {});
-    }).catch(() => {});
-  }, [depositTo, c.payment_method]);
-
-  const formattedAddr = depositTo ? depositTo.replace(/(.{4})(?=.)/g, "$1 ") : "";
 
   async function payStripe() {
     setBusy(true);
@@ -52,15 +32,109 @@ export function FundingPanel({ c, busy, setBusy, onDone }: { c: FundingCampaign;
       setBusy(false);
     }
   }
+
+  const chainBody = (
+    <ChainFundingBody getCampaign={() => Promise.resolve(c)} total={total} busy={busy} setBusy={setBusy} onDone={onDone} />
+  );
+
+  return (
+    <div className="ticket-wrap">
+      <div className="ticket-inner">
+        {/* ── top: amount ── */}
+        <div className="t-top">
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+            <h3 style={{fontSize:"16px",fontWeight:700}}>{t("m.funding")}</h3>
+            {c.payment_method === "chain" && <span className="chain-badge">{cfg.chainName}</span>}
+          </div>
+          <p className="text-xs text-muted-foreground" style={{marginTop:"18px"}}>{t("m.fundDue")}</p>
+          <div className="t-amt">
+            <span className="t-amt-big">{total.toFixed(2)}</span>
+            <span className="t-amt-cur">{cfg.tokenSymbol}</span>
+          </div>
+          <div className="t-break">
+            <span>{t("m.fundPool")} <b>{pool.toFixed(2)}</b></span>
+            <span>{t("m.fundFee")} <b>{fee.toFixed(2)}</b> {cfg.tokenSymbol}</span>
+          </div>
+        </div>
+
+        {/* ── perforation ── */}
+        <div className="perf-notch" aria-hidden="true" />
+
+        {/* ── bottom: payment ── */}
+        <div className="t-bot">
+          {c.payment_method === "stripe" && (
+            <>
+              <button className="btn-gradient" disabled={busy} onClick={payStripe} type="button">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+                {t("m.fundStripe")} {total.toFixed(2)} {c.currency}
+              </button>
+            </>
+          )}
+
+          {c.payment_method === "chain" && chainBody}
+
+          {c.payment_method === "manual" && (
+            <p className="text-sm text-muted-foreground">{t("m.manualFund")}</p>
+          )}
+        </div>
+
+        {/* ── trust ── */}
+        <div className="trust-line">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10Z"/><path d="m9 12 2 2 4-4"/></svg>
+          {t("m.fundTrust")}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Chain payment body: wallet-connect or manual transfer sub-tabs.
+ * `getCampaign` resolves the campaign row on demand — the /new ticket passes a
+ * function that creates/updates the row first; manage page passes the row itself.
+ */
+export function ChainFundingBody({ getCampaign, total, busy, setBusy, onDone }: {
+  getCampaign: () => Promise<FundingCampaign | null>;
+  total: number;
+  busy: boolean;
+  setBusy: (b: boolean) => void;
+  onDone: () => void;
+}) {
+  const { t } = useI18n();
+  const { data: fees = [] } = useFeeTiers();
+  const confirmChain = useServerFn(confirmChainPayment);
+  const [tab, setTab] = useState<"wallet" | "transfer">("wallet");
+  const [txHash, setTxHash] = useState("");
+  const [hashError, setHashError] = useState("");
+  const [payStep, setPayStep] = useState<"idle" | "wallet" | "chain">("idle");
+  const [copied, setCopied] = useState(false);
+  const [qrUrl, setQrUrl] = useState<string | null>(null);
+  const cfg = chainConfig();
+  const { data: paycfg } = useQuery({ queryKey: ["paycfg"], queryFn: () => getPaymentConfig() });
+  const depositTo = paycfg?.chain.treasuryAddress ?? cfg.treasuryAddress ?? cfg.receiverAddress;
+
+  useEffect(() => {
+    if (!depositTo) return;
+    import("qrcode").then(({ default: QRCode }) => {
+      QRCode.toDataURL(depositTo, { width: 112, margin: 1 }).then(setQrUrl).catch(() => {});
+    }).catch(() => {});
+  }, [depositTo]);
+
+  const formattedAddr = depositTo ? depositTo.replace(/(.{4})(?=.)/g, "$1 ") : "";
+
   async function payChain() {
     if (!hasEthereum()) { toast.error(t("m.noMetaMask")); setTab("transfer"); return; }
     if (!cfg.escrowAddress && !cfg.receiverAddress && !cfg.treasuryAddress) { toast.error(t("m.noReceiver")); return; }
     setBusy(true);
     setPayStep("wallet");
     try {
+      const c = await getCampaign();
+      if (!c) return;
+      const pool = c.prize_amount ?? 0;
+      const fee = feeAmount(fees, pool);
       const hash = cfg.escrowAddress
         ? await fundEscrow(c.id, pool, fee, Math.max(Math.floor(Date.now() / 1000), Math.floor(Date.parse(c.ends_at ?? "") / 1000) || 0))
-        : await sendTokenTransfer(cfg.receiverAddress!, total);
+        : await sendTokenTransfer(cfg.receiverAddress!, pool + fee);
       setPayStep("chain");
       await confirmChain({ data: { campaignId: c.id, txHash: hash } });
       toast.success(t("pay.funded"));
@@ -84,6 +158,8 @@ export function FundingPanel({ c, busy, setBusy, onDone }: { c: FundingCampaign;
     setHashError("");
     setBusy(true);
     try {
+      const c = await getCampaign();
+      if (!c) return;
       await confirmChain({ data: { campaignId: c.id, txHash: h } });
       toast.success(t("pay.funded"));
       onDone();
@@ -100,120 +176,72 @@ export function FundingPanel({ c, busy, setBusy, onDone }: { c: FundingCampaign;
     : `${t("m.fundChainPay")} ${total.toFixed(2)} ${cfg.tokenSymbol}`;
 
   return (
-    <div className="ticket-wrap"><div className="ticket-inner p-5">
-      {/* Amount header */}
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <p className="text-xs text-muted-foreground">{t("m.fundDue")}</p>
-          <p className="mt-0.5 font-mono text-3xl font-bold tabular-nums"
-             style={{ background: "linear-gradient(135deg,#f59e0b,#d97706)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>
-            {total.toFixed(2)} <span className="text-lg">{cfg.tokenSymbol}</span>
-          </p>
-          <p className="mt-0.5 text-xs text-muted-foreground">
-            {t("m.fundPool")} {pool.toFixed(2)} + {t("m.fundFee")} {fee.toFixed(2)} {cfg.tokenSymbol}
-            {" · "}<span className="text-emerald-400">↺ {t("m.fundRefund")}</span>
-          </p>
-        </div>
-        {c.payment_method === "chain" && (
-          <span className="shrink-0 rounded-full border border-amber-500/30 bg-amber-500/10 px-2.5 py-1 text-xs font-medium text-amber-400">
-            ● {cfg.chainName}
-          </span>
-        )}
+    <>
+      <div className="seg-sub" role="tablist" style={{marginTop:12}}>
+        {(["wallet","transfer"] as const).map((tb) => (
+          <button key={tb} role="tab" type="button"
+            aria-selected={tab === tb}
+            onClick={() => setTab(tb)}>
+            {tb === "wallet" ? t("m.fundTabWallet") : t("m.fundTabTransfer")}
+          </button>
+        ))}
       </div>
 
-      {c.payment_method === "chain" && (
-        <>
-          <hr className="perf-line -mx-5 mb-0 mt-0" aria-hidden="true" />
-          {/* Segmented tab */}
-          <div className="mt-4 flex gap-0.5 rounded-lg border border-border bg-background/50 p-0.5">
-            {(["wallet", "transfer"] as const).map((tb) => (
-              <button key={tb} type="button" onClick={() => setTab(tb)}
-                className={`flex-1 rounded-md py-2 text-sm font-medium transition-colors ${
-                  tab === tb ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
-                }`}>
-                {tb === "wallet" ? t("m.fundTabWallet") : t("m.fundTabTransfer")}
-              </button>
-            ))}
+      {tab === "wallet" && (
+        <div style={{marginTop:"14px"}}>
+          <button className="btn-gradient" disabled={busy} onClick={payChain} type="button">
+            <Wallet style={{width:20,height:20}} />{chainBtnText}
+          </button>
+          <div className="wallets-list">
+            <span>MetaMask</span><span>OKX Wallet</span><span>Binance Wallet</span><span>TokenPocket</span>
           </div>
+        </div>
+      )}
 
-          {tab === "wallet" && (
-            <div className="mt-4 space-y-2">
-              <Button className="w-full btn-gradient" size="lg" disabled={busy} onClick={payChain}>
-                <Wallet className="mr-2 h-4 w-4 shrink-0" />{chainBtnText}
-              </Button>
-              <p className="text-xs text-muted-foreground">{t("m.fundVerify")}</p>
+      {tab === "transfer" && (
+        <div style={{marginTop:"14px"}}>
+          <div className="addr-box">
+            {qrUrl
+              ? <img src={qrUrl} alt="QR" style={{width:92,height:92,flexShrink:0,borderRadius:10,border:"1px solid rgba(255,255,255,.07)"}} />
+              : <div style={{width:92,height:92,flexShrink:0,borderRadius:10,background:"rgba(255,255,255,.04)",display:"grid",placeItems:"center",fontSize:11,color:"var(--muted-foreground)"}}>QR</div>
+            }
+            <div style={{minWidth:0,flex:1,display:"flex",flexDirection:"column"}}>
+              <span style={{fontSize:12,color:"var(--muted-foreground)"}}>{t("m.fundAddr")}</span>
+              <div className="addr-mono">{formattedAddr}</div>
+              <button type="button" className={`ghost-btn${copied?" done":""}`} onClick={copyAddr}>
+                {copied ? <Check style={{width:15,height:15}}/> : <Copy style={{width:15,height:15}}/>}
+                {copied ? t("m.copied") : t("m.copyAddr")}
+              </button>
             </div>
-          )}
-
-          {tab === "transfer" && (
-            <div className="mt-4 space-y-3">
-              <div className="flex gap-3 rounded-xl border border-border bg-background/60 p-3">
-                {qrUrl ? (
-                  <img src={qrUrl} alt="QR" className="h-20 w-20 shrink-0 rounded-lg border border-border" />
-                ) : (
-                  <div className="flex h-20 w-20 shrink-0 items-center justify-center rounded-lg border border-border bg-muted text-xs text-muted-foreground">QR</div>
-                )}
-                <div className="min-w-0 flex-1">
-                  <p className="text-xs text-muted-foreground">{t("m.fundAddr")}</p>
-                  <p className="mt-1 break-all font-mono text-[11px] leading-relaxed tracking-wide">{formattedAddr}</p>
-                  <Button type="button" size="sm" variant="outline" className="mt-2 h-7 text-xs" onClick={copyAddr}>
-                    {copied
-                      ? <><Check className="mr-1 h-3 w-3" />{t("m.copied")}</>
-                      : <><Copy className="mr-1 h-3 w-3" />{t("m.copyAddr")}</>}
-                  </Button>
+          </div>
+          <div className="bep20-warn">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/><path d="M12 9v4M12 17h.01"/></svg>
+            {t("m.fundWarnNet")}
+          </div>
+          <ol className="steps-list">
+            <li>
+              <span className="steps-n">1</span>
+              <div><div style={{fontSize:14,fontWeight:500}}>{t("m.fundStep1T")} {total.toFixed(2)} {cfg.tokenSymbol} {t("m.fundStep1T2")}</div><div style={{fontSize:12,color:"var(--muted-foreground)"}}>{t("m.fundStep1Sub")}</div></div>
+            </li>
+            <li>
+              <span className="steps-n">2</span>
+              <div><div style={{fontSize:14,fontWeight:500}}>{t("m.fundStep2T")}</div><div style={{fontSize:12,color:"var(--muted-foreground)"}}>{t("m.fundStep2Sub")}</div></div>
+            </li>
+            <li>
+              <span className="steps-n">3</span>
+              <div style={{flex:1,minWidth:0}}>
+                <div style={{fontSize:14,fontWeight:500}}>{t("m.fundStep3T")}</div>
+                <div className="hash-row">
+                  <input className="hash-in" placeholder="0x…" value={txHash} spellCheck={false}
+                    onChange={(e) => { setTxHash(e.target.value); setHashError(""); }} />
+                  <button type="button" className="hash-btn" disabled={busy} onClick={confirmManual}>{t("m.confirmTx")}</button>
                 </div>
+                {hashError && <p style={{fontSize:12,color:"var(--destructive)",marginTop:6}}>{hashError}</p>}
               </div>
-              <div className="flex items-center gap-2 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs font-medium text-amber-400">
-                <span>⚠</span>
-                <span>{t("m.fundWarnNet")}</span>
-              </div>
-              <div className="space-y-3 py-1">
-                {[
-                  { n: 1, title: `${t("m.fundStep1T")} ${total.toFixed(2)} ${cfg.tokenSymbol} ${t("m.fundStep1T2")}`, sub: t("m.fundStep1Sub") },
-                  { n: 2, title: t("m.fundStep2T"), sub: t("m.fundStep2Sub") },
-                ].map(({ n, title, sub }) => (
-                  <div key={n} className="flex gap-3">
-                    <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-primary/15 text-xs font-bold text-primary">{n}</span>
-                    <div>
-                      <p className="text-sm font-semibold">{title}</p>
-                      <p className="text-xs text-muted-foreground">{sub}</p>
-                    </div>
-                  </div>
-                ))}
-                <div className="flex gap-3">
-                  <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-primary/15 text-xs font-bold text-primary">3</span>
-                  <div className="flex-1 space-y-1.5">
-                    <p className="text-sm font-semibold">{t("m.fundStep3T")}</p>
-                    <div className="flex gap-2">
-                      <Input placeholder="0x…" value={txHash}
-                        onChange={(e) => { setTxHash(e.target.value); setHashError(""); }}
-                        className={hashError ? "border-destructive" : ""} />
-                      <Button size="sm" disabled={busy} onClick={confirmManual}>{t("m.confirmTx")}</Button>
-                    </div>
-                    {hashError && <p className="text-xs text-destructive">{hashError}</p>}
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
-        </>
+            </li>
+          </ol>
+        </div>
       )}
-
-      {c.payment_method === "stripe" && (
-        <>
-        <hr className="perf-line -mx-5 mb-0 mt-4" aria-hidden="true" />
-        <Button className="mt-4 w-full btn-gradient" disabled={busy} onClick={payStripe}>
-          {t("m.fundStripe")} {total.toFixed(2)} {c.currency}
-        </Button>
-        </>
-      )}
-      {c.payment_method === "manual" && (
-        <p className="mt-4 text-sm text-muted-foreground">{t("m.manualFund")}</p>
-      )}
-      <div className="trust-bar -mx-5 -mb-5 mt-5">
-        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{color:"var(--success)",flexShrink:0}}><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10Z"/><path d="m9 12 2 2 4-4"/></svg>
-        {t("m.fundTrust")}
-      </div>
-    </div></div>
+    </>
   );
 }
