@@ -1,17 +1,15 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { useEffect, useState } from "react";
+import { useEffect, useState, type CSSProperties } from "react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
-import { useI18n } from "@/lib/i18n";
-import { computeProgress, parseConditions, type Metrics } from "@/lib/conditions";
-import { Button } from "@/components/ui/button";
-import { StatusBadge } from "@/components/status-badge";
-import { Activity, ArrowUpRight, Clock3, Trophy, Zap } from "lucide-react";
+import { translate, useI18n } from "@/lib/i18n";
+import { computeProgress, parseConditions, type ConditionCheck, type Metrics } from "@/lib/conditions";
+import { useAuth } from "@/hooks/use-auth";
 import { getCampaignShare } from "@/lib/campaign-share.functions";
 import { conditionSummary, prizeSummary } from "@/lib/campaign-share";
 import { fetchAllSnaps } from "@/lib/campaign-hub";
-import { translate } from "@/lib/i18n";
+import { Activity, ArrowUpRight, BadgeCheck, BarChart3, Eye, Heart, Link2, MessageCircle, MessageSquare, Percent, Repeat2, Search, UserPlus, Users } from "lucide-react";
 
 export const Route = createFileRoute("/c/$slug")({
   loader: ({ params }) => getCampaignShare({ data: { slug: params.slug } }),
@@ -43,14 +41,14 @@ function useCountdown(end: string | undefined) {
   }, []);
   if (!end || now === null) return null;
   const ms = Math.max(0, new Date(end).getTime() - now);
-  const d = Math.floor(ms / 864e5), h = Math.floor((ms / 36e5) % 24), m = Math.floor((ms / 6e4) % 60), s = Math.floor((ms / 1e3) % 60);
-  return { ms, text: `${d}d ${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}` };
+  return { ms, h: Math.floor(ms / 36e5), m: Math.floor((ms / 6e4) % 60), s: Math.floor((ms / 1e3) % 60) };
 }
 
 function CampaignPage() {
   const { slug } = Route.useParams();
   const share = Route.useLoaderData();
-  const { t } = useI18n();
+  const { t, lang } = useI18n();
+  const { user } = useAuth();
   const { data, isLoading } = useQuery({
     queryKey: ["campaign", slug],
     // Pool progress is re-displayed every 15 minutes.
@@ -71,80 +69,205 @@ function CampaignPage() {
 
   if (isLoading) return <p className="p-10 text-center text-muted-foreground">{t("common.loading")}</p>;
   if (!data) return <p className="p-10 text-center text-muted-foreground">404</p>;
-  const { c, count } = data;
-  const snaps = data.snaps;
-  const latestSnap = snaps[snaps.length - 1];
+  const { c, count, snaps, drawAt } = data;
+  const latestSnap = snaps[snaps.length - 1] ?? null;
   const latestM = asMetrics(latestSnap?.metrics);
   // Baseline = the earliest snapshot that actually captured followers; older rows never had the field.
   const firstM = asMetrics(snaps.find((s) => typeof asMetrics(s.metrics)?.followers === "number")?.metrics);
-  const closed = c.status !== "open" || (cd ? cd.ms === 0 : false);
+  const open = c.status === "open";
+  const drawn = c.status === "drawn";
+  const closed = !open || (cd ? cd.ms === 0 : false);
+  const linked = !!c.tweet_url;
+  const isOwner = !!user && user.id === c.owner_id;
+  const origin = typeof window !== "undefined" ? window.location.origin : "";
+  const shareUrl = `${origin}/c/${c.slug}`;
+  const conditions = parseConditions(c.conditions);
+  const hasConds = Object.values(conditions).some((v) => v !== undefined);
+  const prog = hasConds ? computeProgress(conditions, { ...(latestM ?? {}), participants: count } as Metrics) : null;
+  const condTotal = prog?.checks.length ?? 0;
+  const met = prog?.checks.filter((ch) => ch.state === "met").length ?? 0;
+  const allMet = condTotal > 0 && met === condTotal;
+  const pastDeadline = Date.parse(c.ends_at) < Date.now();
+  const amt = c.prize_amount !== null ? `${c.prize_amount} ${c.currency}` : c.prize;
+  const durH = Math.max(1, Math.round((Date.parse(c.ends_at) - Date.parse(c.created_at)) / 3600e3));
+  const badge: [string, string] = c.status === "cancelled" ? ["b-end", t("status.cancelled")]
+    : drawn ? ["b-done", t("status.drawn")]
+    : open && !linked ? ["b-wait", t("m.badgeLink")]
+    : closed ? ["b-end", t("m.ended")]
+    : ["b-live", t("status.open")];
+  const titleKey = drawn ? "ana.titleDrawn" : hasConds ? "ana.titleMet" : "ana.titlePlain";
+  const growth = netGrowth(latestM, firstM);
+  // First snapshot where any condition was already met.
+  const firstMetSnap = hasConds ? snaps.find((sp) => {
+    const m = asMetrics(sp.metrics);
+    return m ? computeProgress(conditions, { ...m, participants: count } as Metrics).checks.some((ch) => ch.state === "met") : false;
+  }) : undefined;
+  const tlItems: { st: "done" | "now" | ""; t: string; s: string }[] = [
+    { st: "done", t: t("ev.created"), s: new Date(c.created_at).toLocaleString() },
+  ];
+  if (snaps.length) tlItems.push({ st: "done", t: t("ev.synced"), s: new Date(snaps[0]?.fetched_at ?? "").toLocaleString() });
+  if (firstMetSnap) tlItems.push({ st: "done", t: t("ev.firstMet"), s: new Date(firstMetSnap.fetched_at).toLocaleString() });
+  if (open && linked && !pastDeadline) tlItems.push({ st: "now", t: allMet ? t("ev.ready") : t("ev.wait"), s: t("ev.running") });
+  tlItems.push({ st: pastDeadline || drawn ? "done" : "", t: t("ev.deadline"), s: new Date(c.ends_at).toLocaleString() });
+  if (drawn && drawAt) tlItems.push({ st: "done", t: t("ev.drawn"), s: new Date(drawAt).toLocaleString() });
+  else if (c.status === "cancelled") tlItems.push({ st: "", t: t("status.cancelled"), s: "" });
+  else tlItems.push({ st: "", t: t("ev.drawSoon"), s: t("ev.drawWhen") });
+  const copyShare = () => { navigator.clipboard.writeText(shareUrl).catch(() => {}); toast.success(t("c.copied")); };
 
   return (
-    <div className="mx-auto max-w-5xl px-4 py-12">
-      <div className="grid gap-8 md:grid-cols-[1.3fr_1fr]">
-      <div>
-        <StatusBadge status={c.status} endsAt={c.ends_at} />
-        <h1 className="mt-3 text-4xl font-semibold sm:text-5xl">{c.title}</h1>
-        {c.description && <p className="mt-4 whitespace-pre-line text-muted-foreground">{c.description}</p>}
-        {c.requirement && (
-          <div className="mt-6 rounded-xl border border-border bg-card p-5">
-            <p className="text-xs font-medium text-muted-foreground">{t("f.req")}</p>
-            <p className="mt-2 whitespace-pre-line">{c.requirement}</p>
-          </div>
-        )}
-        {(c.target_url || c.tweet_url) && (
-          <div className="mt-6 flex flex-wrap gap-5 text-sm">
-            {c.target_url && <a href={`/go/${c.slug}`} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 text-muted-foreground transition-colors hover:text-foreground"><ArrowUpRight className="size-3.5" />{t("c.visit")}</a>}
-            {c.tweet_url && <a href={c.tweet_url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 text-muted-foreground transition-colors hover:text-foreground"><span className="font-black">𝕏</span>{t("m.tweetUrl")}</a>}
-          </div>
-        )}
-        <PostPreview metrics={latestM} tweetUrl={c.tweet_url} />
+    <div className="page-ana mx-auto max-w-[1200px] px-4 pb-20 pt-9 md:px-6">
+      <div className="crumb">
+        {isOwner ? <Link to="/dashboard">{t("dash.title")}</Link> : <Link to="/">FairDraw</Link>}
+        <span>/</span><span>{t("cy.details")}</span>
       </div>
 
-      <div className="space-y-5">
-        <div className="ticket p-6">
-          <p className="text-xs font-medium text-muted-foreground">{t("cy.total")}</p>
-          <p className="mt-1 font-display text-3xl font-bold">{c.prize_amount ? `${c.prize_amount} ${c.currency}` : c.prize}</p>
-          <p className="mt-1 text-sm opacity-70">{c.winners_count} {t("c.winners")}</p>
-          <div className="perforation my-4" />
-          <div className="rounded-lg bg-background/60 px-3 py-2.5 text-center">
-            <p className="text-[10px] text-muted-foreground">{t("c.countdownLabel")}</p>
-            <p className="mt-0.5 font-mono text-2xl font-semibold tabular-nums">{cd && !closed ? cd.text : t("c.closed")}</p>
+      <div className="top">
+        <div>
+          <span className={`badge ${badge[0]}`}>{badge[1]}</span>
+          <h1 className="title">{translate(lang, titleKey, { n: met, amt: "" })}<span className="amt">{amt}</span></h1>
+          <div className="conds">
+            {COND_CHIPS.filter(({ k }) => conditions[k] !== undefined).map(({ k, I }) => (
+              <span key={k} className="cchip"><I />{k === "keyword" ? `${t("cond.keyword")} · ${conditions.keyword}` : `${t(COND_LABEL[k])} ≥ ${conditions[k]}`}</span>
+            ))}
           </div>
-          <p className="mt-3 text-center font-mono text-sm"><span className="font-semibold text-prize">{count}</span> {t("c.participants")}</p>
+          {c.description && <p className="desc">{c.description}</p>}
+          {linked ? (
+            <a className="tweet" href={c.tweet_url ?? undefined} target="_blank" rel="noopener noreferrer">
+              <span className="av">{(latestM?.author_name ?? latestM?.author_handle ?? "𝕏").slice(0, 3).toUpperCase()}</span>
+              <div style={{ minWidth: 0, flex: 1 }}>
+                <div className="n"><b>{latestM?.author_name ?? "—"}</b><span>{latestM?.author_handle ? `@${latestM.author_handle}` : ""}</span><ArrowUpRight /></div>
+                <div className="t">{latestM?.text ?? c.tweet_url}</div>
+              </div>
+            </a>
+          ) : (
+            <div className="tweet-empty">
+              <Link2 />
+              <div><b>{t("ana.noTweetT")}</b><span>{t("ana.noTweetS")}</span></div>
+              {isOwner && <Link to="/manage/$id" params={{ id: c.id }} className="abtn">{t("ana.goLink")}</Link>}
+            </div>
+          )}
+          {c.requirement && (
+            <div className="panel" style={{ padding: "14px 18px", marginTop: 14 }}>
+              <p className="t-lab">{t("f.req")}</p>
+              <p className="desc" style={{ marginTop: 4, marginBottom: 0 }}>{c.requirement}</p>
+            </div>
+          )}
+          {c.target_url && (
+            <a href={`/go/${c.slug}`} target="_blank" rel="noreferrer" style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 13, color: "#9aa4b8", marginTop: 12, textDecoration: "none" }}>
+              <ArrowUpRight style={{ width: 14, height: 14 }} />{t("c.visit")}
+            </a>
+          )}
         </div>
 
-        {c.status === "drawn" ? (
-          <Button asChild className="w-full"><Link to="/r/$slug" params={{ slug }}>{t("c.result")}</Link></Button>
-        ) : closed ? (
-          <p className="text-center text-muted-foreground">{t("c.closed")}</p>
-        ) : null}
-        <Button variant="ghost" className="w-full" onClick={() => { navigator.clipboard.writeText(window.location.href); toast.success(t("c.copied")); }}>
-          {t("c.share")}
-        </Button>
-      </div>
+        <div className="ticket">
+          <div className="ticket-in">
+            <div className="t-top">
+              <div className="t-lab">{t("cy.total")}</div>
+              <div className="t-amt">{c.prize_amount ?? c.prize}{c.prize_amount !== null && <small>{c.currency}</small>}</div>
+              <div className="t-sub">{c.winners_count} {t("dash.winners")} · {t(`escrow.${c.escrow_status}` as "escrow.funded")}</div>
+            </div>
+            <div className="perf" aria-hidden="true" />
+            <div className="t-bot">
+              {open && linked && !closed && cd ? (
+                <div>
+                  <div className="t-lab" style={{ marginBottom: 6 }}>{t("m.timeLeft")}</div>
+                  <div className="cd">
+                    <div><b>{pad2(cd.h)}</b><span>{t("m.hUnit")}</span></div>
+                    <div><b>{pad2(cd.m)}</b><span>{t("m.mUnit")}</span></div>
+                    <div><b>{pad2(cd.s)}</b><span>{t("m.sUnit")}</span></div>
+                  </div>
+                </div>
+              ) : (
+                <div className="cd-wait">
+                  <b>{!linked ? translate(lang, "m.hours", { h: durH }) : drawn ? t("status.drawn") : t("m.ended")}</b>
+                  {!linked ? t("ana.timerWait") : new Date(c.ends_at).toLocaleDateString()}
+                </div>
+              )}
+              <div className="t-row"><span>{t("c.participants")}</span><b>{linked ? count : "—"}</b></div>
+              {drawn && <Link to="/r/$slug" params={{ slug }} className="abtn" style={{ justifyContent: "center" }}>{t("c.result")}</Link>}
+              <button type="button" className="ghost" onClick={copyShare}><Link2 />{t("m.copyLink")}</button>
+            </div>
+          </div>
+        </div>
       </div>
 
-      <KpiRow metrics={latestM} firstMetrics={firstM} updatedAt={latestSnap?.fetched_at} />
-
-      <nav className="mt-8 flex gap-1 border-b border-border" aria-label={t("ana.overview")}>
-        {(["overview", "engagement", "impact"] as const).map((tb) => (
-          <button key={tb} onClick={() => setTab(tb)} className={`-mb-px border-b-2 px-4 py-2 text-sm transition-colors ${tab === tb ? "border-prize font-medium text-foreground" : "border-transparent text-muted-foreground hover:text-foreground"}`}>
-            {t(`ana.${tb}`)}
-          </button>
-        ))}
-      </nav>
-      <div className="mt-6 space-y-6">
-        {tab === "overview" && <>
-          <Timeline createdAt={c.created_at} firstSyncAt={snaps[0]?.fetched_at} endsAt={c.ends_at} drawAt={data.drawAt} />
-          <ConditionProgress conditionsRaw={c.conditions} participants={count} snap={latestSnap} />
-        </>}
-        {tab === "engagement" && <>
-          <Breakdown metrics={latestM} />
-          <TrendChart snaps={snaps} />
-        </>}
-        {tab === "impact" && <ImpactCard c={c} metrics={latestM} firstMetrics={firstM} count={count} />}
+      <div className={`sync${linked ? "" : " off"}`}>
+        <span>{linked ? `${t("ana.syncNote")}${latestSnap ? ` · ${t("ana.lastUpdated")} ${new Date(latestSnap.fetched_at).toLocaleString()}` : ""}` : t("ana.noSync")}</span>
       </div>
+      <StatsRow snaps={snaps} latestM={latestM} firstM={firstM} linked={linked} />
+
+      {linked ? (
+        <>
+          <div className="tabs" role="tablist">
+            {(["overview", "engagement", "impact"] as const).map((tb) => (
+              <button key={tb} role="tab" aria-selected={tab === tb} onClick={() => setTab(tb)}>{t(`ana.${tb}`)}</button>
+            ))}
+          </div>
+
+          {tab === "overview" && (
+            <>
+              <div className="g2">
+                <section className="panel card">
+                  <div className="card-h">
+                    <div><h3>{t("ana.condTitle")}</h3><p>{t("ana.condSub")}</p></div>
+                    <div className="ov-pct">{hasConds ? `${prog?.progress ?? 0}%` : "—"}{hasConds && <small>{translate(lang, "ana.metCount", { a: met, b: condTotal })}</small>}</div>
+                  </div>
+                  <CondRows checks={prog?.checks ?? []} />
+                </section>
+                <section className="panel card">
+                  <div className="card-h"><div><h3>{t("ana.timeline")}</h3></div></div>
+                  <TimelineList items={tlItems} />
+                </section>
+              </div>
+              <section className="panel card" style={{ marginTop: 16 }}>
+                <div className="card-h">
+                  <div><h3>{t("ana.chartTitle")}</h3><p>{t("ana.chartSub")}</p></div>
+                  <div className="legend">
+                    {DELTA_SERIES.map((s) => <span key={s.key} style={{ "--c": s.color } as CSSProperties}>{t(s.label)}</span>)}
+                  </div>
+                </div>
+                <DeltaChart snaps={snaps} />
+              </section>
+            </>
+          )}
+
+          {tab === "engagement" && (
+            <>
+              <div className="g2">
+                <section className="panel card">
+                  <div className="card-h"><div><h3>{t("ana.breakdown")}</h3><p>{t("ana.mixSub")}</p></div></div>
+                  <MixBreakdown metrics={latestM} />
+                </section>
+                <section className="panel card">
+                  <div className="card-h"><div><h3>{t("ana.qualTitle")}</h3><p>{t("ana.qualSub")}</p></div></div>
+                  <QualCard metrics={latestM} count={count} growth={growth} />
+                </section>
+              </div>
+              <section className="panel card" style={{ marginTop: 16 }}>
+                <TrendChart snaps={snaps} />
+              </section>
+            </>
+          )}
+
+          {tab === "impact" && (
+            <>
+              <ValueGrid c={c} latestM={latestM} firstM={firstM} />
+              <section className="panel card">
+                <div className="card-h"><div><h3>{t("ana.impact")}</h3></div></div>
+                <p className="note" style={{ marginTop: 0 }}>{t("ana.valNote")}</p>
+              </section>
+            </>
+          )}
+        </>
+      ) : (
+        <section className="panel empty">
+          <div className="ic"><BarChart3 /></div>
+          <h3>{t("ana.emptyT")}</h3>
+          <p>{t("ana.emptyS")}</p>
+          {isOwner && <Link to="/manage/$id" params={{ id: c.id }} className="abtn">{t("ana.goLink")}</Link>}
+        </section>
+      )}
+
       {share.imageUrl && <details className="mt-6"><summary className="cursor-pointer text-xs text-muted-foreground transition-colors hover:text-foreground">{t("c.sharePreview")}</summary><img src={share.imageUrl} alt={translate(c.share_language === "en" ? "en" : "zh", "share.imageAlt", { title: c.title, prize: c.prize })} width={1200} height={630} className="mt-3 aspect-[1200/630] w-full rounded-lg border border-border object-contain" /></details>}
     </div>
   );
@@ -153,6 +276,23 @@ function CampaignPage() {
 const fmtCompact = (v: number) => v.toLocaleString("en-US", { notation: "compact", maximumFractionDigits: 1 });
 type Snap = { metrics: unknown; progress: number; fetched_at: string };
 const asMetrics = (m: unknown): Metrics | null => (m ?? null) as Metrics | null;
+const pad2 = (n: number) => String(n).padStart(2, "0");
+
+const COND_LABEL = {
+  min_likes: "cond.likes", min_replies: "cond.replies", min_reposts: "cond.reposts",
+  min_quotes: "cond.quotes", min_views: "cond.views",
+  min_participants: "cond.participants", min_verified: "cond.verified",
+} as const;
+const CHK_ICON: Record<string, typeof Heart> = {
+  min_likes: Heart, min_replies: MessageCircle, min_reposts: Repeat2,
+  min_quotes: MessageSquare, min_views: Eye,
+  min_participants: Users, min_verified: BadgeCheck, keyword: Search,
+};
+const COND_CHIPS: { k: "min_likes" | "min_replies" | "min_reposts" | "min_quotes" | "min_views" | "min_participants" | "min_verified" | "keyword"; I: typeof Heart }[] = [
+  { k: "min_likes", I: Heart }, { k: "min_replies", I: MessageCircle }, { k: "min_reposts", I: Repeat2 },
+  { k: "min_quotes", I: MessageSquare }, { k: "min_views", I: Eye },
+  { k: "min_participants", I: Users }, { k: "min_verified", I: BadgeCheck }, { k: "keyword", I: Search },
+];
 
 /** Engagement total: sums only the metrics that were actually read; null when none are. */
 function totalEngagements(m: Metrics | null): number | null {
@@ -170,94 +310,238 @@ function netGrowth(m: Metrics | null, fm: Metrics | null): number | null {
   return typeof m?.followers === "number" && typeof fm?.followers === "number" ? Math.max(0, m.followers - fm.followers) : null;
 }
 
-/** Original X post preview — only shows what snapshots actually captured. */
-function PostPreview({ metrics, tweetUrl }: { metrics: Metrics | null; tweetUrl: string | null }) {
-  const { t } = useI18n();
-  const handle = metrics?.author_handle ?? null;
-  return (
-    <div className="mt-6 rounded-xl border border-border bg-card p-5">
-      <p className="flex items-center gap-2 text-xs font-medium text-muted-foreground"><span className="font-black">𝕏</span>{t("ana.postPreview")}</p>
-      {metrics?.post_text || handle ? (
-        <div className="mt-3 flex gap-3">
-          {handle && <img src={`https://unavatar.io/x/${handle}`} alt="" loading="lazy" className="size-10 shrink-0 rounded-full bg-muted object-cover" onError={(e) => { e.currentTarget.style.display = "none"; }} />}
-          <div className="min-w-0">
-            <p className="text-sm font-semibold">{metrics?.author_name ?? (handle ? `@${handle}` : "—")}{metrics?.author_verified && <span className="ml-1 text-sky-500">✓</span>}</p>
-            {handle && <p className="text-xs text-muted-foreground">@{handle}</p>}
-            {metrics?.post_text && <p className="mt-2 line-clamp-6 whitespace-pre-line text-sm leading-6">{metrics.post_text}</p>}
-          </div>
-        </div>
-      ) : (
-        <p className="mt-3 text-sm text-muted-foreground">—</p>
-      )}
-      {tweetUrl && <a href={tweetUrl} target="_blank" rel="noreferrer" className="mt-4 inline-flex items-center gap-1.5 text-xs text-primary hover:underline">{t("ana.viewPost")}<ArrowUpRight className="size-3" /></a>}
-    </div>
-  );
-}
-
-/** Four headline KPIs per the analytics whitepaper; each card states its data scope. */
-function KpiRow({ metrics, firstMetrics, updatedAt }: { metrics: Metrics | null; firstMetrics: Metrics | null; updatedAt?: string }) {
-  const { t } = useI18n();
-  const engagements = totalEngagements(metrics);
-  const rate = engagementRate(metrics);
-  const growth = netGrowth(metrics, firstMetrics);
-  const cells = [
-    { label: t("cy.exposure"), value: typeof metrics?.views === "number" ? fmtCompact(metrics.views) : "—", note: t("ana.postLevel") },
-    { label: t("ana.engagements"), value: engagements !== null ? fmtCompact(engagements) : "—", note: t("ana.postLevel") },
-    { label: t("ana.engRate"), value: rate !== null ? `${rate.toFixed(2)}%` : "—", note: t("ana.engRateNote") },
-    { label: t("stat.newFollowers"), value: growth !== null ? `+${fmtCompact(growth)}` : "—", note: t("ana.accountLevel") },
+/** Four headline KPI cards — real snapshot values only; "—" when a metric was never read. */
+function StatsRow({ snaps, latestM, firstM, linked }: { snaps: Snap[]; latestM: Metrics | null; firstM: Metrics | null; linked: boolean }) {
+  const { t, lang } = useI18n();
+  const prevM = asMetrics(snaps[snaps.length - 2]?.metrics);
+  const engagements = totalEngagements(latestM);
+  const prevEng = totalEngagements(prevM);
+  const rate = engagementRate(latestM);
+  const growth = netGrowth(latestM, firstM);
+  const viewDelta = typeof latestM?.views === "number" && typeof prevM?.views === "number" ? Math.max(0, latestM.views - prevM.views) : null;
+  const engDelta = engagements !== null && prevEng !== null ? Math.max(0, engagements - prevEng) : null;
+  // Cumulative sparkline across snapshots for the first two cards.
+  const sparkFor = (key: "views" | "eng") => {
+    const pts = snaps.map((sp) => {
+      const m = asMetrics(sp.metrics);
+      return key === "views" ? m?.views : m ? totalEngagements(m) : null;
+    }).filter((v): v is number => typeof v === "number");
+    if (pts.length < 2) return null;
+    const mx = Math.max(1, ...pts);
+    return pts.map((v, j) => `${(j / (pts.length - 1)) * 72},${22 - (v / mx) * 20}`).join(" ");
+  };
+  const live = linked && latestM !== null;
+  const cards: { l: string; I: typeof Eye; bg: string; col: string; v: string | null; note: string; spark?: string | null; vCol?: string }[] = [
+    { l: t("cy.exposure"), I: Eye, bg: "rgba(56,189,248,.12)", col: "#38bdf8",
+      v: live && typeof latestM?.views === "number" ? fmtCompact(latestM.views) : null,
+      note: viewDelta !== null ? translate(lang, "ana.statDelta", { n: viewDelta }) : t("ana.postLevel"), spark: sparkFor("views") },
+    { l: t("ana.engagements"), I: Activity, bg: "rgba(124,92,255,.14)", col: "#a99bff",
+      v: live && engagements !== null ? fmtCompact(engagements) : null,
+      note: engDelta !== null ? translate(lang, "ana.statDelta", { n: engDelta }) : t("ana.postLevel"), spark: sparkFor("eng") },
+    { l: t("ana.engRate"), I: Percent, bg: "rgba(245,184,61,.12)", col: "#f5b83d",
+      v: live && rate !== null ? `${rate.toFixed(2)}%` : null, note: t("ana.engRateNote") },
+    { l: t("stat.newFollowers"), I: UserPlus, bg: "rgba(52,211,153,.12)", col: "#34d399",
+      v: live && growth !== null ? `+${fmtCompact(growth)}` : null, note: t("ana.accountLevel"), vCol: "#34d399" },
   ];
   return (
-    <div className="mt-8">
-      <div className="flex flex-wrap items-center justify-between gap-2 text-[10px] text-muted-foreground">
-        <span>{t("ana.syncNote")}</span>
-        {updatedAt && <span>{t("ana.lastUpdated")} {new Date(updatedAt).toLocaleString()}</span>}
-      </div>
-      <div className="mt-2 grid grid-cols-2 gap-2.5 lg:grid-cols-4">
-        {cells.map((cell) => (
-          <div key={cell.label} className="rounded-xl border border-border bg-card p-4">
-            <p className="text-[10px] text-muted-foreground">{cell.label}</p>
-            <p className="mt-1 font-mono text-2xl font-semibold tabular-nums">{cell.value}</p>
-            <p className="mt-1 text-[10px] text-muted-foreground/70">{cell.note}</p>
+    <div className="stats">
+      {cards.map((cd2) => (
+        <div key={cd2.l} className="panel stat">
+          <div className="stat-h">{cd2.l}<span className="stat-ic" style={{ background: cd2.bg, color: cd2.col }}><cd2.I /></span></div>
+          <div className={`stat-v${cd2.v === null ? " empty" : ""}`} style={cd2.vCol && cd2.v !== null ? { color: cd2.vCol } : undefined}>{cd2.v ?? "—"}</div>
+          <div className="stat-f">
+            <span>{cd2.v === null ? t("ana.statWait") : cd2.note}</span>
+            {cd2.v !== null && cd2.spark && (
+              <svg className="spark" viewBox="0 0 72 24" preserveAspectRatio="none">
+                <polyline fill="none" stroke={cd2.col} strokeWidth="1.8" strokeLinecap="round" vectorEffect="non-scaling-stroke" points={cd2.spark} />
+              </svg>
+            )}
           </div>
-        ))}
-      </div>
+        </div>
+      ))}
     </div>
   );
 }
 
-/** Horizontal breakdown sorted desc; unreadable metrics are omitted, never zeroed. */
-function Breakdown({ metrics }: { metrics: Metrics | null }) {
-  const { t } = useI18n();
-  const rows = [
-    { label: t("cond.likes"), v: metrics?.likes },
-    { label: t("cond.replies"), v: metrics?.replies },
-    { label: t("cond.reposts"), v: metrics?.reposts },
-    { label: t("cond.quotes"), v: metrics?.quotes },
-    { label: t("stat.bookmarks"), v: metrics?.bookmarks },
-  ].filter((r): r is { label: string; v: number } => typeof r.v === "number").sort((a, b) => b.v - a.v);
-  if (!rows.length) return null;
-  const total = rows.reduce((s, r) => s + r.v, 0) || 1;
-  const max = rows[0].v || 1;
+/** Condition rows in the mockup style: icon, label, now/goal, status tag, progress bar. */
+function CondRows({ checks }: { checks: ConditionCheck[] }) {
+  const { t, lang } = useI18n();
+  if (!checks.length) return <p className="note" style={{ marginTop: 0 }}>{t("cond.none")}</p>;
   return (
-    <div className="rounded-xl border border-border bg-card p-5">
-      <p className="text-xs font-medium text-muted-foreground">{t("ana.breakdown")}</p>
-      <ul className="mt-4 space-y-3">
-        {rows.map((r) => (
-          <li key={r.label} title={`${r.label}: ${r.v.toLocaleString()} (${Math.round((r.v / total) * 100)}%)`}>
-            <div className="flex justify-between text-xs"><span>{r.label}</span><span className="font-mono tabular-nums">{r.v.toLocaleString()} · {Math.round((r.v / total) * 100)}%</span></div>
-            <div className="mt-1 h-2 overflow-hidden rounded-full bg-muted"><div className="h-full rounded-full bg-primary transition-all" style={{ width: `${Math.max(2, (r.v / max) * 100)}%` }} /></div>
-          </li>
-        ))}
-      </ul>
+    <div>
+      {checks.map((ch) => {
+        const I = CHK_ICON[ch.key] ?? Activity;
+        const met = ch.state === "met";
+        const numeric = typeof ch.target === "number" && typeof ch.current === "number";
+        const w = numeric ? Math.min(100, Math.round((Number(ch.current) / Number(ch.target)) * 100)) : met ? 100 : 0;
+        const st = met ? "ok" : ch.state === "unmet" && numeric ? "go" : "wait";
+        return (
+          <div key={ch.key} className="cr">
+            <div className="cr-h">
+              <span className="ic"><I /></span>
+              <span className="nm">{t(`cond.${ch.label}` as "cond.likes")}</span>
+              <span className="val">{numeric ? ch.current : "—"}<small> / {ch.target}</small></span>
+              <span className={`st ${st}`}>
+                {met ? t("cond.met") : st === "go" ? translate(lang, "ana.metLeft", { n: Math.max(0, Number(ch.target) - Number(ch.current)) }) : t("cond.unknown")}
+              </span>
+            </div>
+            <div className="cbar"><i className={met ? "ok" : ""} style={{ width: `${w}%` }} /></div>
+          </div>
+        );
+      })}
     </div>
+  );
+}
+
+/** Vertical timeline: done (green) / now (blue ring) / pending (muted). */
+function TimelineList({ items }: { items: { st: "done" | "now" | ""; t: string; s: string }[] }) {
+  return (
+    <ul className="tl">
+      {items.map((it, i) => (
+        <li key={i} className={it.st}><span className="dot" /><div><div className="t">{it.t}</div><div className="s">{it.s}</div></div></li>
+      ))}
+    </ul>
+  );
+}
+
+const MIX_KEYS = [
+  { key: "likes" as const, label: "cond.likes" as const, c: "#f472b6" },
+  { key: "replies" as const, label: "cond.replies" as const, c: "#3b82f6" },
+  { key: "reposts" as const, label: "cond.reposts" as const, c: "#34d399" },
+  { key: "quotes" as const, label: "cond.quotes" as const, c: "#f5b83d" },
+  { key: "bookmarks" as const, label: "stat.bookmarks" as const, c: "#38bdf8" },
+];
+
+/** Engagement mix: segmented bar + per-type legend; unreadable metrics are omitted, never zeroed. */
+function MixBreakdown({ metrics }: { metrics: Metrics | null }) {
+  const { t } = useI18n();
+  const rows = MIX_KEYS.map((m) => ({ ...m, v: metrics?.[m.key] })).filter((r): r is typeof r & { v: number } => typeof r.v === "number");
+  if (!rows.length) return <p className="note" style={{ marginTop: 0 }}>{t("ana.noSeries")}</p>;
+  const total = rows.reduce((s, r) => s + r.v, 0) || 1;
+  return (
+    <>
+      <div className="mixbar">
+        {rows.map((r) => <i key={r.key} style={{ flexGrow: r.v, background: r.c }} title={`${t(r.label)} ${r.v}`} />)}
+      </div>
+      <div className="mixl">
+        {rows.map((r) => (
+          <div key={r.key} style={{ "--c": r.c } as CSSProperties}>
+            {t(r.label)}<b>{r.v.toLocaleString()}</b><small>{Math.round((r.v / total) * 100)}%</small>
+          </div>
+        ))}
+      </div>
+    </>
+  );
+}
+
+/** Entry quality tiles — computed from snapshot participant counts and snapshot-delta followers. */
+function QualCard({ metrics, count, growth }: { metrics: Metrics | null; count: number; growth: number | null }) {
+  const { t } = useI18n();
+  const participants = typeof metrics?.participants === "number" ? metrics.participants : null;
+  const valid = participants !== null && participants > 0 ? Math.min(100, Math.round((count / participants) * 100)) : null;
+  const blue = participants !== null && participants > 0 && typeof metrics?.verified === "number"
+    ? Math.round((metrics.verified / participants) * 100) : null;
+  const tiles = [
+    { v: valid !== null ? `${valid}%` : "—", l: t("ana.qValid"), col: "#34d399" },
+    { v: blue !== null ? `${blue}%` : "—", l: t("ana.qBlue"), col: undefined as string | undefined },
+    { v: growth !== null ? `+${growth.toLocaleString()}` : "—", l: t("stat.newFollowers"), col: undefined as string | undefined },
+  ];
+  return (
+    <>
+      <div className="qual">
+        {tiles.map((q) => (
+          <div key={q.l} className="q"><b style={q.col ? { color: q.col } : undefined}>{q.v}</b><span>{q.l}</span></div>
+        ))}
+      </div>
+      <p className="note">{t("ana.qualNote")}</p>
+    </>
   );
 }
 
 const TREND_SERIES = [
-  { key: "likes", label: "cond.likes", color: "#18EBA5" },
-  { key: "replies", label: "cond.replies", color: "#38BDF8" },
-  { key: "reposts", label: "cond.reposts", color: "#B18CFF" },
+  { key: "likes", label: "cond.likes", color: "#f472b6" },
+  { key: "replies", label: "cond.replies", color: "#38bdf8" },
+  { key: "reposts", label: "cond.reposts", color: "#a99bff" },
 ] as const;
+
+const DELTA_SERIES = [
+  { key: "likes" as const, label: "cond.likes" as const, color: "#f472b6" },
+  { key: "replies" as const, label: "cond.replies" as const, color: "#3b82f6" },
+  { key: "reposts" as const, label: "cond.reposts" as const, color: "#34d399" },
+  { key: "quotes" as const, label: "cond.quotes" as const, color: "#f5b83d" },
+];
+
+/** Stacked bars of engagement gained between consecutive snapshots — real deltas only. */
+function DeltaChart({ snaps }: { snaps: Snap[] }) {
+  const { t, lang } = useI18n();
+  const [hi, setHi] = useState<number | null>(null);
+  const W = 640, H = 220, L = 34, R = 6, T = 8, B = 26;
+  const iw = W - L - R, ih = H - T - B;
+  const deltas = snaps.slice(1).map((sp, i) => {
+    const cur = asMetrics(sp.metrics), prev = asMetrics(snaps[i]?.metrics);
+    return {
+      at: sp.fetched_at,
+      vals: DELTA_SERIES.map((s) => {
+        const a = cur?.[s.key], b = prev?.[s.key];
+        return typeof a === "number" && typeof b === "number" ? Math.max(0, a - b) : 0;
+      }),
+    };
+  }).filter((d) => d.vals.some((v) => v > 0));
+  if (!deltas.length) return <p className="note" style={{ marginTop: 0 }}>{t("ana.noSeries")}</p>;
+  const totals = deltas.map((d) => d.vals.reduce((x, y) => x + y, 0));
+  const mx = Math.max(1, ...totals);
+  const n = deltas.length;
+  const bw = (iw / n) * 0.62;
+  const x = (i: number) => L + (i + 0.5) * (iw / n);
+  const step = Math.max(1, Math.ceil(n / 8));
+  return (
+    <div className="chart-box">
+      <svg viewBox={`0 0 ${W} ${H}`} onMouseLeave={() => setHi(null)}>
+        {[0, 0.5, 1].map((f) => {
+          const yy = T + ih - f * ih;
+          return (
+            <g key={f}>
+              <line x1={L} x2={W - R} y1={yy} y2={yy} stroke="rgba(255,255,255,.06)" strokeDasharray={f ? "3 4" : undefined} />
+              <text x={L - 8} y={yy + 4} textAnchor="end" fill="#646f85" fontSize="11" fontFamily="Bricolage Grotesque">{Math.round(mx * f)}</text>
+            </g>
+          );
+        })}
+        {deltas.map((d, i) => {
+          let y0 = T + ih;
+          return d.vals.map((v, j) => {
+            const h = (v / mx) * ih;
+            if (h <= 0) return null;
+            y0 -= h;
+            const el = <rect key={`${i}-${j}`} x={x(i) - bw / 2} y={y0} width={bw} height={h} fill={DELTA_SERIES[j]?.color} opacity={hi === null || hi === i ? 1 : 0.35} />;
+            y0 -= h > 1 ? 1 : 0;
+            return el;
+          });
+        })}
+        {deltas.map((_, i) => (i % step === 0 || i === n - 1) ? (
+          <text key={`t${i}`} x={x(i)} y={H - 6} textAnchor="middle" fill="#646f85" fontSize="11" fontFamily="Bricolage Grotesque">{i + 1}</text>
+        ) : null)}
+        <rect x={L} y={T} width={iw} height={ih} fill="transparent"
+          onMouseMove={(e) => {
+            const rc = e.currentTarget.getBoundingClientRect();
+            const rel = ((e.clientX - rc.left) / rc.width) * iw;
+            setHi(Math.min(n - 1, Math.max(0, Math.floor(rel / (iw / n)))));
+          }} />
+      </svg>
+      <div className="tip" style={{
+        opacity: hi === null ? 0 : 1,
+        left: hi === null ? 0 : `clamp(70px, ${(x(hi) / W) * 100}%, calc(100% - 70px))`,
+        top: hi === null ? 0 : `${((T + ih - (totals[hi] ?? 0) / mx * ih) / H) * 100}%`,
+      }}>
+        {hi !== null && (
+          <>
+            <b>{translate(lang, "ana.chartTip", { n: totals[hi] ?? 0 })}</b>
+            <span>{translate(lang, "ana.chartSync", { n: hi + 2 })} · {new Date(deltas[hi]?.at ?? "").toLocaleString()}</span>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
 
 /** Real cumulative snapshot series — no interpolation, no fabricated history. */
 function TrendChart({ snaps }: { snaps: Snap[] }) {
@@ -270,136 +554,73 @@ function TrendChart({ snaps }: { snaps: Snap[] }) {
       return typeof v === "number" ? { i, v, at: sp.fetched_at } : null;
     }).filter((p): p is { i: number; v: number; at: string } => p !== null),
   })).filter((s) => s.pts.length >= 2);
-  if (snaps.length < 2 || !series.length) {
-    return <div className="rounded-xl border border-border bg-card p-5"><p className="text-xs font-medium text-muted-foreground">{t("ana.trend")}</p><p className="mt-4 text-sm text-muted-foreground">{t("ana.noSeries")}</p></div>;
-  }
-  const n = snaps.length;
-  const max = Math.max(1, ...series.flatMap((s) => s.pts.map((p) => p.v)));
-  const x = (i: number) => PL + (i / Math.max(1, n - 1)) * (W - PL - PR);
-  const y = (v: number) => PT + (1 - v / max) * (H - PT - PB);
   return (
-    <div className="rounded-xl border border-border bg-card p-5">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <p className="text-xs font-medium text-muted-foreground">{t("ana.trend")}</p>
-        <div className="flex gap-3">{series.map((s) => <span key={s.key} className="flex items-center gap-1 text-[10px] text-muted-foreground"><span className="size-2 rounded-full" style={{ background: s.color }} />{t(s.label)}</span>)}</div>
+    <>
+      <div className="card-h">
+        <div><h3>{t("ana.trend")}</h3><p>{t("ana.accountLevel")}</p></div>
+        {series.length > 0 && (
+          <div className="legend">
+            {series.map((s) => <span key={s.key} style={{ "--c": s.color } as CSSProperties}>{t(s.label)}</span>)}
+          </div>
+        )}
       </div>
-      <svg viewBox={`0 0 ${W} ${H}`} className="mt-3 w-full" role="img" aria-label={t("ana.trend")}>
-        {[0.25, 0.5, 0.75, 1].map((f) => <line key={f} x1={PL} x2={W - PR} y1={y(max * f)} y2={y(max * f)} stroke="currentColor" strokeOpacity="0.08" />)}
-        {series.map((s) => <polyline key={s.key} fill="none" stroke={s.color} strokeWidth="2" strokeLinejoin="round" points={s.pts.map((p) => `${x(p.i)},${y(p.v)}`).join(" ")} />)}
-        {series.map((s) => { const last = s.pts[s.pts.length - 1]; return <circle key={s.key} cx={x(last.i)} cy={y(last.v)} r="3.5" fill={s.color}><title>{`${t(s.label)} ${last.v.toLocaleString()} · ${new Date(last.at).toLocaleString()}`}</title></circle>; })}
-        <text x={PL} y={H - 8} fontSize="10" fill="currentColor" opacity="0.5">{new Date(snaps[0].fetched_at).toLocaleDateString()}</text>
-        <text x={W - PR} y={H - 8} fontSize="10" fill="currentColor" opacity="0.5" textAnchor="end">{new Date(snaps[n - 1].fetched_at).toLocaleDateString()}</text>
-        <text x={PL} y={PT - 6} fontSize="10" fill="currentColor" opacity="0.5">{fmtCompact(max)}</text>
-      </svg>
-    </div>
+      {snaps.length < 2 || !series.length ? (
+        <p className="note" style={{ marginTop: 0 }}>{t("ana.noSeries")}</p>
+      ) : (
+        <div className="chart-box">
+          <svg viewBox={`0 0 ${W} ${H}`} role="img" aria-label={t("ana.trend")}>
+            {[0.25, 0.5, 0.75, 1].map((f) => <line key={f} x1={PL} x2={W - PR} y1={PT + (1 - f) * (H - PT - PB)} y2={PT + (1 - f) * (H - PT - PB)} stroke="currentColor" strokeOpacity="0.08" />)}
+            {(() => {
+              const n = snaps.length;
+              const max = Math.max(1, ...series.flatMap((s) => s.pts.map((p) => p.v)));
+              const x = (i: number) => PL + (i / Math.max(1, n - 1)) * (W - PL - PR);
+              const y = (v: number) => PT + (1 - v / max) * (H - PT - PB);
+              return (
+                <>
+                  {series.map((s) => <polyline key={s.key} fill="none" stroke={s.color} strokeWidth="2" strokeLinejoin="round" points={s.pts.map((p) => `${x(p.i)},${y(p.v)}`).join(" ")} />)}
+                  {series.map((s) => { const last = s.pts[s.pts.length - 1]; return last ? <circle key={`c${s.key}`} cx={x(last.i)} cy={y(last.v)} r="3.5" fill={s.color}><title>{`${t(s.label)} ${last.v.toLocaleString()} · ${new Date(last.at).toLocaleString()}`}</title></circle> : null; })}
+                  <text x={PL} y={H - 8} fontSize="10" fill="currentColor" opacity="0.5">{new Date(snaps[0]?.fetched_at ?? "").toLocaleDateString()}</text>
+                  <text x={W - PR} y={H - 8} fontSize="10" fill="currentColor" opacity="0.5" textAnchor="end">{new Date(snaps[n - 1]?.fetched_at ?? "").toLocaleDateString()}</text>
+                  <text x={PL} y={PT - 6} fontSize="10" fill="currentColor" opacity="0.5">{fmtCompact(max)}</text>
+                </>
+              );
+            })()}
+          </svg>
+        </div>
+      )}
+    </>
   );
 }
 
-/** Campaign milestones from real timestamps only. */
-function Timeline({ createdAt, firstSyncAt, endsAt, drawAt }: { createdAt: string; firstSyncAt?: string; endsAt: string; drawAt?: string | null }) {
-  const { t } = useI18n();
-  const events = [
-    { at: createdAt, icon: Zap, label: t("ev.created") },
-    firstSyncAt ? { at: firstSyncAt, icon: Activity, label: t("ev.synced") } : null,
-    { at: endsAt, icon: Clock3, label: t("ev.deadline") },
-    drawAt ? { at: drawAt, icon: Trophy, label: t("ev.drawn") } : null,
-  ].filter((e): e is { at: string; icon: typeof Zap; label: string } => e !== null).sort((a, b) => Date.parse(a.at) - Date.parse(b.at));
-  return (
-    <div className="rounded-xl border border-border bg-card p-5">
-      <p className="text-xs font-medium text-muted-foreground">{t("ana.timeline")}</p>
-      <ol className="mt-4 space-y-3">
-        {events.map((e, i) => (
-          <li key={i} className="flex items-center gap-3 text-sm">
-            <e.icon className="size-3.5 shrink-0 text-prize" />
-            <span className="flex-1">{e.label}</span>
-            <span className="font-mono text-xs text-muted-foreground">{new Date(e.at).toLocaleString()}</span>
-          </li>
-        ))}
-      </ol>
-    </div>
-  );
-}
-
-/** Cost metrics — computed only when the inputs are real; N/A otherwise. */
-function ImpactCard({ c, metrics, firstMetrics, count }: { c: { prize: string; prize_amount: number | null; currency: string }; metrics: Metrics | null; firstMetrics: Metrics | null; count: number }) {
-  const { t } = useI18n();
+/** Campaign value cards — estimates only computed when the inputs are real. */
+function ValueGrid({ c, latestM, firstM }: { c: { prize: string; prize_amount: number | null; currency: string }; latestM: Metrics | null; firstM: Metrics | null }) {
+  const { t, lang } = useI18n();
   const prize = typeof c.prize_amount === "number" ? c.prize_amount : null;
   const cur = c.currency;
-  const growth = netGrowth(metrics, firstMetrics);
-  const rate = engagementRate(metrics);
-  const costFollower = prize !== null && growth !== null && growth > 0 ? `${(prize / growth).toFixed(2)} ${cur}` : "—";
-  const costImpr = prize !== null && typeof metrics?.views === "number" && metrics.views > 0 ? `${((prize / metrics.views) * 1000).toFixed(3)} ${cur}` : "—";
-  const rows = [
-    { label: t("ana.prizeValue"), value: prize !== null ? `${prize} ${cur}` : c.prize },
-    { label: t("stat.newFollowers"), value: growth !== null ? `+${growth.toLocaleString()}` : "—" },
-    { label: t("ana.costFollower"), value: costFollower, note: t("ana.accountLevel") },
-    { label: t("ana.costImpr"), value: costImpr, note: t("ana.postLevel") },
-    { label: t("ana.engRate"), value: rate !== null ? `${rate.toFixed(2)}%` : "—", note: t("ana.engRateNote") },
-    { label: t("c.participants"), value: count.toLocaleString() },
+  const eng = totalEngagements(latestM);
+  const views = typeof latestM?.views === "number" ? latestM.views : null;
+  const growth = netGrowth(latestM, firstM);
+  // Public CPM estimate — labelled as an estimate, never presented as a quote.
+  const CPM = 6.5;
+  const adValue = views !== null && views > 0 ? (views / 1000) * CPM : null;
+  const roi = adValue !== null && prize !== null && prize > 0 ? adValue / prize : null;
+  const costEng = prize !== null && eng !== null && eng > 0 ? `${(prize / eng).toFixed(3)} ${cur}` : "—";
+  const costFol = prize !== null && growth !== null && growth > 0 ? `${(prize / growth).toFixed(2)} ${cur}` : "—";
+  const amt = prize !== null ? `${prize} ${cur}` : c.prize;
+  const cards = [
+    { l: t("ana.adValue"), v: adValue !== null ? `≈ $${adValue.toFixed(1)}` : "—", c: roi !== null ? translate(lang, "ana.roi", { x: roi.toFixed(1) }) : t("ana.adValueNote"), hl: true },
+    { l: t("ana.costEng"), v: costEng, c: translate(lang, "ana.costSub", { amt }), hl: false },
+    { l: t("ana.costFollower"), v: costFol, c: growth !== null ? translate(lang, "ana.growthNote", { n: growth }) : t("ana.accountLevel"), hl: false },
   ];
   return (
-    <div className="rounded-xl border border-border bg-card p-5">
-      <p className="text-xs font-medium text-muted-foreground">{t("ana.impact")}</p>
-      <dl className="mt-4 grid grid-cols-2 gap-4 sm:grid-cols-3">
-        {rows.map((r) => (
-          <div key={r.label}>
-            <dt className="text-[10px] text-muted-foreground">{r.label}</dt>
-            <dd className="mt-1 font-mono text-xl font-semibold tabular-nums">{r.value}</dd>
-            {"note" in r && r.note && <dd className="mt-0.5 text-[10px] text-muted-foreground/70">{r.note}</dd>}
-          </div>
-        ))}
-      </dl>
-    </div>
-  );
-}
-
-/** Public condition progress bar. Uses the latest snapshot when present, otherwise live counts. */
-function ConditionProgress({
-  conditionsRaw,
-  participants,
-  snap,
-}: {
-  conditionsRaw: unknown;
-  participants: number;
-  snap: { metrics: unknown; progress: number; fetched_at: string } | null;
-}) {
-  const { t } = useI18n();
-  const conditions = parseConditions(conditionsRaw);
-  if (Object.values(conditions).every((v) => v === undefined)) return null;
-
-  const metrics = (snap?.metrics ?? null) as Metrics | null;
-  const { checks, progress } = metrics
-    ? computeProgress(conditions, { ...metrics, participants })
-    : computeProgress(conditions, { likes: null, replies: null, reposts: null, keyword_found: null, participants, verified: 0 });
-
-  const labelFor = (label: string) => t(`cond.${label}` as Parameters<typeof t>[0]);
-
-  return (
-    <div className="mt-8 rounded-xl border border-border bg-card p-5">
-      <div className="flex items-center justify-between">
-        <p className="text-xs font-medium text-muted-foreground">{t("cond.title")}</p>
-        <span className="font-mono text-sm font-semibold">{progress}%</span>
-      </div>
-      <div className="mt-3 h-2.5 overflow-hidden rounded-full bg-muted">
-        <div className="h-full rounded-full bg-primary transition-all" style={{ width: `${progress}%` }} />
-      </div>
-      <ul className="mt-4 space-y-2">
-        {checks.map((ch) => (
-          <li key={ch.key} className="flex items-center justify-between text-sm">
-            <span>
-              {labelFor(ch.label)} <span className="text-muted-foreground">≥ {ch.target}</span>
-              {typeof ch.current === "number" && <span className="ml-2 font-mono text-muted-foreground">({ch.current})</span>}
-            </span>
-            <span className={ch.state === "met" ? "text-success" : ch.state === "unmet" ? "text-muted-foreground" : "text-accent-foreground"}>
-              {ch.state === "met" ? `✓ ${t("cond.met")}` : ch.state === "unmet" ? t("cond.unmet") : t("cond.unknown")}
-            </span>
-          </li>
-        ))}
-      </ul>
-      <p className="mt-3 text-xs text-muted-foreground">
-        {t("cond.refresh")}
-        {snap && ` · ${new Date(snap.fetched_at).toLocaleString()}`}
-      </p>
+    <div className="val-g">
+      {cards.map((vc) => (
+        <div key={vc.l} className={`panel vc${vc.hl ? " hl" : ""}`}>
+          <div className="l">{vc.l}</div>
+          <div className="v">{vc.v}</div>
+          <div className="c"><b>{vc.c}</b></div>
+        </div>
+      ))}
     </div>
   );
 }

@@ -1,15 +1,53 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { chainConfig, FIAT_CURRENCIES } from "@/lib/payments";
-import { useI18n } from "@/lib/i18n";
+import { translate, useI18n } from "@/lib/i18n";
 import { useAuth } from "@/hooks/use-auth";
 import { autoStripePayout, claimChainPayout, claimStripePayout, claimWisePayout, getWiseClaimRequirements, submitPayoutInfo, syncWisePayout } from "@/lib/payment.functions";
-import { runDraw, type Candidate } from "@/lib/draw";
+import { canonicalList, listHash, makeSeed, pickWinners, type Candidate } from "@/lib/draw";
+import { computeProgress, parseConditions, type Metrics } from "@/lib/conditions";
 import { Button } from "@/components/ui/button";
+import { BadgeCheck, Check, CheckCircle2, ChevronRight, Copy, Crown, Eye, Heart, Link2, MessageCircle, MessageSquare, Play, Repeat2, Search, ShieldCheck, Users, XCircle } from "lucide-react";
+
+const COND_LABEL = {
+  min_likes: "cond.likes", min_replies: "cond.replies", min_reposts: "cond.reposts",
+  min_quotes: "cond.quotes", min_views: "cond.views",
+  min_participants: "cond.participants", min_verified: "cond.verified",
+} as const;
+const COND_CHIPS: { k: keyof typeof COND_LABEL | "keyword"; I: typeof Heart }[] = [
+  { k: "min_likes", I: Heart }, { k: "min_replies", I: MessageCircle }, { k: "min_reposts", I: Repeat2 },
+  { k: "min_quotes", I: MessageSquare }, { k: "min_views", I: Eye },
+  { k: "min_participants", I: Users }, { k: "min_verified", I: BadgeCheck }, { k: "keyword", I: Search },
+];
+const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
+type StepState = "" | "run" | "ok" | "bad";
+type PoState = "" | "done" | "now";
+
+/** One-shot gold confetti burst on the fixed canvas (skipped for reduced motion). */
+function burst(cv: HTMLCanvasElement | null) {
+  if (!cv || (typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches)) return;
+  const cx = cv.getContext("2d");
+  if (!cx) return;
+  cv.width = window.innerWidth; cv.height = window.innerHeight;
+  const col = ["#f5b83d", "#ffd98a", "#7c5cff", "#3b82f6", "#34d399", "#fff1c9"];
+  const ps = Array.from({ length: 120 }, () => ({ x: cv.width / 2, y: cv.height * 0.32, vx: (Math.random() - 0.5) * 14, vy: -Math.random() * 12 - 4, r: Math.random() * 5 + 3, c: col[Math.floor(Math.random() * col.length)], a: Math.random() * 6, va: (Math.random() - 0.5) * 0.3 }));
+  let f = 0;
+  (function step() {
+    cx.clearRect(0, 0, cv.width, cv.height);
+    ps.forEach((p) => {
+      p.vy += 0.35; p.vx *= 0.99; p.x += p.vx; p.y += p.vy; p.a += p.va;
+      cx.save(); cx.translate(p.x, p.y); cx.rotate(p.a);
+      cx.globalAlpha = Math.max(0, 1 - f / 110);
+      cx.fillStyle = p.c ?? "#f5b83d"; cx.fillRect(-p.r / 2, -p.r / 4, p.r, p.r / 2);
+      cx.restore();
+    });
+    if (++f < 120) requestAnimationFrame(step); else cx.clearRect(0, 0, cv.width, cv.height);
+  })();
+}
 
 export const Route = createFileRoute("/r/$slug")({
   head: () => ({
@@ -27,19 +65,28 @@ export const Route = createFileRoute("/r/$slug")({
 
 function ResultPage() {
   const { slug } = Route.useParams();
-  const { t } = useI18n();
+  const { t, lang } = useI18n();
   const { user } = useAuth();
+  const [steps, setSteps] = useState<[StepState, StepState, StepState]>(["", "", ""]);
+  const [cmp, setCmp] = useState<{ ok1?: boolean; ok2?: boolean; ok3?: boolean | null }>({});
+  const [pickLine, setPickLine] = useState<string | null>(null);
   const [verdict, setVerdict] = useState<null | boolean>(null);
+  const [running, setRunning] = useState(false);
+  const [wName, setWName] = useState<string | null>(null);
+  const [cq, setCq] = useState("");
+  const confettiRef = useRef<HTMLCanvasElement>(null);
+  const revealed = useRef(false);
   const { data, isLoading, refetch } = useQuery({
     queryKey: ["result", slug],
     queryFn: async () => {
       const { data: c } = await supabase.from("campaigns").select("*").eq("slug", slug).maybeSingle();
       if (!c) return null;
-      const [{ data: d }, { data: payouts }] = await Promise.all([
+      const [{ data: d }, { data: payouts }, { data: lastSnap }] = await Promise.all([
         supabase.from("draws").select("*").eq("campaign_id", c.id).maybeSingle(),
         supabase.from("payouts").select("*").eq("campaign_id", c.id),
+        supabase.from("condition_snapshots").select("metrics").eq("campaign_id", c.id).order("fetched_at", { ascending: false }).limit(1).maybeSingle(),
       ]);
-      return { c, d, payouts: payouts ?? [] };
+      return { c, d, payouts: payouts ?? [], lastM: (lastSnap?.metrics ?? null) as Metrics | null };
     },
   });
   const { data: myHandles = [] } = useQuery({
@@ -70,6 +117,23 @@ function ResultPage() {
       .catch((e) => toast.error((e as Error).message));
   }, [user, data?.payouts, autoPay, wiseSync, refetch, t]);
 
+  // Winner reveal: roll through candidate names once, then settle + confetti.
+  useEffect(() => {
+    if (!data?.d || revealed.current) return;
+    revealed.current = true;
+    const winners = (data.d.winners ?? []) as Candidate[];
+    const cands = (data.d.candidates ?? []) as Candidate[];
+    const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const finish = () => { setWName(winners[0]?.handle ?? null); if (winners.length) burst(confettiRef.current); };
+    if (winners.length !== 1 || reduce || !cands.length) { finish(); return; }
+    let n = 0;
+    const tmr = setInterval(() => {
+      setWName(cands[Math.floor(Math.random() * cands.length)]?.handle ?? null);
+      if (++n > 18) { clearInterval(tmr); finish(); }
+    }, 70);
+    return () => clearInterval(tmr);
+  }, [data?.d]);
+
   if (isLoading) return <p className="p-10 text-center text-muted-foreground">{t("common.loading")}</p>;
   if (!data) return <p className="p-10 text-center text-muted-foreground">404</p>;
   const { c, d, payouts } = data;
@@ -83,76 +147,271 @@ function ResultPage() {
 
   const winners = d.winners as Candidate[];
   const candidates = d.candidates as Candidate[];
+  const weighted = c.draw_mode === "weighted";
+  const dw = (c.draw_weights ?? null) as { blue?: number; normal?: number } | null;
+  const drawnAt = new Date(d.drawn_at);
+  const amt = c.prize_amount !== null ? `${c.prize_amount} ${c.currency}` : c.prize;
+  const per = c.prize_amount !== null && winners.length ? Number((c.prize_amount / winners.length).toFixed(4)) : null;
+  const winRate = candidates.length ? Math.round((winners.length / candidates.length) * 100) : 0;
+  const author = data.lastM?.author_handle ?? null;
+  const winSet = new Set(winners.map((w) => w.handle));
+  const sortedCands = [...candidates].sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
+  const q = cq.trim().toLowerCase();
+  const shownCands = sortedCands.filter((x) => !q || x.handle.toLowerCase().includes(q));
+  const conditions = parseConditions(c.conditions);
+  const condProg = data.lastM ? computeProgress(conditions, data.lastM) : null;
+  const condState = new Map((condProg?.checks ?? []).map((ch) => [ch.key, ch.state]));
+  const allPaid = payouts.length > 0 && payouts.every((p) => p.status === "paid");
+  const allInfo = payouts.length > 0 && payouts.every((p) => p.claim_info || p.stripe_account_id || p.wise_transfer_id || p.status === "paid");
+  const myPayout = payouts.find((p) => p.status !== "paid" && myHandles.includes(p.winner_handle));
+  const paidProofs = payouts.filter((p) => p.status === "paid" && p.proof);
+  const origin = typeof window !== "undefined" ? window.location.origin : "";
+  const xText = translate(c.share_language === "en" ? "en" : "zh", "rs.xPost", {
+    winners: winners.map((w) => `@${w.handle}`).join(" "), amt, n: candidates.length, url: `${origin}/r/${slug}`,
+  });
+  const poSteps: { t: string; s: string; st: PoState }[] = [
+    { t: t("rs.stepDraw"), s: drawnAt.toLocaleDateString(), st: "done" },
+    { t: t("rs.stepNotice"), s: `${winners.length} ${t("c.winners")}`, st: "done" },
+    { t: t("rs.stepAddr"), s: allInfo ? t("rs.infoDone") : t("rs.waitInfo"), st: allInfo ? "done" : "now" },
+    { t: t("rs.stepPaid"), s: allPaid ? t("r.paid") : t("rs.autoPay"), st: allPaid ? "done" : allInfo ? "now" : "" },
+  ];
 
   async function verify() {
-    const r = await runDraw(candidates, new Date(d!.drawn_at).toISOString(), c!.winners_count);
-    setVerdict(r.listHash === d!.list_hash && r.seed === d!.seed && JSON.stringify(r.winners) === JSON.stringify(winners));
+    if (!d || running) return;
+    setRunning(true);
+    setSteps(["run", "", ""]); setCmp({}); setPickLine(null); setVerdict(null);
+    const hash = await listHash(candidates);
+    await sleep(350);
+    const ok1 = hash === d.list_hash;
+    const seed = await makeSeed(hash, new Date(d.drawn_at).toISOString());
+    setSteps([ok1 ? "ok" : "bad", "run", ""]);
+    setCmp((v) => ({ ...v, ok1 }));
+    await sleep(350);
+    const ok2 = seed === d.seed;
+    let ok3: boolean | null = null;
+    if (!weighted) {
+      // The draw reserves winners_count+3 picks so deleted replies can be
+      // skipped — verify stored winners as an ordered subsequence of picks.
+      const picks = await pickWinners(candidates, seed, winners.length + 3);
+      let idx = 0; ok3 = true;
+      for (const w of winners) {
+        const j = picks.findIndex((p, i) => i >= idx && p.id === w.id);
+        if (j < 0) { ok3 = false; break; }
+        idx = j + 1;
+      }
+      const first = picks[0];
+      const fi = first ? sortedCands.findIndex((x) => x.id === first.id) : -1;
+      setPickLine(first && fi >= 0 ? `SHA-256(seed:0)[0..12] mod ${sortedCands.length} = ${fi} → 第 ${fi + 1} 位 @${first.handle}` : "—");
+    }
+    setSteps([ok1 ? "ok" : "bad", ok2 ? "ok" : "bad", weighted ? "" : ok3 ? "ok" : "bad"]);
+    setCmp({ ok1, ok2, ok3 });
+    setVerdict(ok1 && ok2 && (weighted || ok3 === true));
+    setRunning(false);
   }
 
+  const hashCode = (h: string) => <code><em>{h.slice(0, 8)}</em>{h.slice(8, -8)}<em>{h.slice(-8)}</em></code>;
+  const copy = (v: string, msg?: string) => { navigator.clipboard.writeText(v).catch(() => {}); toast.success(msg ?? t("c.copied")); };
+
   return (
-    <div className="mx-auto max-w-2xl px-4 py-12">
-      <div className="ticket p-8 shadow-[var(--shadow-glow)]">
-        <div className="flex justify-between font-mono text-xs uppercase tracking-widest opacity-70">
-          <span>{t("r.verifiedBy")}</span>
-          <span>#{d.list_hash.slice(0, 4).toUpperCase()}</span>
-        </div>
-        <h1 className="mt-4 text-3xl font-semibold">{c.title}</h1>
-        <p className="mt-1 opacity-70">{c.prize}</p>
-        <div className="perforation my-6" />
-        <p className="font-mono text-xs uppercase opacity-60">{t("r.winners")}</p>
-        <ul className="mt-3 space-y-2">
-          {winners.map((w, i) => {
-            const p = payouts.find((x) => x.winner_handle === w.handle);
-            return (
-              <li key={w.id} className="flex flex-wrap items-center justify-between gap-2 font-mono">
-                <span>{i + 1}. {w.handle}</span>
-                <span className="text-xs opacity-70">
-                  {p?.status === "paid" ? `✓ ${t("r.paid")}` : t("r.pending")}
-                  {p?.proof && (
-                    <span className="ml-2 break-all">
-                      {/^https?:\/\//.test(p.proof) ? <a href={p.proof} target="_blank" rel="noreferrer" className="underline">proof ↗</a> : p.proof.slice(0, 18) + "…"}
-                    </span>
-                  )}
-                </span>
-                {p && p.status !== "paid" && myHandles.includes(w.handle) && (
-                  <ClaimInfo
-                    payoutId={p.id}
-                    claimInfo={p.claim_info}
-                    stripe={c.payment_method === "stripe"}
-                    onboarded={!!p.stripe_account_id}
-                    wise={!!p.wise_transfer_id}
-                    paying={p.status === "paying"}
-                    currency={c.currency}
-                    onDone={refetch}
-                  />
+    <div className="page-rs mx-auto max-w-[880px] px-4 pb-20 pt-11 md:px-6">
+      <article className="cert">
+        <div className="cert-in">
+          <div className="glow" />
+          <div className="c-top">
+            <span className="seal"><ShieldCheck />{t("rs.seal")}</span>
+            <span className="cid">{t("rs.drawNo")} <b>#{d.seed.slice(0, 4).toUpperCase()}</b></span>
+          </div>
+
+          <div className="c-hero">
+            <div className="c-eyebrow">{t("rs.eyebrow")}</div>
+            <h1 className="c-title">{translate(lang, "ana.titleDrawn", { amt: "" })}<span className="amt">{amt}</span></h1>
+            <div className="c-conds">
+              {COND_CHIPS.filter(({ k }) => conditions[k] !== undefined).map(({ k, I }) => (
+                <span key={k}><I />{k === "keyword" ? `${t("cond.keyword")} · ${conditions.keyword}` : `${t(COND_LABEL[k])} ≥ ${conditions[k]}`}{condState.get(k) === "met" ? " ✓" : ""}</span>
+              ))}
+            </div>
+
+            {winners.length === 1 ? (
+              <div className="winner">
+                <div className="w-label">{t("rs.winnerLabel")}</div>
+                <div className="w-av">
+                  <span className="crown"><Crown /></span>
+                  <span className="ring" />
+                  <span className="face">{(wName ?? winners[0]?.handle ?? "?")[0]?.toUpperCase()}</span>
+                </div>
+                <div className={`w-name${wName === winners[0]?.handle ? "" : " rolling"}`}>{wName ?? "—"}</div>
+                <div className="w-handle">{t("rs.viewOnX")} <a href={`https://x.com/${winners[0]?.handle}`} target="_blank" rel="noopener noreferrer">@{winners[0]?.handle}</a></div>
+                <div className="w-prize"><b>{per ?? amt}</b>{per !== null && <span>{c.currency}</span>}</div>
+              </div>
+            ) : (
+              <div className="winner">
+                <div className="w-label">{translate(lang, "rs.winnersLabel", { n: winners.length })}</div>
+                <div className="w-list">
+                  {winners.map((w) => (
+                    <div key={w.id} className="w-row">
+                      <span className="av">{w.handle[0]?.toUpperCase()}</span>
+                      <a className="h" href={`https://x.com/${w.handle}`} target="_blank" rel="noopener noreferrer" style={{ textDecoration: "none" }}>@{w.handle}</a>
+                      <span className="p">{per !== null ? `${per} ${c.currency}` : amt}</span>
+                    </div>
+                  ))}
+                </div>
+                <div className="w-prize"><b>{amt}</b><span>{t("rs.poolLabel")}</span></div>
+              </div>
+            )}
+          </div>
+
+          <div className="perf" aria-hidden="true" />
+
+          <div className="facts">
+            <div className="fact"><div className="l">{t("rs.candidates")}</div><div className="v">{candidates.length}</div><div className="s">{t("rs.validReplies")}</div></div>
+            <div className="fact"><div className="l">{t("rs.winnerCount")}</div><div className="v">{winners.length}</div><div className="s">{translate(lang, "rs.winRate", { p: winRate })}</div></div>
+            <div className="fact"><div className="l">{t("rs.drawTime")}</div><div className="v">{drawnAt.toLocaleDateString()}</div><div className="s">{drawnAt.toLocaleTimeString()}</div></div>
+            <div className="fact">
+              <div className="l">{author ? t("rs.organizer") : t("rs.poolLabel")}</div>
+              <div className="v" style={{ fontSize: 16, paddingTop: 3 }}>{author ? `@${author}` : amt}</div>
+              <div className="s">{t("rs.escrowed")}</div>
+            </div>
+          </div>
+
+          <div className="payout">
+            <div className="po-h">
+              <h3>{t("rs.payoutTitle")}</h3>
+              <span className={`badge ${allPaid ? "b-ok" : "b-wait"}`}>{allPaid ? t("r.paid") : t("r.pending")}</span>
+            </div>
+            <div className="po-steps">
+              {poSteps.map((s, i) => (
+                <div key={i} className={`po-s ${s.st}`}>
+                  <span className="d">{s.st === "done" ? <Check /> : i + 1}</span>
+                  <div className="t">{s.t}</div>
+                  <div className="s">{s.s}</div>
+                </div>
+              ))}
+            </div>
+            {paidProofs.map((p) => (
+              <div key={p.id} className="tx">
+                <Check />
+                <span>{t("rs.txProof")} · @{p.winner_handle}</span>
+                {/^https?:\/\//.test(p.proof ?? "") ? (
+                  <><span className="mono">{p.proof}</span><a href={p.proof ?? "#"} target="_blank" rel="noopener noreferrer">{t("rs.viewProof")}</a></>
+                ) : (
+                  <span className="mono">{p.proof}</span>
                 )}
-              </li>
-            );
-          })}
-        </ul>
-        <div className="perforation my-6" />
-        <dl className="space-y-3 font-mono text-xs">
-          <Row k={t("r.count")} v={String(candidates.length)} />
-          <Row k={t("r.time")} v={new Date(d.drawn_at).toISOString()} />
-          <Row k={t("r.hash")} v={d.list_hash} />
-          <Row k={t("r.seed")} v={d.seed} />
-        </dl>
+              </div>
+            ))}
+            {myPayout && (
+              <div className="claim">
+                <p>{t("rs.stepAddr")}</p>
+                <ClaimInfo
+                  payoutId={myPayout.id}
+                  claimInfo={myPayout.claim_info}
+                  stripe={c.payment_method === "stripe"}
+                  onboarded={!!myPayout.stripe_account_id}
+                  wise={!!myPayout.wise_transfer_id}
+                  paying={myPayout.status === "paying"}
+                  currency={c.currency}
+                  onDone={refetch}
+                />
+              </div>
+            )}
+          </div>
+        </div>
+      </article>
+
+      <div className="share">
+        <button type="button" className="ghost" onClick={() => copy(`${origin}/r/${slug}`)}><Link2 />{t("rs.copyLink")}</button>
+        <a className="ghost xbtn" href={`https://x.com/intent/tweet?text=${encodeURIComponent(xText)}`} target="_blank" rel="noopener noreferrer">
+          <svg viewBox="0 0 24 24" fill="currentColor" style={{ width: 14, height: 14 }} aria-hidden="true"><path d="M18.2 2.3h3.4l-7.4 8.4 8.7 11.5h-6.8l-5.3-7-6.1 7H1.3l7.9-9L.9 2.3h7l4.8 6.4 5.5-6.4Zm-1.2 17.9h1.9L7.1 4.2H5.1l11.9 16Z"/></svg>
+          {t("rs.xShare")}
+        </a>
       </div>
 
-      <div className="mt-6 rounded-xl border border-border bg-card p-6">
-        <h2 className="text-xl font-semibold">{t("r.how")}</h2>
-        <p className="mt-2 text-sm text-muted-foreground">{t("r.howText")}</p>
-        <Button className="mt-4" onClick={verify}>{t("r.verify")}</Button>
+      <section className="panel verify">
+        <div className="v-h">
+          <div>
+            <h2>{t("rs.verifyTitle")}</h2>
+            <p>{t("rs.verifyDesc")}</p>
+          </div>
+          <button type="button" className="vbtn" disabled={running} onClick={verify}>
+            <Play />{verdict !== null ? t("rs.verifyAgain") : t("r.verify")}
+          </button>
+        </div>
+
+        <ol className="chain">
+          <li className={steps[0]}>
+            <span className="k">{steps[0] === "ok" ? <Check /> : steps[0] === "bad" ? "✕" : "1"}</span>
+            <div>
+              <div className="st-t">{t("rs.step1T")}</div>
+              <div className="st-f">{t("rs.step1F")}</div>
+              <div className="hash">
+                {hashCode(d.list_hash)}
+                <button type="button" className="cp" aria-label="copy" onClick={() => copy(d.list_hash)}><Copy /></button>
+              </div>
+              <div className={`cmp ${cmp.ok1 === undefined ? "" : cmp.ok1 ? "ok" : "bad"}`}>
+                {cmp.ok1 === undefined ? t("rs.step1Note") : cmp.ok1 ? translate(lang, "rs.cmpOk1", { n: candidates.length }) : t("rs.cmpBad1")}
+              </div>
+            </div>
+          </li>
+          <li className={steps[1]}>
+            <span className="k">{steps[1] === "ok" ? <Check /> : steps[1] === "bad" ? "✕" : "2"}</span>
+            <div>
+              <div className="st-t">{t("rs.step2T")}</div>
+              <div className="st-f">{t("rs.step2F")}</div>
+              <div className="hash">
+                {hashCode(d.seed)}
+                <button type="button" className="cp" aria-label="copy" onClick={() => copy(d.seed)}><Copy /></button>
+              </div>
+              <div className={`cmp ${cmp.ok2 === undefined ? "" : cmp.ok2 ? "ok" : "bad"}`}>
+                {cmp.ok2 === undefined ? <>{t("rs.drawTime")} <span className="mono">{new Date(d.drawn_at).toISOString()}</span></> : cmp.ok2 ? t("rs.cmpOk2") : t("rs.cmpBad2")}
+              </div>
+            </div>
+          </li>
+          <li className={steps[2]}>
+            <span className="k">{steps[2] === "ok" ? <Check /> : steps[2] === "bad" ? "✕" : "3"}</span>
+            <div>
+              <div className="st-t">{t("rs.step3T")}</div>
+              <div className="st-f">{t("rs.step3F")}</div>
+              <div className="hash"><code>{pickLine ?? "—"}</code></div>
+              <div className={`cmp ${cmp.ok3 == null ? "" : cmp.ok3 ? "ok" : "bad"}`}>
+                {weighted
+                  ? translate(lang, "rs.step3Weighted", { b: dw?.blue ?? 1, n: dw?.normal ?? 1 })
+                  : cmp.ok3 == null ? t("rs.cmpWait3") : cmp.ok3 ? t("rs.cmpOk3") : t("rs.cmpBad3")}
+              </div>
+            </div>
+          </li>
+        </ol>
+
         {verdict !== null && (
-          <p className={`mt-3 font-medium ${verdict ? "text-success" : "text-destructive"}`}>{verdict ? t("r.ok") : t("r.bad")}</p>
+          <div className={`result${verdict ? "" : " bad"}`}>
+            {verdict ? <CheckCircle2 /> : <XCircle />}
+            <div>
+              <b>{verdict ? t("rs.resultOk") : t("rs.resultBad")}</b>
+              <span>{verdict ? (weighted ? translate(lang, "rs.step3Weighted", { b: dw?.blue ?? 1, n: dw?.normal ?? 1 }) : t("rs.resultOkSub")) : t("rs.resultBadSub")}</span>
+            </div>
+          </div>
         )}
-        <details className="mt-4 text-sm">
-          <summary className="cursor-pointer text-muted-foreground">{t("r.count")} ({candidates.length})</summary>
-          <ul className="mt-2 max-h-60 overflow-auto font-mono text-xs text-muted-foreground">
-            {candidates.map((x) => <li key={x.id}>{x.id}:{x.handle}</li>)}
-          </ul>
+
+        <details className="cands">
+          <summary>
+            <ChevronRight />{t("rs.candList")}<span className="c">{candidates.length}</span><span className="r">{t("rs.candSort")}</span>
+          </summary>
+          <div className="c-tools">
+            <input value={cq} onChange={(e) => setCq(e.target.value)} placeholder={t("rs.candSearch")} aria-label={t("rs.candSearch")} />
+            <button type="button" className="ghost" onClick={() => copy(canonicalList(candidates), t("rs.candCopied"))}><Copy />{t("rs.candCopy")}</button>
+          </div>
+          <div className="c-list">
+            {shownCands.length ? shownCands.map((x, i) => (
+              <div key={x.id} className={`c-row${winSet.has(x.handle) ? " win" : ""}`}>
+                <span className="i">#{i + 1}</span>
+                <span className="h">{x.id}:{x.handle}</span>
+                {winSet.has(x.handle) ? <span className="tag">{t("rs.winTag")}</span> : <span />}
+              </div>
+            )) : (
+              <div className="c-row"><span /><span className="h">{t("rs.candNone")}</span><span /></div>
+            )}
+          </div>
         </details>
-      </div>
+      </section>
+      <canvas ref={confettiRef} className="pointer-events-none fixed inset-0 z-40" />
     </div>
   );
 }
@@ -355,11 +614,3 @@ function ClaimInfo({ payoutId, claimInfo, stripe, onboarded, wise, paying, curre
   );
 }
 
-function Row({ k, v }: { k: string; v: string }) {
-  return (
-    <div>
-      <dt className="uppercase opacity-60">{k}</dt>
-      <dd className="break-all">{v}</dd>
-    </div>
-  );
-}
