@@ -497,6 +497,7 @@ const dict = {
   "m.fundWaitingWallet": { zh: "正在等待钱包确认…", en: "Waiting for wallet confirmation…" },
   "m.fundWaitingChain": { zh: "交易已提交，等待链上确认…", en: "Submitted — waiting for on-chain confirmation…" },
   "m.fundVerify": { zh: "将打开你的钱包，请核对网络、金额和收款地址后确认。", en: "Your wallet will open — check the network, amount and recipient before confirming." },
+  "m.fundOtherBtn": { zh: "钱包或交易所转账支付", en: "Pay by wallet/exchange transfer" },
   "m.fundOther": { zh: "已经从其他钱包或交易所转账？", en: "Sent from another wallet or exchange?" },
   "m.fundOtherHint": { zh: "展开查看收款地址，并提交交易哈希确认。", en: "Expand for the deposit address and submit your tx hash." },
   "m.fundAddr": { zh: "收款地址", en: "Deposit address" },

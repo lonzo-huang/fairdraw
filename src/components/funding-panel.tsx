@@ -112,29 +112,25 @@ export function FundingPanel({ c, busy, setBusy, onDone }: { c: FundingCampaign;
         )}
         {c.payment_method === "chain" && (
           <>
-            <Button className="w-full sm:w-auto" size="lg" disabled={busy} onClick={payChain}>
-              <Wallet className="mr-2 h-4 w-4" />{chainBtnText}
-            </Button>
+            <div className="flex flex-col gap-2 sm:flex-row">
+              <Button size="lg" disabled={busy} onClick={payChain}>
+                <Wallet className="mr-2 h-4 w-4" />{chainBtnText}
+              </Button>
+              <Button size="lg" variant="outline" onClick={() => setShowManual((s) => !s)}>
+                {t("m.fundOtherBtn")}
+                <ChevronDown className={`ml-2 h-4 w-4 transition-transform ${showManual ? "" : "-rotate-90"}`} />
+              </Button>
+            </div>
             <p className="mt-1.5 text-xs text-muted-foreground">{t("m.fundVerify")}</p>
           </>
         )}
         {c.payment_method === "manual" && <p className="text-sm text-muted-foreground">{t("m.manualFund")}</p>}
       </div>
 
-      {/* Layer 3 — walletless manual transfer (collapsed by default) */}
-      {c.payment_method === "chain" && (
-        <div className="mt-5 rounded-lg border border-border/60">
-          <button
-            type="button"
-            onClick={() => setShowManual((s) => !s)}
-            className="flex w-full items-center gap-2 px-4 py-3 text-left text-sm"
-          >
-            <ChevronDown className={`h-4 w-4 transition-transform ${showManual ? "" : "-rotate-90"}`} />
-            <span className="font-medium">{t("m.fundOther")}</span>
-            <span className="hidden text-xs text-muted-foreground sm:inline">{t("m.fundOtherHint")}</span>
-          </button>
-          {showManual && (
-            <div className="space-y-3 border-t border-border/60 px-4 py-3">
+      {/* Layer 3 — walletless manual transfer (revealed by the second button) */}
+      {c.payment_method === "chain" && showManual && (
+        <div className="mt-4 rounded-lg border border-border/60">
+            <div className="space-y-3 px-4 py-3">
               <div>
                 <p className="text-xs text-muted-foreground">{t("m.fundAddr")} · {cfg.chainName}</p>
                 <div className="mt-1 flex items-center gap-2">
@@ -158,7 +154,6 @@ export function FundingPanel({ c, busy, setBusy, onDone }: { c: FundingCampaign;
                 <Button size="sm" variant="secondary" disabled={busy || !txHash.trim()} onClick={confirmManual}>{t("m.confirmTx")}</Button>
               </div>
             </div>
-          )}
         </div>
       )}
     </section>
