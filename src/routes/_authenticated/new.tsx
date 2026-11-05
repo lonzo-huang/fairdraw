@@ -7,8 +7,6 @@ import { type Conditions } from "@/lib/conditions";
 import { campaignTweet, prizeSummary, type ShareCampaign } from "@/lib/campaign-share";
 import { renderShareImage } from "@/lib/campaign-share-image";
 import { BadgeCheck, BarChart3, Bookmark, CheckCircle2, Download, Eye, Heart, MessageCircle, MessageSquare, Repeat2, Share, Users } from "lucide-react";
-import { feeAmount, feeRate } from "@/lib/fees";
-import { useFeeTiers } from "@/hooks/use-fee-tiers";
 import { CURRENCIES, DURATIONS, endsAtFromDays } from "@/lib/plans";
 import { stripeSupports, type PaymentMethod } from "@/lib/payments";
 import { FundingPanel } from "@/components/funding-panel";
@@ -176,7 +174,7 @@ function NewCampaign() {
       <div className="mt-8 grid gap-6 lg:grid-cols-[minmax(0,1fr)_360px]">
       <form id="new-campaign" onSubmit={submit} className="space-y-8 rounded-xl border border-border bg-card p-6">
       <fieldset disabled={!!created} className="contents">
-        <StepSection n={1} title={t("f.step1")}>
+        <StepSection n={1} title={t("f.step1")} first>
           <div className="flex flex-wrap gap-1.5">
             {PRESET_AMOUNTS.map((a) => (
               <button key={a} type="button" onClick={() => setF({ ...f, prize_amount: String(a) })}
@@ -238,9 +236,9 @@ function NewCampaign() {
             <p className="text-xs text-muted-foreground">{t("f.titleAuto")}</p>
           </Field>
           <Field label={t("f.req")}><Textarea rows={3} maxLength={1000} placeholder={t("f.reqPh")} value={f.requirement} onChange={set("requirement")} /></Field>
-          <div className="rounded-xl border border-border p-4">
-            <p className="font-medium">{t("f.tweetTitle")}</p>
-            <p className="mt-1 text-sm text-muted-foreground">{t("f.tweetHint")}</p>
+          <div>
+            <p className="text-sm font-medium">{t("f.tweetTitle")}</p>
+            <p className="mt-0.5 text-sm text-muted-foreground">{t("f.tweetHint")}</p>
             <div className="mt-3">
               <Field label={t("f.tweetUrl")}><Input type="url" placeholder="https://x.com/you/status/…" value={f.tweet_url} onChange={set("tweet_url")} /></Field>
             </div>
@@ -317,11 +315,9 @@ function TweetPreview({ name, handle, avatar, now, text }: { name: string; handl
 /** Pool prepayment section: pick Stripe or an on-chain wallet, pay pool + fee, then publishing unlocks. */
 function PrepayPanel({ c, onDone }: { c: Created; onDone: () => void }) {
   const { t } = useI18n();
-  const { data: fees = [] } = useFeeTiers();
   const [method, setMethod] = useState<PaymentMethod | null>(null);
   const [busy, setBusy] = useState(false);
   const currency = c.currency ?? "USDT";
-  const total = (c.prize_amount ?? 0) + feeAmount(fees, c.prize_amount ?? 0);
 
   async function choose(m: PaymentMethod) {
     setBusy(true);
@@ -331,41 +327,18 @@ function PrepayPanel({ c, onDone }: { c: Created; onDone: () => void }) {
     setMethod(m);
   }
 
+  if (method) {
+    return <FundingPanel c={{ ...c, payment_method: method }} busy={busy} setBusy={setBusy} onDone={onDone} />;
+  }
+
   return (
-    <div className="space-y-4">
-      <div className="space-y-4 rounded-xl border border-indigo-500/40 bg-indigo-500/5 p-4 shadow-[0_4px_24px_-8px_rgba(99,102,241,0.25)]">
-        <p className="font-medium">💰 {t("f.prepay")}</p>
-        <dl className="space-y-1.5 text-sm">
-          <div className="flex items-baseline justify-between gap-4">
-            <dt className="text-muted-foreground">{t("pay.poolBase")}</dt>
-            <dd className="font-mono">{(c.prize_amount ?? 0).toFixed(2)} {currency}</dd>
-          </div>
-          <div className="flex items-baseline justify-between gap-4">
-            <dt className="text-muted-foreground">{t("pay.feeLine")}（{c.prize_amount ? `${feeRate(fees, c.prize_amount)}%` : "—"}）</dt>
-            <dd className="font-mono">{feeAmount(fees, c.prize_amount ?? 0).toFixed(2)} {currency}</dd>
-          </div>
-          <div className="flex items-baseline justify-between gap-4 border-t border-border pt-1.5">
-            <dt className="font-medium">{t("pay.total")}</dt>
-            <dd className="font-mono font-semibold">{total.toFixed(2)} {currency}{currency === "USDT" ? " / USD" : ""}</dd>
-          </div>
-        </dl>
-        <div className="rounded-md bg-background/60 p-3 text-sm">
-          <p className="font-medium">🛡️ {t("pay.escrowTitle")}</p>
-          <ul className="mt-1 list-disc space-y-0.5 pl-5 text-muted-foreground">
-            <li>{t("pay.escrowCancel")}</li>
-            <li>{t("pay.escrowRefund")}</li>
-          </ul>
-        </div>
-        {!method && (
-          <div className="flex flex-col gap-2">
-            <p className="text-sm font-medium">💳 {t("pay.methodTitle")}</p>
-            <Button size="sm" disabled={busy || !stripeSupports(currency)} onClick={() => choose("stripe")}>{t("pay.stripe")}</Button>
-            <Button size="sm" variant="secondary" disabled={busy || currency !== "USDT"} onClick={() => choose("chain")}>{t("pay.chain")}</Button>
-            <p className="text-xs text-muted-foreground">{t("f.prepayHint")}</p>
-          </div>
-        )}
+    <div className="space-y-3 rounded-xl border border-indigo-500/40 bg-indigo-500/5 p-4 shadow-[0_4px_24px_-8px_rgba(99,102,241,0.25)]">
+      <p className="text-sm font-medium">💳 {t("pay.methodTitle")}</p>
+      <div className="flex flex-col gap-2">
+        <Button disabled={busy || !stripeSupports(currency)} onClick={() => choose("stripe")}>{t("pay.stripe")}</Button>
+        <Button variant="secondary" disabled={busy || currency !== "USDT"} onClick={() => choose("chain")}>{t("pay.chain")}</Button>
       </div>
-      {method && <FundingPanel c={{ ...c, payment_method: method }} busy={busy} setBusy={setBusy} onDone={onDone} />}
+      <p className="text-xs text-muted-foreground">{t("f.prepayHint")}</p>
     </div>
   );
 }
@@ -447,9 +420,9 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
   );
 }
 
-function StepSection({ n, title, children }: { n: number; title: string; children: React.ReactNode }) {
+function StepSection({ n, title, children, first = false }: { n: number; title: string; children: React.ReactNode; first?: boolean }) {
   return (
-    <div className="space-y-4">
+    <div className={`space-y-4 ${first ? "" : "border-t border-border pt-6"}`}>
       <div className="flex items-center gap-3">
         <span className="flex h-6 w-6 items-center justify-center rounded-full bg-primary/15 text-xs font-bold text-primary">{n}</span>
         <span className="text-sm font-semibold">{title}</span>
