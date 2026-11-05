@@ -14,11 +14,13 @@ import { AnimatedNumber, AnimatedProgress } from "@/components/animated-value";
 import logoAsset from "@/assets/fairdraw-logo.png.asset.json";
 
 const sections = [{ id: "drawn", key: "cy.drawn", icon: Trophy }, { id: "top", key: "cy.top", icon: Flame }, { id: "latest", key: "cy.latest", icon: Zap }, { id: "ending", key: "cy.ending", icon: Clock3 }] as const;
+const HUB_PAGE = 5;
 export function CampaignHub() {
   const { t } = useI18n();
   const [active, setActive] = useState<HubTab>("drawn");
   const [currency, setCurrency] = useState("ALL");
   const [now, setNow] = useState(0);
+  const [expanded, setExpanded] = useState<Set<HubTab>>(new Set());
   const [sampleRanking, setSampleRanking] = useState(true);
   useEffect(() => { setNow(Date.now()); const timer = setInterval(() => setNow(Date.now()), 1000); return () => clearInterval(timer); }, []);
   const query = usePublicHub();
@@ -52,10 +54,20 @@ export function CampaignHub() {
       <div className="mb-4 flex items-center gap-2"><Icon className={`size-4 ${id === "drawn" || id === "top" ? "text-prize" : "text-primary"}`} /><h3 className="text-lg font-semibold">{t(key)}</h3></div>
       {id === "drawn" ? <><div className="mb-3"><RankMode sample={sampleRanking} onChange={setSampleRanking} /></div><div className="grid gap-3 lg:grid-cols-3">{(["month", "week", "day"] as const).map((period) => <SponsorBoard key={period} period={period} sample={sampleRanking} />)}</div><p className="mt-3 text-[10px] leading-5 text-muted-foreground">{t(sampleRanking ? "rank.testNote" : "cy.rankNote")}</p></> : query.isPending ? <div className="campaign-grid">{[0, 1, 2, 3, 4].map((n) => <div key={n} className="h-80 animate-pulse rounded-lg border border-border bg-card" />)}</div> : query.isError ? <div className="py-8 text-center text-xs">{t("cy.loadError")}<Button variant="link" onClick={() => query.refetch()}>{t("cy.retry")}</Button></div> : (() => {
         const campaigns = filterHub(query.data ?? [], id, now, currency);
-        return campaigns.length ? <div className="campaign-grid">{campaigns.map((c, index) => {
-          const snapshot = snapshots.data?.find((s) => s.campaign_id === c.id);
-          return <CampaignCard key={c.id} c={c} now={now} index={index} hostName={hostById.get(c.owner_id)?.trim() || t("cy.host")} metrics={snapshot?.metrics as Partial<Metrics> | undefined} progress={snapshot?.progress} winners={winnerHandles(draws.data?.find((d) => d.campaign_id === c.id)?.winners)} />;
-        })}</div> : <div className="flex items-center justify-center gap-3 py-7 text-xs text-muted-foreground"><Gift className="size-4 text-primary" />{t("cy.empty")}</div>;
+        const open = expanded.has(id);
+        const shown = open ? campaigns : campaigns.slice(0, HUB_PAGE);
+        const toggle = () => setExpanded((prev) => {
+          const next = new Set(prev);
+          if (open) { next.delete(id); } else { next.add(id); }
+          return next;
+        });
+        return campaigns.length ? <>
+          <div className="campaign-grid">{shown.map((c, index) => {
+            const snapshot = snapshots.data?.find((s) => s.campaign_id === c.id);
+            return <CampaignCard key={c.id} c={c} now={now} index={index} hostName={hostById.get(c.owner_id)?.trim() || t("cy.host")} metrics={snapshot?.metrics as Partial<Metrics> | undefined} progress={snapshot?.progress} winners={winnerHandles(draws.data?.find((d) => d.campaign_id === c.id)?.winners)} />;
+          })}</div>
+          {campaigns.length > HUB_PAGE && <div className="mt-3 flex justify-end"><Button variant="ghost" size="sm" className="text-xs text-muted-foreground" onClick={toggle}>{open ? t("cy.collapse") : `${t("cy.viewAll")} (${campaigns.length})`}<ArrowUpRight className={`size-3 transition-transform ${open ? "rotate-180" : "rotate-90"}`} /></Button></div>}
+        </> : <div className="flex items-center justify-center gap-3 py-7 text-xs text-muted-foreground"><Gift className="size-4 text-primary" />{t("cy.empty")}</div>;
       })()}
     </section>)}
   </section>;

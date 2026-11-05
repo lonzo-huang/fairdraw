@@ -1,7 +1,7 @@
 export type HubCampaign = {
   id: string; slug: string; title: string; prize: string; prize_amount: number | null;
   currency: string; winners_count: number; ends_at: string; created_at: string;
-  status: string; tweet_url: string | null; owner_id: string; clicks: number; conditions?: unknown;
+  status: string; escrow_status: string; tweet_url: string | null; owner_id: string; clicks: number; conditions?: unknown;
 };
 export type HubTab = "latest" | "ending" | "top" | "drawn";
 /** Rough USD equivalents — used only to order cross-currency boards. Displayed amounts keep the declared currency. Unknown currencies rate 0 so they can never top a board on unpriced numbers. */
@@ -9,15 +9,21 @@ const USD_RATES: Record<string, number> = { USD: 1, USDT: 1, CNY: 0.14, EUR: 1.0
 export function usdValue(amount: number | null, currency: string): number {
   return (amount ?? 0) * (USD_RATES[currency.toUpperCase()] ?? 0);
 }
+/** A campaign is only really running once the pool is funded and the post is
+ * bound. Drafts still awaiting payment or a tweet never enter public boards. */
+const FUNDED_ESCROW = new Set(["funded", "preauthorized"]);
+export function isLive(c: HubCampaign, now: number) {
+  return c.status === "open" && Date.parse(c.ends_at) > now && FUNDED_ESCROW.has(c.escrow_status) && !!c.tweet_url;
+}
 export function filterHub(campaigns: HubCampaign[], tab: HubTab, now: number, currency = "ALL") {
-  const active = campaigns.filter((c) => c.status === "open" && Date.parse(c.ends_at) > now);
+  const active = campaigns.filter((c) => isLive(c, now));
   if (tab === "drawn") return campaigns.filter((c) => c.status === "drawn").sort((a, b) => Date.parse(b.created_at) - Date.parse(a.created_at)).slice(0, 12);
-  if (tab === "ending") return active.filter((c) => Date.parse(c.ends_at) - now < 8 * 60 * 60 * 1000).sort((a, b) => Date.parse(a.ends_at) - Date.parse(b.ends_at)).slice(0, 12);
+  if (tab === "ending") return active.filter((c) => Date.parse(c.ends_at) - now < 8 * 60 * 60 * 1000).sort((a, b) => Date.parse(a.ends_at) - Date.parse(b.ends_at));
   if (tab === "top") {
     const pools = currency === "ALL" ? active : active.filter((c) => c.currency === currency);
-    return pools.filter((c) => c.prize_amount !== null).sort((a, b) => usdValue(b.prize_amount, b.currency) - usdValue(a.prize_amount, a.currency)).slice(0, 5);
+    return pools.filter((c) => c.prize_amount !== null).sort((a, b) => usdValue(b.prize_amount, b.currency) - usdValue(a.prize_amount, a.currency));
   }
-  return active.sort((a, b) => Date.parse(b.created_at) - Date.parse(a.created_at)).slice(0, 12);
+  return active.sort((a, b) => Date.parse(b.created_at) - Date.parse(a.created_at));
 }
 export function simulateCost(pool: number, target: number) { return pool / (target * 2); }
 

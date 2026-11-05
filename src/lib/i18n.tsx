@@ -19,6 +19,8 @@ const dict = {
   "cy.ending": { zh: "即将结束", en: "Ending soon" },
   "cy.top": { zh: "头部奖池", en: "Top pools" },
   "cy.drawn": { zh: "增长排行榜", en: "Growth leaderboard" },
+  "cy.viewAll": { zh: "查看全部", en: "View all" },
+  "cy.collapse": { zh: "收起", en: "Collapse" },
   "cy.total": { zh: "奖池总额", en: "TOTAL PRIZE POOL" },
   "cy.view": { zh: "查看活动", en: "View campaign" },
   "cy.review": { zh: "查看凭证", en: "View receipt" },
