@@ -1,29 +1,35 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
-import { useI18n } from "@/lib/i18n";
+import { translate, useI18n, type Lang } from "@/lib/i18n";
 import { CANCEL_WINDOW_MS, cancelCampaign, checkCampaignConditions, drawCampaign, refundEscrow, updateCampaignConditions } from "@/lib/campaign.functions";
-import { payoutViaStripe, recordChainPayout, refundChainEscrow, updateCampaignAmount } from "@/lib/payment.functions";
+import { payoutViaStripe, recordChainPayout, refundChainEscrow, startStripeCheckout, updateCampaignAmount } from "@/lib/payment.functions";
 import { computeProgress, parseConditions, type ConditionCheck, type Conditions, type Metrics } from "@/lib/conditions";
 import { campaignTweet } from "@/lib/campaign-share";
 import { hasEthereum, refundEscrowTx, sendTokenTransfer } from "@/lib/wallet";
 import { chainConfig } from "@/lib/payments";
-import { FundingPanel } from "@/components/funding-panel";
+import { feeAmount, feeRate } from "@/lib/fees";
+import { useFeeTiers } from "@/hooks/use-fee-tiers";
+import { ChainFundingBody } from "@/components/funding-panel";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { StatusBadge } from "@/components/status-badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { ArrowUpRight, Clock3, Copy, Link2, MoreHorizontal, Users, Wallet } from "lucide-react";
+import { ArrowUpRight, BadgeCheck, Check, CheckCircle2, Copy, Eye, Heart, Link2, Lock, MessageCircle, MessageSquare, MoreHorizontal, RefreshCw, Repeat2, Search, ShieldCheck, Users } from "lucide-react";
 
 export const NUM_COND_KEYS = ["min_likes", "min_replies", "min_reposts", "min_quotes", "min_views", "min_participants", "min_verified"] as const;
 const COND_LABEL: Record<(typeof NUM_COND_KEYS)[number], "cond.likes" | "cond.replies" | "cond.reposts" | "cond.quotes" | "cond.views" | "cond.participants" | "cond.verified"> = {
   min_likes: "cond.likes", min_replies: "cond.replies", min_reposts: "cond.reposts",
   min_quotes: "cond.quotes", min_views: "cond.views",
   min_participants: "cond.participants", min_verified: "cond.verified",
+};
+
+const COND_ICON: Record<(typeof NUM_COND_KEYS)[number], typeof Heart> = {
+  min_likes: Heart, min_replies: MessageCircle, min_reposts: Repeat2,
+  min_quotes: MessageSquare, min_views: Eye,
+  min_participants: Users, min_verified: BadgeCheck,
 };
 
 export const Route = createFileRoute("/_authenticated/manage/$id")({
@@ -40,7 +46,7 @@ export const Route = createFileRoute("/_authenticated/manage/$id")({
 
 function Manage() {
   const { id } = Route.useParams();
-  const { t } = useI18n();
+  const { t, lang } = useI18n();
   const qc = useQueryClient();
   const navigate = useNavigate();
   const checkConds = useServerFn(checkCampaignConditions);
@@ -48,18 +54,26 @@ function Manage() {
   const cancel = useServerFn(cancelCampaign);
   const draw = useServerFn(drawCampaign);
   const updateAmount = useServerFn(updateCampaignAmount);
+  const checkout = useServerFn(startStripeCheckout);
+  const { data: fees = [] } = useFeeTiers();
   const [busy, setBusy] = useState(false);
+  const [checking, setChecking] = useState(false);
+  const [linkBusy, setLinkBusy] = useState(false);
   const [condResult, setCondResult] = useState<{ checks: ConditionCheck[]; progress: number } | null>(null);
-  const [tweetUrl, setTweetUrl] = useState<string | null>(null);
+  const [link, setLink] = useState("");
+  const [linkBad, setLinkBad] = useState(false);
+  const [linkEdit, setLinkEdit] = useState(false);
   const [editAmount, setEditAmount] = useState<string | null>(null);
   const [editConds, setEditConds] = useState(false);
   const [drawMode, setDrawMode] = useState<"all" | "verified" | "weighted">("all");
   const [wBlue, setWBlue] = useState("1.2");
   const [wNormal, setWNormal] = useState("0.4");
-  const [shownRows, setShownRows] = useState(25);
+  const [showAllP, setShowAllP] = useState(false);
   const [entryTab, setEntryTab] = useState<"all" | "valid" | "invalid">("all");
   const [amountOpen, setAmountOpen] = useState(false);
-  const [postEdit, setPostEdit] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [paySel, setPaySel] = useState<"stripe" | "chain" | null>(null);
+  const [, forceTick] = useState(0);
 
   const { data, isLoading } = useQuery({
     queryKey: ["manage", id],
@@ -76,10 +90,21 @@ function Manage() {
   });
   const refresh = () => qc.invalidateQueries({ queryKey: ["manage", id] });
 
+  // Close the "more" menu on outside click; 1 s tick drives the live countdown.
+  useEffect(() => {
+    const close = () => setMenuOpen(false);
+    document.addEventListener("click", close);
+    const iv = setInterval(() => forceTick((v) => v + 1), 1000);
+    return () => { document.removeEventListener("click", close); clearInterval(iv); };
+  }, []);
+
   if (isLoading || !data?.c) return <p className="p-10 text-center text-muted-foreground">{t("common.loading")}</p>;
   const { c, entries, payouts, snap } = data;
   const open = c.status === "open";
-  const shareUrl = typeof window !== "undefined" ? `${window.location.origin}/c/${c.slug}` : "";
+  const drawn = c.status === "drawn";
+  const cancelled = c.status === "cancelled";
+  const origin = typeof window !== "undefined" ? window.location.origin : "";
+  const shareUrl = `${origin}/c/${c.slug}`;
   const conditions = parseConditions(c.conditions);
   const hasConds = Object.values(conditions).some((v) => v !== undefined);
   const snapM = (snap?.metrics ?? null) as Metrics | null;
@@ -91,9 +116,44 @@ function Manage() {
   const leftMs = Math.max(0, Date.parse(c.ends_at) - now);
   const unfunded = !!c.prize_amount && (c.payment_method === "stripe" || c.payment_method === "chain") && c.escrow_status === "awaiting";
   const canCancel = open && Date.parse(c.created_at) + CANCEL_WINDOW_MS > now;
+  const pool = c.prize_amount ?? 0;
+  const fee = feeAmount(fees, pool);
+  const feePct = feeRate(fees, pool);
+  const total = pool + fee;
+  // Wizard phase mirrors the mockup: 1 fund → 2 link post → 3 live; terminal states render all steps done.
+  const phase = !open ? 3 : unfunded ? 1 : !c.tweet_url ? 2 : 3;
+  const badge: [string, string] = cancelled ? ["b-end", t("status.cancelled")]
+    : drawn ? ["b-done", t("status.drawn")]
+    : phase === 1 ? ["b-wait", t("m.badgeFund")]
+    : phase === 2 ? ["b-wait", t("m.badgeLink")]
+    : ["b-live", t("status.open")];
+  const payMethod: "stripe" | "chain" = paySel ?? (c.payment_method === "chain" ? "chain" : "stripe");
+  const tw = campaignTweet(c, origin);
+  const durH = Math.max(1, Math.round((Date.parse(c.ends_at) - Date.parse(c.created_at)) / 3600e3));
+  const cdS = Math.floor(leftMs / 1000);
+  const cdH = Math.floor(cdS / 3600);
+  const cdM = Math.floor((cdS % 3600) / 60);
+  const cdSec = cdS % 60;
+  // Headline number prefers a replies goal, then the first numeric check.
+  const repCheck = cond?.checks.find((ch) => ch.key === "min_replies")
+    ?? cond?.checks.find((ch) => typeof ch.target === "number" && typeof ch.current === "number");
+  const pct = cond?.progress ?? 0;
+  const linkM = link.trim().match(TW_RE);
+  const linkHandle = linkM?.[3] ?? "";
+  const linkMsg: { kind: "info" | "ok" | "err"; text: string } =
+    linkBad && !link.trim() ? { kind: "err", text: t("m.linkEmpty") }
+    : linkBad && !linkM ? { kind: "err", text: t("m.linkBad") }
+    : !link.trim() ? { kind: "info", text: t("m.linkHint") }
+    : linkM ? { kind: "ok", text: t("m.linkOk") }
+    : { kind: "info", text: t("m.linkShape") };
   const isInvalidEntry = (e: (typeof entries)[number]) =>
     e.eligibility_status === "ineligible" ||
     (e.fetched_meta as { handle_match?: boolean | null } | null)?.handle_match === false;
+  const pCnt = {
+    all: entries.length,
+    valid: entries.filter((e) => !isInvalidEntry(e)).length,
+    invalid: entries.filter((e) => isInvalidEntry(e)).length,
+  };
   const shownEntries = entryTab === "all" ? entries : entries.filter((e) => (entryTab === "invalid") === isInvalidEntry(e));
   // Draw gating mirrors the product flow: funded pool, participants, and either
   // all conditions met or the deadline reached (owners can relax conditions to end early).
@@ -103,19 +163,12 @@ function Manage() {
     : hasConds && cond === null ? t("m.drawNoSync")
     : !allMet && !pastDeadline ? t("m.drawWaitConds")
     : null;
-  const nextStep =
-    c.status === "cancelled" ? t("m.nextCancelled")
-    : c.status === "drawn" ? t("m.nextDrawn")
-    : unfunded ? t("m.nextAwaiting")
-    : !c.tweet_url ? t("m.nextLink")
-    : hasConds && cond === null ? t("m.nextSync")
-    : !allMet && !pastDeadline ? `${t("m.nextWait")} · ${fmtLeft(leftMs)}`
-    : t("m.nextDraw");
-  const copyShare = () => { navigator.clipboard.writeText(shareUrl); toast.success(t("c.copied")); };
-  const condSummary = !hasConds ? t("m.ovNoConds")
-    : NUM_COND_KEYS.filter((k) => conditions[k] !== undefined).map((k) => `${t(COND_LABEL[k])}≥${conditions[k]}`)
-      .concat(conditions.keyword ? `${t("cond.keyword")}:${conditions.keyword}` : [])
-      .join(" · ");
+  const condItems: { k: string; I: typeof Heart; txt: string }[] = NUM_COND_KEYS.filter((k) => conditions[k] !== undefined)
+    .map((k) => ({ k, I: COND_ICON[k], txt: `${t(COND_LABEL[k])} ≥ ${conditions[k]}` }));
+  if (conditions.keyword) condItems.push({ k: "keyword", I: Search, txt: `${t("cond.keyword")} · ${conditions.keyword}` });
+  const winnersShare = c.prize_amount && c.winners_count > 0 ? Number((c.prize_amount / c.winners_count).toFixed(6)) : null;
+  const copyText = (s: string, msg?: string) => { navigator.clipboard.writeText(s).catch(() => {}); toast.success(msg ?? t("c.copied")); };
+  const copyShare = () => copyText(shareUrl);
 
   async function doDraw() {
     if (!confirm(t("m.drawConfirm"))) return;
@@ -138,7 +191,7 @@ function Manage() {
     }
   }
   async function runCondCheck() {
-    setBusy(true);
+    setChecking(true);
     try {
       const r = await checkConds({ data: { campaignId: c!.id } });
       if (r.deleted) {
@@ -151,16 +204,33 @@ function Manage() {
     } catch (e) {
       toast.error((e as Error).message);
     } finally {
-      setBusy(false);
+      setChecking(false);
     }
   }
-  async function saveTweet() {
-    if (tweetUrl === null) return;
-    const { error } = await supabase.from("campaigns").update({ tweet_url: tweetUrl.trim() || null }).eq("id", c!.id);
+  async function linkTweet() {
+    const v = link.trim();
+    if (!v || !linkM) { setLinkBad(true); return; }
+    setLinkBusy(true);
+    const { error } = await supabase.from("campaigns").update({ tweet_url: v }).eq("id", c!.id);
+    setLinkBusy(false);
     if (error) toast.error(error.message);
-    else toast.success(t("common.save"));
-    setTweetUrl(null);
-    refresh();
+    else { toast.success(t("m.linked")); setLink(""); setLinkEdit(false); refresh(); }
+  }
+  async function setPay(m: "stripe" | "chain") {
+    if (m === payMethod) return;
+    setPaySel(m);
+    const { error } = await supabase.from("campaigns").update({ payment_method: m }).eq("id", c!.id);
+    if (error) { setPaySel(null); toast.error(error.message); }
+  }
+  async function payStripe() {
+    setBusy(true);
+    try {
+      const r = await checkout({ data: { campaignId: c!.id, origin: window.location.origin } });
+      if (r.url) window.location.href = r.url;
+    } catch (e) {
+      toast.error((e as Error).message);
+      setBusy(false);
+    }
   }
   async function doUpdateAmount() {
     const n = Number(editAmount ?? c!.prize_amount);
@@ -209,298 +279,355 @@ function Manage() {
   }
 
   return (
-    <div className="mx-auto max-w-6xl px-4 py-10">
-      {/* Header: campaign identity + status */}
-      <p className="font-mono text-xs uppercase tracking-widest text-muted-foreground">{t("m.breadcrumb")}</p>
-      <div className="mt-2 flex flex-wrap items-center gap-3">
-        <h1 className="text-3xl font-semibold">{c.title}</h1>
-        <StatusBadge status={c.status} endsAt={c.ends_at} />
-        <span className="rounded-full border border-border px-2.5 py-0.5 text-xs text-muted-foreground">{t("m.typeReply")}</span>
+    <div className="page-mg mx-auto max-w-[1200px] px-4 pb-20 pt-8 md:px-6">
+      {/* Breadcrumb + title row */}
+      <div className="crumb">
+        <Link to="/dashboard">{t("dash.title")}</Link><span>/</span><span>{t("m.crumbDetail")}</span>
       </div>
-      <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1.5 text-xs text-muted-foreground">
-        <span className="font-mono">ID {c.id.slice(0, 10)}</span>
-        <button type="button" className="inline-flex items-center gap-1 font-mono text-primary hover:underline" onClick={copyShare}>
-          {`/c/${c.slug}`}<Copy className="size-3" />
-        </button>
-      </div>
-
-      {/* Actions: primary / secondary / destructive menu */}
-      <div className="mt-5 flex flex-wrap items-center gap-2">
-        {c.tweet_url && (
-          <Button asChild size="sm">
-            <a href={c.tweet_url} target="_blank" rel="noopener noreferrer">{t("m.viewPost")}<ArrowUpRight className="size-4" /></a>
-          </Button>
-        )}
-        <Button variant="outline" size="sm" onClick={copyShare}>{t("c.share")}</Button>
-        {open && <Button variant="outline" size="sm" onClick={() => setEditConds((v) => !v)}>{t("m.editConds")}</Button>}
-        {c.status === "drawn" && <Button asChild variant="outline" size="sm"><Link to="/r/$slug" params={{ slug: c.slug }}>{t("c.result")}</Link></Button>}
-        {open && (
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="sm"><MoreHorizontal className="size-4" />{t("m.more")}</Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              {canCancel && <DropdownMenuItem disabled={busy} onClick={doCancel} className="text-destructive focus:text-destructive">{t("m.cancel")}</DropdownMenuItem>}
-              {canCancel && <DropdownMenuSeparator />}
-              <DropdownMenuItem onClick={del} className="text-destructive focus:text-destructive">{t("m.delete")}</DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        )}
-      </div>
-
-      {/* Next step banner — the state flow is always visible */}
-      <div className="mt-4 flex items-center gap-2.5 rounded-lg border border-primary/25 bg-primary/5 px-4 py-2.5 text-sm">
-        {open && <span className="live-dot" />}
-        <span className="shrink-0 font-medium">{t("m.nextLabel")}</span>
-        <span className="text-muted-foreground">{nextStep}</span>
-      </div>
-
-      <div className="mt-6 grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_330px]">
-        <div className="space-y-6">
-          {/* X post integration — the first step in the campaign flow sits on top */}
-          <section className="rounded-xl border border-border bg-card p-5">
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <h2 className="flex items-center gap-2 text-xl font-semibold"><Link2 className="size-5" />{t("m.postTitle")}</h2>
-              {c.tweet_url && !postEdit && <Button variant="ghost" size="sm" onClick={() => setPostEdit(true)}>{t("m.postChange")}</Button>}
+      <div className="head">
+        <div>
+          <h1>
+            {c.title}
+            {c.prize_amount !== null && <span className="amt">· {c.prize_amount} {c.currency}</span>}
+            <span className={`badge ${badge[0]}`}>{badge[1]}</span>
+          </h1>
+          <div className="meta">
+            <span>{t("m.idLbl")} <code>{c.id.slice(0, 10)}</code></span>
+            <button type="button" className="copy-i" onClick={() => copyText(c.id)}><Copy />{t("m.copyId")}</button>
+            <span>{t("m.createdOn")} {new Date(c.created_at).toLocaleDateString()}</span>
+          </div>
+        </div>
+        <div className="head-r">
+          {phase === 3 && <button type="button" className="ghost" onClick={copyShare}><Link2 />{t("m.copyLink")}</button>}
+          {drawn && <Link to="/r/$slug" params={{ slug: c.slug }} className="ghost"><ArrowUpRight />{t("c.result")}</Link>}
+          <button type="button" className="ghost" aria-haspopup="true" aria-expanded={menuOpen}
+            onClick={(e) => { e.stopPropagation(); setMenuOpen((v) => !v); }}>
+            <MoreHorizontal />{t("m.more")}
+          </button>
+          {menuOpen && (
+            <div className="menu">
+              <button type="button" onClick={copyShare}>{t("m.copyLink")}</button>
+              {open && c.tweet_url && <button type="button" onClick={() => setLinkEdit(true)}>{t("m.postChange")}</button>}
+              {open && <button type="button" onClick={() => setEditConds((v) => !v)}>{t("m.editConds")}</button>}
+              {canCancel && <button type="button" className="danger" onClick={doCancel}>{t("m.menuCancel")}</button>}
+              <button type="button" className="danger" onClick={del}>{t("m.delete")}</button>
             </div>
-            {c.tweet_url && !postEdit ? (
-              <div className="mt-4 flex items-center justify-between gap-3 rounded-lg border border-border bg-background p-4">
-                <div className="min-w-0">
-                  <p className="truncate font-medium">
-                    {snapM?.author_name ?? t("m.postLinked")}
-                    {snapM?.author_handle ? <span className="ml-1 font-mono text-xs text-muted-foreground">@{snapM.author_handle}</span> : null}
-                  </p>
-                  {snapM?.post_text && <p className="mt-1 line-clamp-2 text-sm text-muted-foreground">{snapM.post_text}</p>}
-                  <p className="mt-1 truncate font-mono text-xs text-muted-foreground">{c.tweet_url}</p>
-                </div>
-                <Button asChild variant="outline" size="sm" className="shrink-0">
-                  <a href={c.tweet_url} target="_blank" rel="noopener noreferrer">{t("m.openPost")}<ArrowUpRight className="size-4" /></a>
-                </Button>
-              </div>
-            ) : (
-              <div className="mt-4 space-y-3">
-                <div className="flex flex-col gap-2 sm:flex-row">
-                  <Input
-                    placeholder="https://x.com/you/status/…"
-                    value={tweetUrl ?? c.tweet_url ?? ""}
-                    onChange={(e) => setTweetUrl(e.target.value)}
-                  />
-                  <Button size="sm" variant="secondary" onClick={saveTweet} disabled={tweetUrl === null}>{t("m.postLinkAction")}</Button>
-                </div>
-                <p className="text-xs text-muted-foreground">{t("m.postHint")}</p>
-                {open && !c.tweet_url && (c.escrow_status === "funded" || c.escrow_status === "preauthorized" || c.escrow_status === "charged" || c.payment_method === "manual") && (
-                  <a
-                    href={`https://x.com/intent/post?text=${encodeURIComponent(campaignTweet(c, typeof window !== "undefined" ? window.location.origin : ""))}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1 text-sm font-medium text-primary hover:underline"
-                  >{t("new.postToX")}<ArrowUpRight className="size-4" /></a>
-                )}
-              </div>
-            )}
-          </section>
+          )}
+        </div>
+      </div>
 
-          {/* Campaign progress */}
-          <section className="rounded-xl border border-border bg-card p-5">
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <h2 className="text-xl font-semibold">{t("m.progressTitle")}</h2>
-              <Button variant="outline" size="sm" disabled={busy} onClick={runCondCheck}>{t("m.checkConditions")}</Button>
+      {/* 3-step wizard */}
+      <div className="stepper">
+        {[
+          { title: t("m.stepFund"), sub: translate(lang, "m.stepFundSub", { amt: pool ? `${total.toFixed(2)} ${c.currency}` : "—" }) },
+          { title: t("m.stepPost"), sub: t("m.stepPostSub") },
+          { title: t("m.stepDraw"), sub: t("m.stepDrawSub") },
+        ].map((sp, i) => {
+          const n = i + 1;
+          const cls = !open ? "done" : n < phase ? "done" : n === phase ? "now" : "";
+          return (
+            <div key={n} className={`sp ${cls}`}>
+              <span className="n">{cls === "done" ? <Check /> : n}</span>
+              <div><div className="t">{sp.title}</div><div className="s">{sp.sub}</div></div>
             </div>
-            {open && editConds && <ConditionEditor c={c} onDone={refresh} />}
-            {!hasConds ? (
-              <p className="mt-4 text-sm text-muted-foreground">{t("cond.none")}</p>
-            ) : cond === null ? (
-              <p className="mt-4 flex items-center gap-2 text-sm text-muted-foreground"><span className="live-dot" />{t("m.noSnap")}</p>
-            ) : (
-              <div className="mt-4">
-                <div className="flex items-end gap-3">
-                  <span className="font-mono text-4xl font-semibold">{cond.progress}%</span>
-                  <span className="pb-1 text-sm text-muted-foreground">{t("m.done")}</span>
-                </div>
-                <div className="mt-3 h-2.5 overflow-hidden rounded-full bg-muted">
-                  <div className="h-full rounded-full bg-primary transition-all" style={{ width: `${cond.progress}%` }} />
-                </div>
-                <ul className="mt-4 space-y-2 text-sm">
-                  {cond.checks.map((ch) => (
-                    <li key={ch.key} className="flex items-center justify-between gap-3">
-                      <span>
-                        {t(`cond.${ch.label}` as Parameters<typeof t>[0])}{" "}
-                        <span className="font-mono text-muted-foreground">
-                          {typeof ch.current === "number" ? ch.current : "—"} / {ch.target}
-                        </span>
-                      </span>
-                      <span className={ch.state === "met" ? "text-success" : "text-muted-foreground"}>
-                        {ch.state === "met" ? `✓ ${t("cond.met")}`
-                          : ch.state === "unmet" && typeof ch.current === "number" && typeof ch.target === "number"
-                            ? `${t("m.remaining")} ${Math.max(0, ch.target - ch.current)}`
-                            : ch.state === "unmet" ? t("cond.unmet") : t("cond.unknown")}
-                      </span>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            )}
-            <div className="mt-4 flex items-center gap-2 border-t border-border pt-3 text-xs text-muted-foreground">
-              <Clock3 className="size-3.5" />
-              {pastDeadline ? t("m.ended") : `${t("m.timeLeft")} ${fmtLeft(leftMs)}`}
-              {snap && <span className="ml-auto">{t("m.lastSync")} {new Date(snap.fetched_at).toLocaleTimeString()}</span>}
-            </div>
-          </section>
+          );
+        })}
+      </div>
 
-          {/* Participants + draw */}
-          <section className="rounded-xl border border-border bg-card p-5">
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <h2 className="flex items-center gap-2 text-xl font-semibold"><Users className="size-5" />{t("m.partyTitle")}</h2>
-              <div className="flex gap-1 rounded-lg border border-border p-0.5 text-xs">
-                {(["all", "valid", "invalid"] as const).map((k) => (
-                  <button
-                    key={k}
-                    type="button"
-                    onClick={() => setEntryTab(k)}
-                    className={`rounded-md px-2.5 py-1 transition-colors ${entryTab === k ? "bg-primary/15 text-primary" : "text-muted-foreground hover:text-foreground"}`}
-                  >
-                    {t(k === "all" ? "m.tabAll" : k === "valid" ? "m.tabValid" : "m.tabInvalid")}
-                    {" "}{k === "all" ? entries.length : entries.filter((e) => (k === "invalid") === isInvalidEntry(e)).length}
+      <div className="mg-grid">
+        <div className="main">
+          {/* completed-step summaries */}
+          {phase >= 2 && pool > 0 && (
+            <div className="mini done">
+              <span className="n"><Check /></span>
+              <div><div className="t">{t("m.donePoolT")}</div><div className="s">{total.toFixed(2)} {c.currency} · {t(`pay.${c.payment_method ?? "manual"}` as "pay.manual")}</div></div>
+              <span className="r">{t("m.done")}</span>
+            </div>
+          )}
+          {phase === 3 && c.tweet_url && (
+            <div className="mini done">
+              <span className="n"><Check /></span>
+              <div style={{ minWidth: 0 }}>
+                <div className="t">{t("m.doneLinkT")}</div>
+                <div className="s" style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{c.tweet_url}</div>
+              </div>
+              <a className="r" href={c.tweet_url} target="_blank" rel="noopener noreferrer">{t("m.openPost")}</a>
+            </div>
+          )}
+          {/* step 1 — fund the pool */}
+          {phase === 1 && (
+            <section className="panel card">
+              <div className="card-h"><div>
+                <div className="eyebrow">{translate(lang, "m.stepOf", { n: 1 })}</div>
+                <h2>{t("m.stepFund")}</h2>
+                <p>{t("m.payDesc")}</p>
+              </div></div>
+              <div className="pay">
+                <div>
+                  <div style={{ fontSize: 13, color: "#646f85" }}>{t("m.fundDue")}</div>
+                  <div className="amt-big"><span className="v">{total.toFixed(2)}</span><span className="c">{c.currency}</span></div>
+                  <div className="brk">
+                    <div><span>{t("m.fundPool")}</span><b>{pool.toFixed(2)}</b></div>
+                    <div><span>{t("m.fundFee")} {feePct}%</span><b>{fee.toFixed(2)}</b></div>
+                    <div className="tot"><span>{t("m.tot")}</span><b>{total.toFixed(2)} {c.currency}</b></div>
+                  </div>
+                </div>
+                <div>
+                  <div className="seg" role="tablist">
+                    <button type="button" role="tab" aria-selected={payMethod === "stripe"} onClick={() => setPay("stripe")}>{t("pay.stripeTab")}</button>
+                    <button type="button" role="tab" aria-selected={payMethod === "chain"} onClick={() => setPay("chain")}>{t("pay.chainTab")}</button>
+                  </div>
+                  {payMethod === "stripe" ? (
+                    <div style={{ marginTop: 14 }}>
+                      <button type="button" className="mbtn" disabled={busy} onClick={payStripe}>
+                        <Lock />{t("m.fundStripeBtn")} {total.toFixed(2)} {c.currency}
+                      </button>
+                      <div className="methods"><span>Visa</span><span>Mastercard</span><span>Apple Pay</span><span>支付宝</span></div>
+                      <p className="fine">{t("m.fundStripeNote")}</p>
+                    </div>
+                  ) : (
+                    <div style={{ marginTop: 14 }}>
+                      <ChainFundingBody getCampaign={() => Promise.resolve(c)} total={total} busy={busy} setBusy={setBusy} onDone={refresh} />
+                    </div>
+                  )}
+                </div>
+              </div>
+            </section>
+          )}
+
+          {/* step 2 — post & link the tweet */}
+          {(phase === 2 || (phase === 3 && open && linkEdit)) && (
+            <section className="panel card">
+              <div className="card-h"><div>
+                <div className="eyebrow">{translate(lang, "m.stepOf", { n: 2 })}</div>
+                <h2>{t("m.stepPost")}</h2>
+                <p>{translate(lang, "m.stepPostDesc", { h: durH })}</p>
+              </div></div>
+              <span className="lbl">{t("m.tweetLbl")}</span>
+              <div className="compose">
+                <div className="compose-t">{linkify(tw)}</div>
+                <div className="compose-f">
+                  <span className="cnt">{[...tw].length} / 280</span>
+                  <div className="acts">
+                    <button type="button" className="ghost" onClick={() => copyText(tw)}><Copy />{t("new.copyText")}</button>
+                    <a className="xbtn" href={`https://x.com/intent/post?text=${encodeURIComponent(tw)}`} target="_blank" rel="noopener noreferrer"><XIcon />{t("m.postOnX")}</a>
+                  </div>
+                </div>
+              </div>
+              <div className="or">{t("m.orPaste")}</div>
+              <label className="lbl" htmlFor="mg-link">{t("m.linkLbl")}</label>
+              <div className="link-row">
+                <input id="mg-link" className={`in${linkBad ? " bad" : ""}`} placeholder={t("m.linkPh")}
+                  spellCheck={false} autoComplete="off" value={link}
+                  onChange={(e) => { setLink(e.target.value); setLinkBad(false); }} />
+                <button type="button" className="mbtn auto" disabled={linkBusy} onClick={linkTweet}>
+                  {linkBusy ? t("m.linking") : t("m.linkBtn")}
+                </button>
+              </div>
+              <div className={`msg ${linkMsg.kind}`}>{linkMsg.text}</div>
+              {linkM && (
+                <div className="tw-prev">
+                  <span className="av" style={{ background: avColor(linkHandle) }}>{linkHandle.slice(0, 1).toUpperCase()}</span>
+                  <div style={{ minWidth: 0 }}>
+                    <div className="x1"><b>{linkHandle}</b> <span>@{linkHandle}</span></div>
+                    <div className="x2">{tw.split("\n")[0]}</div>
+                  </div>
+                  <span className="ck"><CheckCircle2 /></span>
+                </div>
+              )}
+            </section>
+          )}
+
+          {/* step 3 — live progress & draw */}
+          {phase === 3 && (
+            <section className="panel card">
+              <div className="card-h">
+                <div>
+                  <div className="eyebrow">{translate(lang, "m.stepOf", { n: 3 })}</div>
+                  <h2>{t("m.progressTitle")}</h2>
+                  <p>{t("m.progSub")}</p>
+                </div>
+                {open && (
+                  <button type="button" className="ghost" disabled={checking} onClick={runCondCheck}>
+                    <RefreshCw className={checking ? "mgspin" : ""} />{checking ? t("m.updating") : t("m.updNow")}
                   </button>
-                ))}
-              </div>
-            </div>
-            {open && (
-              <div className="mt-4 flex flex-wrap items-center gap-2">
-                <select
-                  className="h-9 rounded-md border border-border bg-background px-2 text-sm"
-                  value={drawMode}
-                  onChange={(e) => setDrawMode(e.target.value as typeof drawMode)}
-                >
-                  <option value="all">{t("m.modeAll")}</option>
-                  <option value="verified">{t("m.modeVerified")}</option>
-                  <option value="weighted">{t("m.modeWeighted")}</option>
-                </select>
-                {drawMode === "weighted" && (
-                  <span className="flex items-center gap-1 text-sm text-muted-foreground">
-                    {t("m.wBlue")}
-                    <Input className="h-9 w-16" value={wBlue} onChange={(e) => setWBlue(e.target.value)} />
-                    {t("m.wNormal")}
-                    <Input className="h-9 w-16" value={wNormal} onChange={(e) => setWNormal(e.target.value)} />
-                  </span>
                 )}
-                <Button size="sm" disabled={busy || drawBlock !== null} onClick={doDraw}>{t("m.draw")}</Button>
-                {drawBlock && <span className="text-xs text-muted-foreground">{drawBlock}</span>}
-                {!drawBlock && !allMet && <span className="text-xs text-warning">{t("m.drawUnmet")}</span>}
               </div>
-            )}
-            {entries.length === 0 ? (
-              <p className={`mt-4 text-sm ${open ? "flex items-center gap-2 text-muted-foreground" : "text-muted-foreground"}`}>{open && <span className="live-dot" />}{t(open ? "m.importing" : "m.noEntries")}</p>
-            ) : (
-              <>
-                {open && <p className="mt-3 flex items-center gap-2 text-xs text-muted-foreground"><span className="live-dot" />{t("m.importing")}</p>}
-                <div className="mt-3 overflow-x-auto rounded-lg border border-border">
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr className="border-b border-border text-left text-xs text-muted-foreground">
-                        <th className="w-10 px-4 py-3 font-medium">#</th>
-                        <th className="px-4 py-3 font-medium">{t("m.colName")}</th>
-                        <th className="px-4 py-3 font-medium">@</th>
-                        <th className="px-4 py-3 font-medium">{t("m.blueV")}</th>
-                        <th className="px-4 py-3 font-medium">{t("m.colTime")}</th>
-                        <th className="px-4 py-3 font-medium">{t("m.colReply")}</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-border">
-                      {shownEntries.slice(0, shownRows).map((e, i) => {
-                        const meta = e.fetched_meta as { author_name?: string; text?: string; handle_match?: boolean | null; reply_time?: string; x_verified?: boolean | null } | null;
-                        const answers = (e.answers as string[]) ?? [];
-                        return (
-                          <tr key={e.id} className="align-top">
-                            <td className="px-4 py-3 text-muted-foreground">{i + 1}</td>
-                            <td className="max-w-[10rem] truncate px-4 py-3 font-medium">{meta?.author_name ?? "—"}</td>
-                            <td className="whitespace-nowrap px-4 py-3 font-mono text-muted-foreground">
-                              @{e.handle}
-                              {meta?.handle_match === false && <span className="ml-1 text-xs text-destructive">⚠</span>}
-                            </td>
-                            <td className="px-4 py-3">{meta?.x_verified === true ? <span className="text-xs font-medium text-sky-500">✓ {t("m.blueV")}</span> : "—"}</td>
-                            <td className="whitespace-nowrap px-4 py-3 text-muted-foreground">{meta?.reply_time ? new Date(meta.reply_time).toLocaleString() : "—"}</td>
-                            <td className="max-w-xs px-4 py-3 text-muted-foreground">
-                              <a href={e.post_url} target="_blank" rel="noreferrer" className="hover:text-primary">
-                                {meta?.text ?? e.post_url}
-                              </a>
-                              {answers.map((a, i) => <p key={i}>• {a}</p>)}
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
+              <div className="prog-top">
+                <div>
+                  {repCheck ? (
+                    <div className="prog-v">{typeof repCheck.current === "number" ? repCheck.current : 0}<small> / {repCheck.target} {t("m.repliesUnit")}</small></div>
+                  ) : (
+                    <div className="prog-v">{pct}<small>%</small></div>
+                  )}
+                  <div className="prog-l">
+                    {repCheck && typeof repCheck.target === "number" && typeof repCheck.current === "number"
+                      ? translate(lang, "m.leftToDraw", { n: Math.max(0, repCheck.target - repCheck.current) })
+                      : !hasConds ? t("cond.none") : cond === null ? t("m.noSnap") : allMet ? t("m.nextDraw") : `${pct}%`}
+                  </div>
                 </div>
-                {shownEntries.length > shownRows && (
-                  <div className="mt-3 text-center">
-                    <Button variant="outline" size="sm" onClick={() => setShownRows((s) => s + 25)}>
-                      {t("m.loadMore")}（{shownEntries.length - shownRows}）
-                    </Button>
+                {open && (
+                  <div className="cd" aria-label={t("m.timeLeft")}>
+                    <div><b>{pad2(cdH)}</b><span>{t("m.hUnit")}</span></div>
+                    <div><b>{pad2(cdM)}</b><span>{t("m.mUnit")}</span></div>
+                    <div><b>{pad2(cdSec)}</b><span>{t("m.sUnit")}</span></div>
                   </div>
                 )}
-              </>
-            )}
-          </section>
+              </div>
+              <div className="bar"><i style={{ width: `${Math.min(100, Math.max(0, pct))}%` }} /></div>
+              <div className="bar-f">
+                <span>{t("m.lastSync")} {snap ? fmtRel(snap.fetched_at, lang) : "—"}</span>
+                <span>{pastDeadline ? t("m.ended") : `${t("m.timeLeft")} ${fmtLeft(leftMs)}`}</span>
+              </div>
+              {cond && cond.checks.length > 1 && (
+                <div className="plist" style={{ marginTop: 14 }}>
+                  {cond.checks.map((ch) => (
+                    <div key={ch.key} className="pr">
+                      <div>
+                        <div className="nm">{t(`cond.${ch.label}` as "cond.likes")}</div>
+                        <div className="hd"><span className="num">{typeof ch.current === "number" ? ch.current : "—"} / {ch.target}</span></div>
+                      </div>
+                      <span className={`tag ${ch.state === "met" ? "ok" : "no"}`}>
+                        {ch.state === "met" ? t("cond.met") : ch.state === "unmet" ? t("cond.unmet") : t("cond.unknown")}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+              {open && (drawBlock ? (
+                <div className="draw-note"><Lock />{t("m.drawNote")}{drawBlock !== t("m.drawWaitConds") ? ` · ${drawBlock}` : ""}</div>
+              ) : (
+                <div className="drawrow">
+                  <select className="msel" value={drawMode} onChange={(e) => setDrawMode(e.target.value as typeof drawMode)}>
+                    <option value="all">{t("m.modeAll")}</option>
+                    <option value="verified">{t("m.modeVerified")}</option>
+                    <option value="weighted">{t("m.modeWeighted")}</option>
+                  </select>
+                  {drawMode === "weighted" && (
+                    <span style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 13, color: "#646f85" }}>
+                      {t("m.wBlue")}<input className="in" style={{ width: 60, height: 40 }} value={wBlue} onChange={(e) => setWBlue(e.target.value)} />
+                      {t("m.wNormal")}<input className="in" style={{ width: 60, height: 40 }} value={wNormal} onChange={(e) => setWNormal(e.target.value)} />
+                    </span>
+                  )}
+                  <button type="button" className="mbtn auto" disabled={busy} onClick={doDraw}>{t("m.draw")}</button>
+                  {!allMet && <span style={{ fontSize: 12, color: "#f5b83d" }}>{t("m.drawUnmet")}</span>}
+                </div>
+              ))}
+              {drawn && (
+                <div className="drawrow">
+                  <Link to="/r/$slug" params={{ slug: c.slug }} className="mbtn auto" style={{ textDecoration: "none" }}>{t("c.result")}</Link>
+                </div>
+              )}
+              {cancelled && <div className="draw-note">{t("m.nextCancelled")}</div>}
+            </section>
+          )}
+
+          {/* participants */}
+          {phase === 3 && (
+            <section className="panel card">
+              <div className="card-h" style={{ alignItems: "center" }}>
+                <div><h2>{t("m.partyTitle")}</h2></div>
+                <div className="ptabs" role="tablist">
+                  {(["all", "valid", "invalid"] as const).map((k) => (
+                    <button key={k} type="button" role="tab" aria-selected={entryTab === k} onClick={() => setEntryTab(k)}>
+                      {t(k === "all" ? "m.tabAll" : k === "valid" ? "m.tabValid" : "m.tabInvalid")}
+                      <b>{pCnt[k]}</b>
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div className="plist">
+                {shownEntries.length === 0 ? (
+                  <p style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: "#646f85" }}>
+                    {open && <span className="live-dot" />}{t(open ? "m.importing" : "m.noEntries")}
+                  </p>
+                ) : (
+                  shownEntries.slice(0, showAllP ? shownEntries.length : 8).map((e) => {
+                    const meta = e.fetched_meta as { author_name?: string; text?: string; reply_time?: string; handle_match?: boolean | null; x_verified?: boolean | null } | null;
+                    const invalid = isInvalidEntry(e);
+                    const nm = meta?.author_name ?? e.handle;
+                    return (
+                      <div key={e.id} className="pr">
+                        <span className="av" style={{ background: avColor(e.handle) }}>{nm.slice(0, 1).toUpperCase()}</span>
+                        <div style={{ minWidth: 0 }}>
+                          <div className="nm" title={meta?.text ?? undefined}><a href={e.post_url} target="_blank" rel="noreferrer" style={{ color: "inherit", textDecoration: "none" }}>{nm}</a></div>
+                          <div className="hd">@{e.handle}{meta?.x_verified ? " · ✓" : ""}</div>
+                        </div>
+                        <span className="tm">{fmtRel(meta?.reply_time ?? e.created_at, lang)}</span>
+                        <span className={`tag ${invalid ? "no" : "ok"}`}>{invalid ? (meta?.handle_match === false ? t("m.handleMismatch") : t("m.ineligible")) : t("m.eligible")}</span>
+                      </div>
+                    );
+                  })
+                )}
+                {!showAllP && shownEntries.length > 8 && (
+                  <div className="pr" style={{ justifyContent: "center" }}>
+                    <button type="button" className="copy-i" style={{ fontSize: 13 }} onClick={() => setShowAllP(true)}>
+                      {translate(lang, "m.viewAllP", { n: shownEntries.length })}
+                    </button>
+                  </div>
+                )}
+              </div>
+            </section>
+          )}
+
+          {/* locked future steps */}
+          {phase < 2 && (
+            <div className="mini lock"><span className="n">2</span><div><div className="t">{t("m.stepPost")}</div><div className="s">{t("m.lockPost")}</div></div></div>
+          )}
+          {phase < 3 && (
+            <div className="mini lock"><span className="n">3</span><div><div className="t">{t("m.stepDraw")}</div><div className="s">{t("m.lockDraw")}</div></div></div>
+          )}
         </div>
 
-        {/* Side column: funding + overview */}
-        <aside className="space-y-6">
-          <section className="rounded-xl border border-border bg-card p-5">
-            <h2 className="flex items-center gap-2 text-base font-semibold"><Wallet className="size-4" />{t("m.fundTitle")}</h2>
-            <div className="mt-3">
-              <span className="rounded-full border border-border px-2.5 py-0.5 text-xs">
-                {t(`escrow.${c.escrow_status}` as Parameters<typeof t>[0])}
-              </span>
-              <p className="mt-3 font-mono text-3xl font-semibold">
-                {c.prize_amount ?? "—"}{c.prize_amount ? ` ${c.currency}` : ""}
-              </p>
-              <p className="mt-1 text-xs text-muted-foreground">
-                {t(`pay.${c.payment_method ?? "manual"}` as Parameters<typeof t>[0])}
-              </p>
+        {/* Side column: overview + trust */}
+        <aside className="side">
+          <div className="panel ov">
+            <h3>{t("m.overview")}</h3>
+            <div className="ov-prize">
+              <div className="v">{c.prize_amount ?? c.prize}{c.prize_amount ? <small>{c.currency}</small> : null}</div>
+              <div className="s">
+                {winnersShare !== null
+                  ? translate(lang, "m.ovSub", { n: c.winners_count, amt: `${winnersShare} ${c.currency}` })
+                  : `${c.winners_count} ${t("c.winners")}`}
+              </div>
             </div>
-            {canCancel && c.prize_amount !== null && (
-              <Button variant="outline" size="sm" className="mt-4" onClick={() => { setEditAmount(String(c.prize_amount)); setAmountOpen(true); }}>{t("m.fundAdjust")}</Button>
+            <dl>
+              <dt>{t("m.ovCond")}</dt>
+              <dd>{condItems.length ? condItems.map(({ k, I, txt }) => <span key={k} className="cond"><I />{txt}</span>) : t("m.ovNoConds")}</dd>
+              <dt>{t("m.ovHow")}</dt><dd>{t("m.ovReply")}</dd>
+              <dt>{t("m.ovDur")}</dt><dd>{translate(lang, "m.hours", { h: durH })}</dd>
+              <dt>{open && !c.tweet_url ? t("m.ovStart") : t("m.ovEnds")}</dt>
+              <dd>{open && !c.tweet_url ? t("m.afterLink") : new Date(c.ends_at).toLocaleString()}</dd>
+              <dt>{t("m.fundTitle")}</dt>
+              <dd>{t(`escrow.${c.escrow_status}` as "escrow.funded")}</dd>
+            </dl>
+            {open && (
+              <div className="edit">
+                {canCancel && c.prize_amount !== null && (
+                  <button type="button" className="ghost" onClick={() => { setEditAmount(String(c.prize_amount)); setAmountOpen(true); }}>{t("m.fundAdjust")}</button>
+                )}
+                <button type="button" className="ghost" onClick={() => setEditConds((v) => !v)}>{t("m.editConds")}</button>
+              </div>
             )}
-            {open && (c.escrow_status === "preauthorized" || (c.escrow_status === "funded" && c.payment_method !== "chain")) && pastDeadline && (
-              <Button variant="outline" size="sm" className="mt-4" disabled={busy} onClick={doRefund}>{t("m.refund")}</Button>
-            )}
-          </section>
-          {c.escrow_status === "awaiting" && c.prize_amount && c.prize_amount > 0 && (
-            <FundingPanel c={c} busy={busy} setBusy={setBusy} onDone={refresh} />
+            {open && editConds && <ConditionEditor c={c} onDone={refresh} />}
+          </div>
+          <div className="panel trust">
+            <ShieldCheck />
+            <div><b>{t("m.trustT")}</b>{t("m.trustB")}</div>
+          </div>
+          {open && (c.escrow_status === "preauthorized" || (c.escrow_status === "funded" && c.payment_method !== "chain")) && pastDeadline && (
+            <button type="button" className="ghost" style={{ justifyContent: "center" }} disabled={busy} onClick={doRefund}>{t("m.refund")}</button>
           )}
           {(c.escrow_status === "refund_pending" || (open && c.escrow_status === "funded" && c.payment_method === "chain" && pastDeadline)) && (
             <ChainRefund campaignId={c.id} busy={busy} setBusy={setBusy} onDone={refresh} />
           )}
-
-          <section className="rounded-xl border border-border bg-card p-5">
-            <h2 className="text-base font-semibold">{t("m.overview")}</h2>
-            <dl className="mt-3 space-y-3 text-sm">
-              <div className="flex items-center justify-between gap-3">
-                <dt className="text-muted-foreground">{t("m.ovPrize")}</dt>
-                <dd className="text-right">{c.prize || "—"}</dd>
-              </div>
-              <div className="flex items-center justify-between gap-3">
-                <dt className="text-muted-foreground">{t("m.ovWinners")}</dt>
-                <dd>{c.winners_count}</dd>
-              </div>
-              <div className="flex items-center justify-between gap-3">
-                <dt className="text-muted-foreground">{t("m.ovEnds")}</dt>
-                <dd className="font-mono text-xs">{new Date(c.ends_at).toLocaleString()}</dd>
-              </div>
-              <div className="flex items-start justify-between gap-3">
-                <dt className="shrink-0 text-muted-foreground">{t("m.ovConds")}</dt>
-                <dd className="text-right text-xs">{condSummary}</dd>
-              </div>
-            </dl>
-          </section>
         </aside>
       </div>
 
       {payouts.length > 0 && (
-        <section className="mt-8">
-          <h2 className="text-2xl font-semibold">{t("m.payouts")}</h2>
-          <div className="mt-4 space-y-3">
+        <section className="panel card" style={{ marginTop: 24 }}>
+          <div className="card-h"><div><h2>{t("m.payouts")}</h2></div></div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
             {payouts.map((p) => (
               <PayoutRow key={p.id} p={p} share={c.prize_amount && c.winners_count > 0 ? Number(c.prize_amount) / c.winners_count : null} currency={c.currency} paymentMethod={c.payment_method} onDone={refresh} />
             ))}
@@ -524,7 +651,7 @@ function Manage() {
   );
 }
 
-/** Compact countdown for the progress card and next-step banner. */
+/** Compact countdown for the progress card footer. */
 function fmtLeft(ms: number): string {
   const m = Math.ceil(ms / 60000);
   const h = Math.floor(m / 60);
@@ -533,6 +660,39 @@ function fmtLeft(ms: number): string {
   if (h > 0) return `${h}h ${m % 60}m`;
   return `${m}m`;
 }
+
+/** Valid X/Twitter status URL — same shape as the mockup validator. */
+const TW_RE = /^https?:\/\/(www\.)?(x|twitter)\.com\/([A-Za-z0-9_]{1,15})\/status\/(\d{5,25})(\?.*)?$/;
+
+const AV_COLORS = ["#f59e0b", "#3b82f6", "#10b981", "#ef4444", "#8b5cf6", "#ec4899", "#64748b", "#0ea5e9", "#14b8a6"];
+/** Deterministic avatar colour by handle — same palette idea as the mockup list. */
+function avColor(s: string) {
+  let h = 0;
+  for (const ch of s) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
+  return AV_COLORS[h % AV_COLORS.length] ?? AV_COLORS[0];
+}
+
+function pad2(n: number) { return String(n).padStart(2, "0"); }
+
+/** Compose preview: render the campaign URL as a blue X-style link. */
+function linkify(text: string) {
+  return text.split(/(https?:\/\/\S+)/g).map((p, i) =>
+    /^https?:\/\//.test(p) ? <a key={i} href={p} target="_blank" rel="noreferrer">{p}</a> : p,
+  );
+}
+
+/** Compact relative time for snapshots and participant rows. */
+function fmtRel(iso: string, lang: Lang) {
+  const s = (Date.now() - Date.parse(iso)) / 1000;
+  if (s < 60) return translate(lang, "m.justNow");
+  if (s < 3600) return translate(lang, "m.agoMin", { n: Math.floor(s / 60) });
+  if (s < 86400) return translate(lang, "m.agoHr", { n: Math.floor(s / 3600) });
+  return new Date(iso).toLocaleDateString();
+}
+
+const XIcon = () => (
+  <svg viewBox="0 0 24 24" fill="currentColor"><path d="M18.2 2.3h3.4l-7.4 8.4 8.7 11.5h-6.8l-5.3-7-6.1 7H1.3l7.9-9L.9 2.3h7l4.8 6.4 5.5-6.4Zm-1.2 17.9h1.9L7.1 4.2H5.1l11.9 16Z"/></svg>
+);
 
 /**
  * Looser-only conditions editor: every configured metric can be lowered or
