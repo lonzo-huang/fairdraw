@@ -148,6 +148,11 @@ export function FundingPanel({ c, busy, setBusy, onDone }: { c: FundingCampaign;
                   {t("m.fundOnlyNet")} {cfg.chainName} · {t("m.fundSendAmt")} {total.toFixed(2)} {cfg.tokenSymbol}
                 </p>
               </div>
+              <div className="space-y-1 text-xs leading-relaxed text-muted-foreground">
+                <p>{t("m.fundStep1")}</p>
+                <p>{t("m.fundStep2")}</p>
+                <p>{t("m.fundStep3")}</p>
+              </div>
               <div className="flex flex-col gap-2 sm:flex-row">
                 <Input placeholder={t("m.txHash")} value={txHash} onChange={(e) => setTxHash(e.target.value)} />
                 <Button size="sm" variant="secondary" disabled={busy || !txHash.trim()} onClick={confirmManual}>{t("m.confirmTx")}</Button>
