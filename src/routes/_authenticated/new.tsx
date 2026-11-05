@@ -6,7 +6,7 @@ import { useI18n } from "@/lib/i18n";
 import { type Conditions } from "@/lib/conditions";
 import { campaignTweet, prizeSummary, type ShareCampaign } from "@/lib/campaign-share";
 import { renderShareImage } from "@/lib/campaign-share-image";
-import { BarChart3, Bookmark, Download, Heart, MessageCircle, Repeat2, Share } from "lucide-react";
+import { BadgeCheck, BarChart3, Bookmark, CheckCircle2, Download, Eye, Heart, MessageCircle, MessageSquare, Repeat2, Share, Users } from "lucide-react";
 import { feeAmount, feeRate } from "@/lib/fees";
 import { useFeeTiers } from "@/hooks/use-fee-tiers";
 import { CURRENCIES, DURATIONS, endsAtFromDays } from "@/lib/plans";
@@ -40,6 +40,11 @@ const METRIC_LABEL: Record<MetricKey, "cond.likes" | "cond.replies" | "cond.repo
   min_participants: "cond.participants", min_verified: "cond.verified",
 };
 const MAX_CONDITIONS = 4;
+const PRESET_AMOUNTS = [10, 50, 100, 500];
+const METRIC_ICON: Record<MetricKey, React.ElementType> = {
+  min_likes: Heart, min_replies: MessageCircle, min_reposts: Repeat2,
+  min_quotes: MessageSquare, min_views: Eye, min_participants: Users, min_verified: BadgeCheck,
+};
 
 function NewCampaign() {
   const { t, lang } = useI18n();
@@ -169,56 +174,78 @@ function NewCampaign() {
     <div className="mx-auto max-w-5xl px-4 py-12">
       <h1 className="text-4xl font-semibold">{t("new.title")}</h1>
       <div className="mt-8 grid gap-6 lg:grid-cols-[minmax(0,1fr)_360px]">
-      <form id="new-campaign" onSubmit={submit} className="space-y-5 rounded-xl border border-border bg-card p-6">
+      <form id="new-campaign" onSubmit={submit} className="space-y-8 rounded-xl border border-border bg-card p-6">
       <fieldset disabled={!!created} className="contents">
-        <div className="grid gap-5 sm:grid-cols-2">
-          <Field label={t("f.amount")}><Input required type="number" min={0.01} step="0.01" placeholder="20" value={f.prize_amount} onChange={set("prize_amount")} /></Field>
-          <Field label={t("f.currency")}><select className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm" value={f.currency} onChange={set("currency")}>{CURRENCIES.map((c) => <option key={c} value={c}>{c}</option>)}</select></Field>
-        </div>
-        <div className="grid gap-5 sm:grid-cols-2">
-          <Field label={t("f.winners")}><><Input type="number" min={1} max={100} required list="winner-options" value={f.winners_count} onChange={set("winners_count")} /><datalist id="winner-options">{[1, 2, 3, 5, 10, 20, 50, 100].map((n) => <option key={n} value={n} />)}</datalist></></Field>
-          <Field label={t("f.ends")}><select className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm" value={f.days} onChange={set("days")}><option value="1h">{t("f.hour1")}</option>{DURATIONS.map((d) => <option key={d} value={d}>{t(`f.day${d}` as "f.day1")}</option>)}</select></Field>
-        </div>
+        <StepSection n={1} title={t("f.step1")}>
+          <div className="flex flex-wrap gap-1.5">
+            {PRESET_AMOUNTS.map((a) => (
+              <button key={a} type="button" onClick={() => setF({ ...f, prize_amount: String(a) })}
+                className={`rounded-lg border px-3 py-1 text-xs font-medium transition-colors ${
+                  Number(f.prize_amount) === a ? "border-primary bg-primary/10 text-primary" : "border-border text-muted-foreground hover:border-primary/50"
+                }`}>
+                {a} {f.currency}
+              </button>
+            ))}
+          </div>
+          <div className="grid gap-5 sm:grid-cols-2">
+            <Field label={t("f.amount")}><Input required type="number" min={0.01} step="0.01" placeholder="20" value={f.prize_amount} onChange={set("prize_amount")} /></Field>
+            <Field label={t("f.currency")}><select className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm" value={f.currency} onChange={set("currency")}>{CURRENCIES.map((c) => <option key={c} value={c}>{c}</option>)}</select></Field>
+          </div>
+          <div className="grid gap-5 sm:grid-cols-2">
+            <Field label={t("f.winners")}><><Input type="number" min={1} max={100} required list="winner-options" value={f.winners_count} onChange={set("winners_count")} /><datalist id="winner-options">{[1, 2, 3, 5, 10, 20, 50, 100].map((n) => <option key={n} value={n} />)}</datalist></></Field>
+            <Field label={t("f.ends")}><select className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm" value={f.days} onChange={set("days")}><option value="1h">{t("f.hour1")}</option>{DURATIONS.map((d) => <option key={d} value={d}>{t(`f.day${d}` as "f.day1")}</option>)}</select></Field>
+          </div>
+        </StepSection>
 
-        <div className="rounded-xl border border-border p-4">
-          <p className="font-medium">{t("f.condTitle")}</p>
-          <p className="mt-1 text-sm text-muted-foreground">{t("f.condHint")}</p>
-          <div className="mt-3 space-y-3">
-            <Field label={t("f.keyword")}><Input maxLength={100} value={f.keyword} onChange={set("keyword")} /></Field>
-            <div className="grid gap-2 sm:grid-cols-2">
-              {METRIC_KEYS.map((k) => (
-                <label key={k} className={`flex items-center gap-2 rounded-md border px-3 py-2 text-sm ${sel[k] ? "border-primary bg-primary/5" : "border-border"} ${k === "min_replies" ? "cursor-not-allowed" : "cursor-pointer"}`}>
-                  <input type="checkbox" checked={!!sel[k]} disabled={k === "min_replies"} onChange={() => toggle(k)} className="accent-[#d4a017]" />
-                  <span>{t(METRIC_LABEL[k])}{k === "min_replies" ? ` · ${t("f.required")}` : ""}</span>
+        <StepSection n={2} title={t("f.step2")}>
+          <p className="text-sm text-muted-foreground">{t("f.condHint")}</p>
+          <Field label={t("f.keyword")}><Input maxLength={100} value={f.keyword} onChange={set("keyword")} /></Field>
+          <div className="flex items-center justify-between">
+            <p className="text-xs font-medium text-muted-foreground">{t("f.condTitle")}</p>
+            <span className="text-xs text-muted-foreground">{t("f.condCount")} {selKeys.length} / {MAX_CONDITIONS}</span>
+          </div>
+          <div className="grid gap-2 sm:grid-cols-2">
+            {METRIC_KEYS.map((k) => {
+              const Icon = METRIC_ICON[k];
+              return (
+                <label key={k} className={`flex cursor-pointer items-center gap-3 rounded-xl border p-3 text-sm transition-all ${
+                  sel[k] ? "border-primary bg-primary/8 shadow-[0_0_0_3px_rgba(var(--primary)/0.1)]" : "border-border hover:border-primary/40"
+                } ${k === "min_replies" ? "cursor-not-allowed" : ""}`}>
+                  <input type="checkbox" checked={!!sel[k]} disabled={k === "min_replies"} onChange={() => toggle(k)} className="sr-only" />
+                  <Icon className={`h-4 w-4 shrink-0 ${sel[k] ? "text-primary" : "text-muted-foreground"}`} />
+                  <span className="flex-1 font-medium">
+                    {t(METRIC_LABEL[k])}
+                    {k === "min_replies" && <span className="ml-1 text-xs font-normal text-muted-foreground">· {t("f.required")}</span>}
+                  </span>
                   {sel[k] && (
-                    <span className="ml-auto flex items-center gap-1 text-muted-foreground">
-                      ≥
-                      <Input type="number" min={1} className="h-7 w-20 px-2" value={vals[k]} onChange={(e) => setVals({ ...vals, [k]: e.target.value })} />
+                    <span className="flex items-center gap-1 text-muted-foreground">
+                      ≥<Input type="number" min={1} className="h-7 w-16 px-2 text-xs" value={vals[k]} onChange={(e) => setVals({ ...vals, [k]: e.target.value })} />
                     </span>
                   )}
                 </label>
-              ))}
+              );
+            })}
+          </div>
+        </StepSection>
+
+        <StepSection n={3} title={t("f.step3")}>
+          <Field label={t("f.prize")}>
+            <Input required maxLength={200} placeholder={t("f.prizePh")} value={prizeText} onChange={(e) => { setPrizeTouched(true); setF({ ...f, prize: e.target.value }); }} />
+            <p className="text-xs text-muted-foreground">{t("f.prizeAuto")}</p>
+          </Field>
+          <Field label={t("f.title")}>
+            <Input required maxLength={120} value={titleText} onChange={(e) => { setTitleTouched(true); setF({ ...f, title: e.target.value }); }} />
+            <p className="text-xs text-muted-foreground">{t("f.titleAuto")}</p>
+          </Field>
+          <Field label={t("f.req")}><Textarea rows={3} maxLength={1000} placeholder={t("f.reqPh")} value={f.requirement} onChange={set("requirement")} /></Field>
+          <div className="rounded-xl border border-border p-4">
+            <p className="font-medium">{t("f.tweetTitle")}</p>
+            <p className="mt-1 text-sm text-muted-foreground">{t("f.tweetHint")}</p>
+            <div className="mt-3">
+              <Field label={t("f.tweetUrl")}><Input type="url" placeholder="https://x.com/you/status/…" value={f.tweet_url} onChange={set("tweet_url")} /></Field>
             </div>
           </div>
-        </div>
-
-        <Field label={t("f.prize")}>
-          <Input required maxLength={200} placeholder={t("f.prizePh")} value={prizeText} onChange={(e) => { setPrizeTouched(true); setF({ ...f, prize: e.target.value }); }} />
-          <p className="text-xs text-muted-foreground">{t("f.prizeAuto")}</p>
-        </Field>
-        <Field label={t("f.title")}>
-          <Input required maxLength={120} value={titleText} onChange={(e) => { setTitleTouched(true); setF({ ...f, title: e.target.value }); }} />
-          <p className="text-xs text-muted-foreground">{t("f.titleAuto")}</p>
-        </Field>
-        <Field label={t("f.req")}><Textarea rows={3} maxLength={1000} placeholder={t("f.reqPh")} value={f.requirement} onChange={set("requirement")} /></Field>
-
-        <div className="rounded-xl border border-border p-4">
-          <p className="font-medium">{t("f.tweetTitle")}</p>
-          <p className="mt-1 text-sm text-muted-foreground">{t("f.tweetHint")}</p>
-          <div className="mt-3">
-            <Field label={t("f.tweetUrl")}><Input type="url" placeholder="https://x.com/you/status/…" value={f.tweet_url} onChange={set("tweet_url")} /></Field>
-          </div>
-        </div>
+        </StepSection>
       </fieldset>
       </form>
 
@@ -235,10 +262,19 @@ function NewCampaign() {
             />
           </div>
         </div>
-        <Button type="submit" form="new-campaign" className="w-full" disabled={busy || !!created}>
-          {created ? t("f.confirmed") : t("f.confirm")}
-        </Button>
-        <p className="text-xs text-muted-foreground">{t("f.confirmHint")}</p>
+        {created ? (
+          <div className="flex items-center gap-2 rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-3 text-sm font-medium text-emerald-400">
+            <CheckCircle2 className="h-4 w-4 shrink-0" />
+            {t("f.confirmed")}
+          </div>
+        ) : (
+          <>
+            <Button type="submit" form="new-campaign" className="w-full" disabled={busy}>
+              {t("f.confirm")}
+            </Button>
+            <p className="text-xs text-muted-foreground">{t("f.confirmHint")}</p>
+          </>
+        )}
         {created && <PrepayPanel c={created} onDone={() => setFunded(true)} />}
       </aside>
       </div>
@@ -297,7 +333,7 @@ function PrepayPanel({ c, onDone }: { c: Created; onDone: () => void }) {
 
   return (
     <div className="space-y-4">
-      <div className="space-y-4 rounded-lg border border-primary/30 bg-primary/5 p-4">
+      <div className="space-y-4 rounded-xl border border-indigo-500/40 bg-indigo-500/5 p-4 shadow-[0_4px_24px_-8px_rgba(99,102,241,0.25)]">
         <p className="font-medium">💰 {t("f.prepay")}</p>
         <dl className="space-y-1.5 text-sm">
           <div className="flex items-baseline justify-between gap-4">
@@ -406,6 +442,18 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
   return (
     <div className="space-y-1.5">
       <Label>{label}</Label>
+      {children}
+    </div>
+  );
+}
+
+function StepSection({ n, title, children }: { n: number; title: string; children: React.ReactNode }) {
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center gap-3">
+        <span className="flex h-6 w-6 items-center justify-center rounded-full bg-primary/15 text-xs font-bold text-primary">{n}</span>
+        <span className="text-sm font-semibold">{title}</span>
+      </div>
       {children}
     </div>
   );
