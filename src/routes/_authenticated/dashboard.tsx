@@ -1,15 +1,15 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useI18n } from "@/lib/i18n";
 import { Button } from "@/components/ui/button";
-import { StatusBadge } from "@/components/status-badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Input } from "@/components/ui/input";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Activity, ArrowUpRight, Eye, Gift, Search, TrendingUp, Zap } from "lucide-react";
-import type { Metrics } from "@/lib/conditions";
+import {
+  Activity, BarChart3, BadgeCheck, Eye, ExternalLink, Gift, Heart,
+  MessageCircle, MessageSquare, MoreHorizontal, Plus, Repeat2, Search, UserPlus, Users, Zap,
+} from "lucide-react";
+import type { Conditions, Metrics } from "@/lib/conditions";
 import { fetchAllSnaps } from "@/lib/campaign-hub";
 
 export const Route = createFileRoute("/_authenticated/dashboard")({
@@ -24,23 +24,86 @@ export const Route = createFileRoute("/_authenticated/dashboard")({
   component: Dashboard,
 });
 
-const fmtCompact = (v: number) => v.toLocaleString("en-US", { notation: "compact", maximumFractionDigits: 1 });
+const DAY = 864e5;
 type SnapRow = { campaign_id: string; metrics: unknown; fetched_at: string };
-type Camp = { id: string; slug: string; title: string; prize: string; prize_amount: number | null; currency: string; status: string; ends_at: string; created_at: string; tweet_url: string | null; entries: number };
+type Camp = {
+  id: string; slug: string; title: string; prize: string; prize_amount: number | null;
+  currency: string; status: string; ends_at: string; created_at: string;
+  tweet_url: string | null; conditions: unknown; winners_count: number | null;
+};
+type St = "wait" | "live" | "done" | "end";
+
 const asM = (m: unknown): Metrics | null => (m ?? null) as Metrics | null;
 const eng = (m: Metrics | null): number | null => {
   if (!m) return null;
   const vals = [m.likes, m.replies, m.reposts, m.quotes, m.bookmarks].filter((v): v is number => typeof v === "number");
   return vals.length ? vals.reduce((a, b) => a + b, 0) : null;
 };
-const RANGE_MS: Record<string, number> = { "7": 7 * 864e5, "30": 30 * 864e5, "90": 90 * 864e5, all: Infinity };
+const short = (n: number | null | undefined): string => {
+  if (n == null) return "—";
+  const a = Math.abs(n);
+  if (a >= 1e6) return `${Math.round(n / 1e5) / 10}M`;
+  if (a >= 1e3) return `${Math.round(n / 100) / 10}K`;
+  return String(Math.round(n));
+};
+const md = (d: Date) => `${d.getMonth() + 1}/${d.getDate()}`;
+
+/** Live/open/wait/done classification matching the mockup badges. */
+function stOf(c: Camp, now: number): St {
+  if (c.status === "drawn") return "done";
+  if (c.status === "cancelled" || Date.parse(c.ends_at) <= now) return "end";
+  return c.tweet_url ? "live" : "wait";
+}
+
+const COND_ICON: Record<string, React.ElementType> = {
+  min_likes: Heart, min_replies: MessageCircle, min_reposts: Repeat2,
+  min_quotes: MessageSquare, min_views: Eye, min_participants: Users, min_verified: BadgeCheck,
+};
+const COND_TITLE: Record<string, string> = {
+  min_likes: "cond.likes", min_replies: "cond.replies", min_reposts: "cond.reposts",
+  min_quotes: "cond.quotes", min_views: "cond.views", min_participants: "cond.participants", min_verified: "cond.verified",
+};
+const condKeys = (c: Camp): string[] =>
+  Object.keys(COND_ICON).filter((k) => typeof (c.conditions as Conditions | null)?.[k as keyof Conditions] === "number");
+
+/** Daily-new series per metric over `days` days; fol is grouped by account handle to avoid double-counting. */
+function dailySeries(snaps: SnapRow[], key: "view" | "eng" | "fol", days: number): number[] {
+  const today = Math.floor(Date.now() / DAY);
+  const start = today - days + 1;
+  const groups = new Map<string, SnapRow[]>();
+  for (const s of snaps) {
+    const m = asM(s.metrics);
+    const gk = key === "fol" ? (m?.author_handle ?? s.campaign_id) : s.campaign_id;
+    (groups.get(gk) ?? groups.set(gk, []).get(gk)!).push(s);
+  }
+  const out = new Array<number>(days).fill(0);
+  for (const arr of groups.values()) {
+    arr.sort((a, b) => Date.parse(a.fetched_at) - Date.parse(b.fetched_at));
+    const daily = new Map<number, number>();
+    for (const s of arr) {
+      const m = asM(s.metrics);
+      const v = key === "view" ? m?.views : key === "fol" ? m?.followers : eng(m);
+      if (typeof v !== "number") continue;
+      daily.set(Math.floor(Date.parse(s.fetched_at) / DAY), v);
+    }
+    const keys = [...daily.keys()].sort((a, b) => a - b);
+    keys.forEach((d, i) => {
+      const idx = d - start;
+      if (idx < 0 || idx >= days) return;
+      const pk = keys[i - 1];
+      const prev = i > 0 && pk !== undefined ? (daily.get(pk) ?? 0) : 0;
+      out[idx] += Math.max(0, daily.get(d)! - prev);
+    });
+  }
+  return out;
+}
 
 function Dashboard() {
-  const { t } = useI18n();
-  const [range, setRange] = useState<keyof typeof RANGE_MS>("30");
-  const [trend, setTrend] = useState<"impressions" | "engagements" | "growth">("impressions");
-  const [search, setSearch] = useState("");
-  const [status, setStatus] = useState("all");
+  const { t, lang } = useI18n();
+  const [range, setRange] = useState(30);
+  const [metric, setMetric] = useState<"view" | "eng" | "fol">("view");
+  const [q, setQ] = useState("");
+  const [filt, setFilt] = useState<"all" | St>("all");
   const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ["dashboard"],
     queryFn: async () => {
@@ -48,26 +111,25 @@ function Dashboard() {
       const uid = u.user!.id;
       const { data: campaigns } = await supabase.from("campaigns").select("*").eq("owner_id", uid).order("created_at", { ascending: false });
       const ids = (campaigns ?? []).map((c) => c.id);
-      const counts = await Promise.all(ids.map(async (id) => (await supabase.rpc("entry_count", { _campaign_id: id })).data ?? 0));
       const snaps = ids.length
         ? await fetchAllSnaps<SnapRow>((from, size) => supabase.from("condition_snapshots").select("campaign_id, metrics, fetched_at").in("campaign_id", ids).order("fetched_at", { ascending: true }).range(from, from + size - 1))
         : [];
-      return { campaigns: (campaigns ?? []).map((c, i) => ({ ...c, entries: counts[i] })) as Camp[], snaps };
+      return { campaigns: (campaigns ?? []) as Camp[], snaps };
     },
   });
 
   if (isLoading) {
     return (
-      <div className="mx-auto max-w-6xl px-4 py-12">
-        <Skeleton className="h-9 w-48" /><Skeleton className="mt-2 h-4 w-72" />
-        <div className="mt-8 grid grid-cols-2 gap-3 lg:grid-cols-4">{[0, 1, 2, 3].map((i) => <Skeleton key={i} className="h-[130px] rounded-xl" />)}</div>
-        <Skeleton className="mt-6 h-[260px] rounded-xl" />
+      <div className="page-dash mx-auto max-w-[1240px] px-6 py-12">
+        <Skeleton className="h-10 w-48" /><Skeleton className="mt-2 h-4 w-80" />
+        <div className="mt-8 grid grid-cols-2 gap-4 lg:grid-cols-4">{[0, 1, 2, 3].map((i) => <Skeleton key={i} className="h-[130px] rounded-[20px]" />)}</div>
+        <Skeleton className="mt-5 h-[340px] rounded-[22px]" />
       </div>
     );
   }
   if (isError || !data) {
     return (
-      <div className="mx-auto flex max-w-6xl flex-col items-center gap-4 px-4 py-24 text-center">
+      <div className="mx-auto flex max-w-[1240px] flex-col items-center gap-4 px-6 py-24 text-center">
         <p className="text-muted-foreground">{t("dash.loadError")}</p>
         <Button variant="outline" onClick={() => refetch()}>{t("dash.retry")}</Button>
       </div>
@@ -76,283 +138,342 @@ function Dashboard() {
 
   const { campaigns, snaps } = data;
   const now = Date.now();
-  const rangeMs = RANGE_MS[range];
-  const inRange = snaps.filter((s) => rangeMs === Infinity || now - Date.parse(s.fetched_at) <= rangeMs);
   const snapsByCamp = new Map<string, SnapRow[]>();
   for (const s of snaps) (snapsByCamp.get(s.campaign_id) ?? snapsByCamp.set(s.campaign_id, []).get(s.campaign_id)!).push(s);
 
-  // ---- KPI: per-campaign snapshot deltas inside the selected range ----
-  const inRangeByCamp = new Map<string, SnapRow[]>();
-  for (const s of inRange) (inRangeByCamp.get(s.campaign_id) ?? inRangeByCamp.set(s.campaign_id, []).get(s.campaign_id)!).push(s);
-  let impDelta: number | null = null;
-  let engDelta: number | null = null;
-  for (const arr of inRangeByCamp.values()) {
-    const f = asM(arr[0].metrics), l = asM(arr[arr.length - 1].metrics);
-    if (typeof f?.views === "number" && typeof l?.views === "number") impDelta = (impDelta ?? 0) + Math.max(0, l.views - f.views);
-    const fe = eng(f), le = eng(l);
-    if (fe !== null && le !== null) engDelta = (engDelta ?? 0) + Math.max(0, le - fe);
-  }
-  // Account growth: group by X handle so parallel campaigns never double-count the same account.
-  const byHandle = new Map<string, number[]>();
-  for (const s of inRange) {
-    const m = asM(s.metrics);
-    if (typeof m?.followers !== "number") continue;
-    const h = m.author_handle ?? s.campaign_id;
-    (byHandle.get(h) ?? byHandle.set(h, []).get(h)!).push(m.followers);
-  }
-  let growth: number | null = null;
-  for (const v of byHandle.values()) if (v.length >= 1) growth = (growth ?? 0) + Math.max(0, v[v.length - 1] - v[0]);
-  const live = campaigns.filter((c) => c.status === "open" && Date.parse(c.ends_at) > now).length;
+  // ---- series & KPI ----
+  const S = {
+    view: dailySeries(snaps, "view", 90),
+    eng: dailySeries(snaps, "eng", 90),
+    fol: dailySeries(snaps, "fol", 90),
+  };
+  const sum = (a: number[], from: number, to: number) => a.slice(from, to).reduce((x, y) => x + y, 0);
+  const vCur = sum(S.view, 90 - range, 90), vPrev = sum(S.view, Math.max(0, 90 - 2 * range), 90 - range);
+  const eCur = sum(S.eng, 90 - range, 90), ePrev = sum(S.eng, Math.max(0, 90 - 2 * range), 90 - range);
+  const fCur = Math.round(sum(S.fol, 90 - range, 90));
+  const folCamps = campaigns.filter((c) => {
+    const arr = snapsByCamp.get(c.id) ?? [];
+    const first = asM(arr.find((s) => typeof asM(s.metrics)?.followers === "number")?.metrics);
+    const last = asM(arr[arr.length - 1]?.metrics);
+    return typeof first?.followers === "number" && typeof last?.followers === "number" && last.followers > first.followers;
+  }).length;
 
-  // ---- Aggregate cumulative trend over range ----
-  const trendPts = buildSeries(inRange, trend);
+  // ---- rows ----
+  const rows = campaigns.map((c) => {
+    const arr = snapsByCamp.get(c.id) ?? [];
+    const lm = asM(arr[arr.length - 1]?.metrics);
+    const firstF = asM(arr.find((s) => typeof asM(s.metrics)?.followers === "number")?.metrics);
+    const growth = typeof lm?.followers === "number" && typeof firstF?.followers === "number" ? Math.max(0, lm.followers - firstF.followers) : null;
+    return { c, lm, st: stOf(c, now), e: eng(lm), growth, handle: lm?.author_handle ?? null };
+  });
+  const cnt: Record<string, number> = { all: rows.length };
+  for (const r of rows) cnt[r.st] = (cnt[r.st] ?? 0) + 1;
+  const order: Record<St, number> = { wait: 0, live: 1, done: 2, end: 3 };
+  const list = rows
+    .filter((r) => (filt === "all" || r.st === filt) && (!q || (r.c.title + (r.handle ?? "")).toLowerCase().includes(q.toLowerCase())))
+    .sort((a, b) => order[a.st] - order[b.st] || Date.parse(b.c.created_at) - Date.parse(a.c.created_at));
 
-  // ---- Portfolio table state ----
-  const rank = (c: Camp) => (c.status === "open" && Date.parse(c.ends_at) > now ? 0 : c.status === "open" ? 1 : c.status === "drawn" ? 2 : 3);
-  const statusKey = (c: Camp) => (c.status === "drawn" ? "drawn" : c.status === "cancelled" ? "cancelled" : Date.parse(c.ends_at) < now ? "ended" : "live");
-  const rows = campaigns
-    .map((c) => {
-      const arr = snapsByCamp.get(c.id) ?? [];
-      const latestM = asM(arr[arr.length - 1]?.metrics);
-      const firstF = asM(arr.find((s) => typeof asM(s.metrics)?.followers === "number")?.metrics);
-      return { c, latestM, growth: typeof latestM?.followers === "number" && typeof firstF?.followers === "number" ? Math.max(0, latestM.followers - firstF.followers) : null, engagements: eng(latestM) };
-    })
-    .filter((r) => (status === "all" || statusKey(r.c) === status) && (!search || r.c.title.toLowerCase().includes(search.toLowerCase())))
-    .sort((a, b) => rank(a.c) - rank(b.c) || Date.parse(b.c.created_at) - Date.parse(a.c.created_at));
+  const TABS: [string, string][] = [
+    ["all", t("dash.stAll")], ["live", t("status.open")], ["wait", t("dash.stWait")],
+    ["done", t("status.drawn")], ["end", t("status.ended")],
+  ];
+  const BADGE: Record<St, { cls: string; label: string }> = {
+    wait: { cls: "b-wait", label: t("dash.stWait") },
+    live: { cls: "b-live", label: t("status.open") },
+    done: { cls: "b-done", label: t("status.drawn") },
+    end: { cls: "b-end", label: t("status.ended") },
+  };
+  const MIX_COL: Record<St, string> = { live: "#34d399", wait: "#f5b83d", done: "#7c5cff", end: "#646f85" };
+  const mixOrder: St[] = ["live", "wait", "done", "end"];
+  const LBL: Record<"view" | "eng" | "fol", string> = { view: t("dash.suffView"), eng: t("dash.suffEng"), fol: t("dash.suffFol") };
+  const METRIC_LABEL: Record<"view" | "eng" | "fol", string> = { view: t("trend.impressions"), eng: t("trend.engagements"), fol: t("dash.mFol") };
+  const chartArr = S[metric].slice(90 - range);
+  const chartSum = chartArr.reduce((a, b) => a + b, 0);
 
   return (
-    <div className="relative mx-auto max-w-6xl px-4 py-12">
-      <div aria-hidden className="pointer-events-none absolute -top-24 left-0 h-72 w-[42rem] bg-[radial-gradient(ellipse_at_top_left,rgba(24,235,165,0.07),transparent_65%)]" />
-      <div className="relative flex flex-wrap items-end justify-between gap-4">
+    <div className="page-dash" style={{ maxWidth: 1240, margin: "0 auto", padding: "48px 24px 80px" }}>
+      {/* ── hero ── */}
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", gap: 24, flexWrap: "wrap", marginBottom: 32 }}>
         <div>
-          <h1 className="text-4xl font-semibold">{t("dash.title")}</h1>
-          <p className="mt-2 text-sm text-muted-foreground">{t("dash.subtitle")}</p>
+          <h1 style={{ fontSize: 40, fontWeight: 700, lineHeight: 1.2, letterSpacing: "-.01em" }}>{t("dash.title")}</h1>
+          <p style={{ color: "var(--muted-foreground)", marginTop: 8 }}>{t("dash.subtitle")}</p>
         </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <Select value={range} onValueChange={(v) => setRange(v as keyof typeof RANGE_MS)}>
-            <SelectTrigger className="w-[150px]"><SelectValue /></SelectTrigger>
-            <SelectContent>
-              {(["7", "30", "90", "all"] as const).map((r) => <SelectItem key={r} value={r}>{t(`range.${r}`)}</SelectItem>)}
-            </SelectContent>
-          </Select>
-          <Button asChild><Link to="/new">{t("dash.new")}</Link></Button>
+        <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
+          <select className="sel" value={range} onChange={(e) => setRange(Number(e.target.value))} aria-label={lang === "zh" ? "时间范围" : "Range"}>
+            {[7, 30, 90].map((d) => <option key={d} value={d}>{t(`range.${d}`)}</option>)}
+          </select>
+          <Link to="/new" className="btn-gradient" style={{ textDecoration: "none", width: "auto", padding: "0 20px" }}>
+            <Plus style={{ width: 18, height: 18 }} />{t("dash.new")}
+          </Link>
         </div>
       </div>
 
-      {campaigns.length === 0 ? (
-        <div className="mt-16 flex flex-col items-center gap-4 rounded-xl border border-dashed border-border py-14 text-center">
-          <Zap className="size-6 text-prize" />
-          <p className="font-medium">{t("dash.emptyTitle")}</p>
-          <p className="text-sm text-muted-foreground">{t("dash.emptyDesc")}</p>
-          <Button asChild variant="neon"><Link to="/new">{t("dash.emptyCta")}</Link></Button>
+      {/* ── stats ── */}
+      <div className="stats">
+        <div className="panel stat">
+          <div className="stat-h">{t("kpi.impressions")}<span className="stat-ic" style={{ background: "rgba(56,189,248,.12)", color: "#38bdf8" }}><Eye /></span></div>
+          <div className="stat-v">{short(vCur)}</div>
+          <div className="stat-f"><Delta prev={vPrev} cur={vCur} /><Spark arr={S.view} color="#38bdf8" /></div>
         </div>
-      ) : (
-        <>
-          <div className="mt-8 grid grid-cols-2 gap-3 lg:grid-cols-4">
-            <KpiCard icon={Eye} accent="text-prize" label={t("kpi.impressions")} value={impDelta === null ? "—" : fmtCompact(impDelta)} note={impDelta === null ? t("kpi.noData") : t("kpi.scope")} />
-            <KpiCard icon={Activity} accent="text-sky-400" label={t("kpi.engagements")} value={engDelta === null ? "—" : fmtCompact(engDelta)} note={engDelta === null ? t("kpi.noData") : t("kpi.scope")} />
-            <KpiCard icon={TrendingUp} accent="text-violet-400" label={t("kpi.growth")} value={growth === null ? "—" : `+${fmtCompact(growth)}`} note={growth === null ? t("kpi.noData") : t("kpi.growthNote")} />
-            <KpiCard icon={Gift} accent="text-foreground" label={t("kpi.giveaways")} value={String(campaigns.length)} note={`${live} ${t("kpi.live")}`} />
-          </div>
+        <div className="panel stat">
+          <div className="stat-h">{t("kpi.engagements")}<span className="stat-ic" style={{ background: "rgba(124,92,255,.14)", color: "#a99bff" }}><Activity /></span></div>
+          <div className="stat-v">{short(eCur)}</div>
+          <div className="stat-f"><Delta prev={ePrev} cur={eCur} /><Spark arr={S.eng} color="#a99bff" /></div>
+        </div>
+        <div className="panel stat">
+          <div className="stat-h">{t("kpi.growth")}<span className="stat-ic" style={{ background: "rgba(52,211,153,.12)", color: "#34d399" }}><UserPlus /></span></div>
+          <div className="stat-v" style={{ color: "#34d399" }}>+{fCur}</div>
+          <div className="stat-f"><span className="delta">{t("dash.fromPre")} <b>{folCamps}</b> {t("dash.fromPost")}</span><Spark arr={S.fol} color="#34d399" /></div>
+        </div>
+        <div className="panel stat">
+          <div className="stat-h">{t("dash.stCamps")}<span className="stat-ic" style={{ background: "rgba(245,184,61,.12)", color: "#f5b83d" }}><Gift /></span></div>
+          <div className="stat-v">{campaigns.length}</div>
+          <div className="mix">{mixOrder.filter((k) => cnt[k]).map((k) => <i key={k} style={{ flex: cnt[k], background: MIX_COL[k] }} />)}</div>
+          <div className="mix-l">{mixOrder.filter((k) => cnt[k]).map((k) => <span key={k} style={{ "--c": MIX_COL[k] } as React.CSSProperties}>{BADGE[k].label} {cnt[k]}</span>)}</div>
+        </div>
+      </div>
 
-          <div className="mt-6 rounded-xl border border-border bg-card p-5">
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <p className="text-xs font-medium text-muted-foreground">{t("trend.title")}</p>
-              <div className="flex gap-1">
-                {(["impressions", "engagements", "growth"] as const).map((k) => (
-                  <button key={k} onClick={() => setTrend(k)} className={`rounded-full px-3 py-1 text-xs transition-colors ${trend === k ? "bg-primary/15 text-prize" : "text-muted-foreground hover:text-foreground"}`}>{t(`trend.${k}`)}</button>
-                ))}
-              </div>
+      {/* ── chart ── */}
+      <section className="panel chart-p">
+        <div className="chart-h">
+          <div>
+            <h2>{t("trend.title")}</h2>
+            <p>{t("dash.chartSub")}</p>
+            <div className="chart-sum">{metric === "fol" ? `+${Math.round(chartSum)}` : short(chartSum)}<small>{t(`range.${range}`)} {LBL[metric]}</small></div>
+          </div>
+          <div className="pills" role="tablist">
+            {(["view", "eng", "fol"] as const).map((k) => (
+              <button key={k} role="tab" aria-selected={metric === k} onClick={() => setMetric(k)}>{METRIC_LABEL[k]}</button>
+            ))}
+          </div>
+        </div>
+        <BarsChart arr={chartArr} range={range} isFol={metric === "fol"} suffix={LBL[metric]} />
+      </section>
+
+      {/* ── list ── */}
+      <section>
+        <div className="list-h">
+          <div>
+            <h2>{t("tbl.title")}</h2>
+            <p>{t("tbl.subtitle")}</p>
+          </div>
+          <div className="tools">
+            <div className="pills tabs" role="tablist">
+              {TABS.map(([k, n]) => (
+                <button key={k} role="tab" aria-selected={filt === k} onClick={() => setFilt(k as "all" | St)}>
+                  {n}<span className="c">{cnt[k] ?? 0}</span>
+                </button>
+              ))}
             </div>
-            {trendPts.length >= 2 ? <TrendChart pts={trendPts} color={trend === "impressions" ? "#18EBA5" : trend === "engagements" ? "#38BDF8" : "#B18CFF"} /> : <p className="mt-6 text-sm text-muted-foreground">{t("trend.none")}</p>}
-            <p className="mt-2 text-[10px] text-muted-foreground/70">{t("trend.caption")}</p>
+            <label className="search">
+              <Search />
+              <input value={q} onChange={(e) => setQ(e.target.value)} placeholder={t("dash.searchPh")} aria-label={t("dash.searchPh")} />
+            </label>
           </div>
+        </div>
 
-          <div className="mt-8">
-            <div className="flex flex-wrap items-end justify-between gap-3">
-              <div>
-                <h2 className="text-lg font-semibold">{t("tbl.title")}</h2>
-                <p className="mt-0.5 text-sm text-muted-foreground">{t("tbl.subtitle")}</p>
-              </div>
-              <div className="flex flex-wrap items-center gap-2">
-                <div className="relative">
-                  <Search className="absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
-                  <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder={t("tbl.search")} className="h-9 w-44 pl-8" />
-                </div>
-                <Select value={status} onValueChange={setStatus}>
-                  <SelectTrigger className="h-9 w-[130px]"><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">{t("tbl.allStatus")}</SelectItem>
-                    <SelectItem value="live">{t("status.open")}</SelectItem>
-                    <SelectItem value="ended">{t("status.ended")}</SelectItem>
-                    <SelectItem value="drawn">{t("status.drawn")}</SelectItem>
-                    <SelectItem value="cancelled">{t("status.cancelled")}</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
+        <div className="panel table">
+          <div className="thead">
+            <span>{t("tbl.campaign")}</span><span>{t("tbl.status")}</span>
+            <span className="r">{t("tbl.impressions")}</span><span className="r">{t("tbl.engagements")}</span>
+            <span className="r">{t("tbl.growth")}</span><span className="r">{t("tbl.created")}</span><span className="r">{t("tbl.actions")}</span>
+          </div>
+          {campaigns.length === 0 ? (
+            <div className="empty">
+              <Zap style={{ width: 26, height: 26, color: "#f5b83d", margin: "0 auto 10px" }} />
+              <h3>{t("dash.emptyTitle")}</h3>
+              <p>{t("dash.emptyDesc")}</p>
+              <Link to="/new" className="btn-gradient" style={{ textDecoration: "none", width: "auto", padding: "0 20px", display: "inline-flex" }}>{t("dash.emptyCta")}</Link>
             </div>
+          ) : list.length === 0 ? (
+            <div className="empty">
+              <h3>{t("dash.emptyT")}</h3>
+              <p>{t("dash.emptyP")}</p>
+            </div>
+          ) : (
+            list.map((r) => <CampRow key={r.c.id} r={r} badge={BADGE[r.st]} />)
+          )}
+        </div>
+      </section>
+    </div>
+  );
+}
 
-            {rows.length === 0 ? (
-              <p className="mt-6 text-sm text-muted-foreground">{t("tbl.noMatch")}</p>
-            ) : (
-              <>
-                <div className="mt-4 hidden overflow-x-auto rounded-xl border border-border md:block">
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr className="border-b border-border text-left text-[11px] text-muted-foreground">
-                        <th className="px-4 py-3 font-medium">{t("tbl.campaign")}</th>
-                        <th className="px-4 py-3 font-medium">{t("tbl.status")}</th>
-                        <th className="px-4 py-3 text-right font-medium">{t("tbl.impressions")}</th>
-                        <th className="px-4 py-3 text-right font-medium">{t("tbl.engagements")}</th>
-                        <th className="px-4 py-3 text-right font-medium">{t("tbl.growth")}</th>
-                        <th className="px-4 py-3 font-medium">{t("tbl.created")}</th>
-                        <th className="px-4 py-3 text-right font-medium">{t("tbl.actions")}</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {rows.map((r) => <CampRow key={r.c.id} r={r} />)}
-                    </tbody>
-                  </table>
-                </div>
-                <div className="mt-4 grid gap-3 md:hidden">
-                  {rows.map((r) => <CampCard key={r.c.id} r={r} />)}
-                </div>
-              </>
-            )}
-          </div>
-        </>
+function Delta({ prev, cur }: { prev: number; cur: number }) {
+  const { t } = useI18n();
+  const p = prev > 0 ? Math.round(((cur - prev) / prev) * 100) : null;
+  return (
+    <span className="delta">
+      {p === null ? t("kpi.noData") : <>{t("dash.vsPrev")} <b className="up">{p >= 0 ? "↑" : "↓"} {Math.abs(p)}%</b></>}
+    </span>
+  );
+}
+
+function Spark({ arr, color }: { arr: number[]; color: string }) {
+  const a = arr.slice(-14);
+  const mx = Math.max(...a, 1);
+  const pts = a.map((v, i) => `${(i / (a.length - 1)) * 84},${26 - Math.sqrt(v / mx) * 24}`).join(" ");
+  return (
+    <svg className="spark" viewBox="0 0 84 28" preserveAspectRatio="none">
+      <polyline points={pts} fill="none" stroke={color} strokeWidth="1.8" strokeLinejoin="round" strokeLinecap="round" vectorEffect="non-scaling-stroke" />
+    </svg>
+  );
+}
+
+/** Bar chart with sqrt y-scale, hover crosshair and tooltip — mirrors the mockup. */
+function BarsChart({ arr, range, isFol, suffix }: { arr: number[]; range: number; isFol: boolean; suffix: string }) {
+  const ref = useRef<HTMLDivElement>(null);
+  const [W, setW] = useState(0);
+  const [hov, setHov] = useState<number | null>(null);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const ro = new ResizeObserver(() => setW(el.clientWidth));
+    ro.observe(el);
+    setW(el.clientWidth);
+    return () => ro.disconnect();
+  }, []);
+  const H = 280, L = 48, R = 8, T = 10, B = 28;
+  const iw = W - L - R, ih = H - T - B;
+  const mx = Math.max(...arr, 1);
+  const y = (v: number) => T + ih - Math.sqrt(v / mx) * ih;
+  const bw = Math.max(2, (iw / arr.length) * 0.62);
+  const x = (i: number) => L + (i + 0.5) * (iw / arr.length);
+  const today = new Date();
+  const dateOf = (i: number) => new Date(today.getTime() - (arr.length - 1 - i) * DAY);
+  const step = range <= 7 ? 1 : range <= 30 ? 5 : 15;
+
+  const onMove = (e: React.MouseEvent) => {
+    const rc = e.currentTarget.getBoundingClientRect();
+    const px = ((e.clientX - rc.left) / rc.width) * W;
+    setHov(Math.min(arr.length - 1, Math.max(0, Math.floor((px - L) / (iw / arr.length)))));
+  };
+
+  return (
+    <div className="chart-box" ref={ref}>
+      {W > 0 && (
+        <svg viewBox={`0 0 ${W} ${H}`} aria-label="daily trend">
+          <defs>
+            <linearGradient id="bg1" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0" stopColor="#7c5cff" /><stop offset="1" stopColor="#3b82f6" stopOpacity=".55" />
+            </linearGradient>
+          </defs>
+          {[0, 0.25, 0.5, 1].map((f) => {
+            const v = mx * f * f, yy = y(v);
+            return (
+              <g key={f}>
+                <line x1={L} x2={W - R} y1={yy} y2={yy} stroke="rgba(255,255,255,.06)" strokeDasharray={f === 0 ? undefined : "3 4"} />
+                <text x={L - 10} y={yy + 4} textAnchor="end" fill="#646f85" fontSize="11" fontFamily="Bricolage Grotesque,sans-serif">{short(v)}</text>
+              </g>
+            );
+          })}
+          {arr.map((v, i) => {
+            const h = Math.max(v > 0 ? 2 : 0, T + ih - y(v));
+            return (
+              <g key={i}>
+                <rect x={x(i) - bw / 2} y={T + ih - h} width={bw} height={h} rx={Math.min(3, bw / 2)} fill="url(#bg1)" opacity={hov === null || hov === i ? 1 : 0.45} />
+                {(arr.length - 1 - i) % step === 0 && (
+                  <text x={x(i)} y={H - 6} textAnchor="middle" fill="#646f85" fontSize="11" fontFamily="Bricolage Grotesque,sans-serif">{md(dateOf(i))}</text>
+                )}
+              </g>
+            );
+          })}
+          {hov !== null && <line x1={x(hov)} x2={x(hov)} y1={T} y2={T + ih} stroke="rgba(255,255,255,.25)" strokeDasharray="3 3" />}
+          <rect x={L} y={T} width={iw} height={ih} fill="transparent" onMouseMove={onMove} onMouseLeave={() => setHov(null)} />
+        </svg>
+      )}
+      {hov !== null && W > 0 && (
+        <div className="tip" style={{ left: Math.min(W - 70, Math.max(70, x(hov))), top: y(arr[hov]) }}>
+          <b>{isFol ? `+${Math.round(arr[hov])}` : short(arr[hov])}</b>
+          <span>{md(dateOf(hov))} · {suffix}</span>
+        </div>
       )}
     </div>
   );
 }
 
-/** Cumulative aggregate series: first observation seeds its full value, later ones add deltas. */
-function buildSeries(rows: SnapRow[], metric: "impressions" | "engagements" | "growth") {
-  const prev = new Map<string, number>();
-  let running = 0;
-  const pts: { t: string; v: number }[] = [];
-  for (const s of rows) {
-    const m = asM(s.metrics);
-    const gkey = metric === "growth" ? (m?.author_handle ?? s.campaign_id) : s.campaign_id;
-    const v = metric === "impressions" ? m?.views ?? null : metric === "growth" ? m?.followers ?? null : eng(m);
-    if (v === null || typeof v !== "number") continue;
-    const p = prev.get(gkey);
-    running += p === undefined ? v : Math.max(0, v - p);
-    prev.set(gkey, v);
-    pts.push({ t: s.fetched_at, v: running });
-  }
-  const stride = Math.ceil(pts.length / 150);
-  return stride <= 1 ? pts : pts.filter((_, i) => i % stride === 0 || i === pts.length - 1);
-}
+const AV_GRADS = [
+  "radial-gradient(circle at 30% 30%,#5aa0ff,#173a8a)",
+  "linear-gradient(135deg,#f59e9e,#b45f7c)",
+  "linear-gradient(135deg,#8b6b4a,#3a2a1e)",
+  "linear-gradient(135deg,#5eead4,#0f766e)",
+  "linear-gradient(135deg,#a78bfa,#4c1d95)",
+];
+const avGrad = (h: string) => AV_GRADS[[...h].reduce((s, c) => s + c.charCodeAt(0), 0) % AV_GRADS.length];
 
-function KpiCard({ icon: Icon, accent, label, value, note }: { icon: typeof Eye; accent: string; label: string; value: string; note: string }) {
-  return (
-    <div className="rounded-xl border border-border bg-card p-5 transition-all duration-200 hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-[0_8px_24px_-12px_rgba(24,235,165,0.25)]">
-      <div className="flex items-start justify-between">
-        <p className="text-xs text-muted-foreground">{label}</p>
-        <Icon className={`size-4 ${accent}`} />
-      </div>
-      <p className="mt-2 font-mono text-3xl font-bold tabular-nums tracking-tight">{value}</p>
-      <p className="mt-1 text-[10px] text-muted-foreground/70">{note}</p>
-    </div>
-  );
-}
-
-function TrendChart({ pts, color }: { pts: { t: string; v: number }[]; color: string }) {
-  const W = 760, H = 220, PL = 36, PR = 12, PT = 16, PB = 30;
-  const max = Math.max(1, ...pts.map((p) => p.v));
-  const x = (i: number) => PL + (i / Math.max(1, pts.length - 1)) * (W - PL - PR);
-  const y = (v: number) => PT + (1 - v / max) * (H - PT - PB);
-  // Catmull-Rom -> cubic bezier for a smooth curve through the points.
-  const P = pts.map((p, i) => [x(i), y(p.v)]);
-  let d = `M ${P[0][0]},${P[0][1]}`;
-  for (let i = 0; i < P.length - 1; i++) {
-    const p0 = P[Math.max(0, i - 1)], p1 = P[i], p2 = P[i + 1], p3 = P[Math.min(P.length - 1, i + 2)];
-    d += ` C ${p1[0] + (p2[0] - p0[0]) / 6},${p1[1] + (p2[1] - p0[1]) / 6} ${p2[0] - (p3[0] - p1[0]) / 6},${p2[1] - (p3[1] - p1[1]) / 6} ${p2[0]},${p2[1]}`;
-  }
-  const area = `${d} L ${P[P.length - 1][0]},${H - PB} L ${P[0][0]},${H - PB} Z`;
-  const gid = `tg-${color.slice(1)}`;
-  const last = pts[pts.length - 1];
-  return (
-    <svg viewBox={`0 0 ${W} ${H}`} className="mt-3 w-full" role="img">
-      <defs>
-        <linearGradient id={gid} x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor={color} stopOpacity="0.22" />
-          <stop offset="100%" stopColor={color} stopOpacity="0" />
-        </linearGradient>
-      </defs>
-      {[0.25, 0.5, 0.75, 1].map((f) => <line key={f} x1={PL} x2={W - PR} y1={y(max * f)} y2={y(max * f)} stroke="currentColor" strokeOpacity="0.08" />)}
-      <path d={area} fill={`url(#${gid})`} />
-      <path d={d} fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" />
-      {pts.map((p, i) => <circle key={i} cx={x(i)} cy={y(p.v)} r="7" fill="transparent"><title>{`${p.v.toLocaleString()} · ${new Date(p.t).toLocaleString()}`}</title></circle>)}
-      <circle cx={x(pts.length - 1)} cy={y(last.v)} r="3.5" fill={color}><title>{`${last.v.toLocaleString()} · ${new Date(last.t).toLocaleString()}`}</title></circle>
-      <text x={PL} y={H - 8} fontSize="10" fill="currentColor" opacity="0.5">{new Date(pts[0].t).toLocaleDateString()}</text>
-      <text x={W - PR} y={H - 8} fontSize="10" fill="currentColor" opacity="0.5" textAnchor="end">{new Date(last.t).toLocaleDateString()}</text>
-      <text x={PL} y={PT - 6} fontSize="10" fill="currentColor" opacity="0.5">{fmtCompact(max)}</text>
-    </svg>
-  );
-}
-
-type Row = { c: Camp; latestM: Metrics | null; growth: number | null; engagements: number | null };
-
-function Avatar({ handle, name }: { handle: string | null; name: string | null }) {
-  if (!handle) return <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-muted text-xs font-semibold ring-1 ring-border">{(name ?? "?").slice(0, 1).toUpperCase()}</span>;
-  return <img src={`https://unavatar.io/x/${handle}`} alt="" loading="lazy" className="size-9 shrink-0 rounded-full bg-muted object-cover ring-1 ring-border" onError={(e) => { e.currentTarget.style.display = "none"; }} />;
-}
-
-function CampRow({ r }: { r: Row }) {
+function CampRow({ r, badge }: { r: { c: Camp; lm: Metrics | null; st: St; e: number | null; growth: number | null; handle: string | null }; badge: { cls: string; label: string } }) {
   const { t } = useI18n();
-  const { c, latestM, growth, engagements } = r;
-  const handle = latestM?.author_handle ?? null;
+  const { c, lm, st, e, growth, handle } = r;
+  const conds = condKeys(c);
+  const goal = (c.conditions as Conditions | null)?.min_replies;
+  const now = typeof lm?.replies === "number" ? lm.replies : null;
+  const pct = st === "live" && typeof goal === "number" && goal > 0 && now !== null ? Math.min(100, Math.round((now / goal) * 100)) : null;
+
   return (
-    <tr className="border-b border-border/60 last:border-0 hover:bg-muted/30">
-      <td className="px-4 py-3">
-        <div className="flex items-center gap-3">
-          <Avatar handle={handle} name={latestM?.author_name ?? c.title} />
-          <div className="min-w-0">
-            <Link to="/c/$slug" params={{ slug: c.slug }} className="block truncate font-medium hover:text-prize">{c.title}</Link>
-            <p className="truncate text-xs text-muted-foreground">{handle ? `@${handle}` : "—"} · {c.prize_amount !== null ? `${c.prize_amount} ${c.currency}` : c.prize}</p>
+    <div className="tr">
+      <div className="act">
+        {handle ? (
+          <span className="av" style={{ background: avGrad(handle) }}>{handle.replace(/^@/, "").slice(0, 2).toUpperCase()}</span>
+        ) : (
+          <span className="av gen"><MessageCircle /></span>
+        )}
+        <div className="act-m">
+          <div className="act-t"><Link to="/c/$slug" params={{ slug: c.slug }}>{c.title}</Link></div>
+          <div className="act-s">
+            {c.prize_amount !== null && <span className="prize">{c.prize_amount}<small>{c.currency}</small></span>}
+            {c.winners_count != null && <span>{c.winners_count} {t("dash.winners")}</span>}
+            {handle && <span>@{handle}</span>}
+            {conds.length > 0 && (
+              <span className="conds">
+                {conds.map((k) => {
+                  const I = COND_ICON[k];
+                  return <span key={k} title={t(COND_TITLE[k] as "cond.likes")}><I /></span>;
+                })}
+              </span>
+            )}
           </div>
         </div>
-      </td>
-      <td className="px-4 py-3"><StatusBadge status={c.status} endsAt={c.ends_at} /></td>
-      <td className="px-4 py-3 text-right font-mono tabular-nums">{typeof latestM?.views === "number" ? fmtCompact(latestM.views) : "—"}</td>
-      <td className="px-4 py-3 text-right font-mono tabular-nums">{engagements !== null ? fmtCompact(engagements) : "—"}</td>
-      <td className="px-4 py-3 text-right font-mono tabular-nums">{growth === null ? "—" : `+${growth.toLocaleString()}`}</td>
-      <td className="px-4 py-3 text-xs text-muted-foreground">{new Date(c.created_at).toLocaleDateString()}</td>
-      <td className="px-4 py-3">
-        <div className="flex items-center justify-end gap-1">
-          <Button asChild variant="ghost" size="sm" className="h-8 px-2 text-xs"><Link to="/c/$slug" params={{ slug: c.slug }}>{t("tbl.analytics")}</Link></Button>
-          {c.tweet_url && <Button asChild variant="ghost" size="sm" className="h-8 px-2 text-xs"><a href={c.tweet_url} target="_blank" rel="noreferrer"><ArrowUpRight className="size-3.5" /><span className="sr-only">{t("tbl.openPost")}</span></a></Button>}
-          <Button asChild variant="ghost" size="sm" className="h-8 px-2 text-xs"><Link to="/manage/$id" params={{ id: c.id }}>{t("tbl.manage")}</Link></Button>
-        </div>
-      </td>
-    </tr>
-  );
-}
-
-function CampCard({ r }: { r: Row }) {
-  const { t } = useI18n();
-  const { c, latestM, growth, engagements } = r;
-  return (
-    <div className="rounded-xl border border-border bg-card p-4">
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <Link to="/c/$slug" params={{ slug: c.slug }} className="block truncate font-medium">{c.title}</Link>
-          <p className="mt-0.5 text-xs text-muted-foreground">{latestM?.author_handle ? `@${latestM.author_handle}` : "—"} · {c.prize_amount !== null ? `${c.prize_amount} ${c.currency}` : c.prize}</p>
-        </div>
-        <StatusBadge status={c.status} endsAt={c.ends_at} />
       </div>
-      <dl className="mt-3 grid grid-cols-3 gap-2 text-center">
-        <div><dt className="text-[10px] text-muted-foreground">{t("tbl.impressions")}</dt><dd className="mt-0.5 font-mono text-sm font-semibold tabular-nums">{typeof latestM?.views === "number" ? fmtCompact(latestM.views) : "—"}</dd></div>
-        <div><dt className="text-[10px] text-muted-foreground">{t("tbl.engagements")}</dt><dd className="mt-0.5 font-mono text-sm font-semibold tabular-nums">{engagements !== null ? fmtCompact(engagements) : "—"}</dd></div>
-        <div><dt className="text-[10px] text-muted-foreground">{t("tbl.growth")}</dt><dd className="mt-0.5 font-mono text-sm font-semibold tabular-nums">{growth === null ? "—" : `+${growth.toLocaleString()}`}</dd></div>
-      </dl>
-      <div className="mt-3 flex gap-2">
-        <Button asChild variant="outline" size="sm" className="h-8 flex-1 text-xs"><Link to="/c/$slug" params={{ slug: c.slug }}>{t("tbl.analytics")}</Link></Button>
-        {c.tweet_url && <Button asChild variant="ghost" size="sm" className="h-8 text-xs"><a href={c.tweet_url} target="_blank" rel="noreferrer">{t("tbl.openPost")}</a></Button>}
-        <Button asChild variant="ghost" size="sm" className="h-8 text-xs"><Link to="/manage/$id" params={{ id: c.id }}>{t("tbl.manage")}</Link></Button>
+      <div className="st"><span className={`badge ${badge.cls}`}>{badge.label}</span></div>
+      {st === "wait" ? (
+        <span className="wait-note">{t("dash.waitNote")}</span>
+      ) : st === "live" ? (
+        pct !== null ? (
+          <div className="prog">
+            <div className="prog-t"><span>{t("dash.replyProg")}</span><span><b>{now}</b> / {goal} · {pct}%</span></div>
+            <div className="bar"><i style={{ width: `${pct}%` }} /></div>
+          </div>
+        ) : <span className="wait-note">{t("dash.waitNote")}</span>
+      ) : (
+        <>
+          <span className="metric r">{short(lm?.views)}</span>
+          <span className="metric r">{short(e)}</span>
+          <span className={`metric r ${growth !== null && growth > 0 ? "up" : "dim"}`}>{growth !== null && growth > 0 ? `+${growth}` : "0"}</span>
+        </>
+      )}
+      <span className="date r">{md(new Date(c.created_at))}</span>
+      <div className="ops">
+        {st === "wait" ? (
+          <>
+            <Link to="/manage/$id" params={{ id: c.id }} className="cta">{t("dash.publish")}</Link>
+            <Link to="/manage/$id" params={{ id: c.id }} className="ib" data-tip={t("tbl.manage")} aria-label={t("tbl.manage")}><MoreHorizontal /></Link>
+          </>
+        ) : (
+          <>
+            <Link to="/c/$slug" params={{ slug: c.slug }} className="ib" data-tip={t("tbl.analytics")} aria-label={t("tbl.analytics")}><BarChart3 /></Link>
+            {c.tweet_url && <a href={c.tweet_url} target="_blank" rel="noreferrer" className="ib" data-tip={t("tbl.openPost")} aria-label={t("tbl.openPost")}><ExternalLink /></a>}
+            <Link to="/manage/$id" params={{ id: c.id }} className="ib" data-tip={t("tbl.manage")} aria-label={t("tbl.manage")}><MoreHorizontal /></Link>
+          </>
+        )}
       </div>
+      {st !== "live" && lm && (
+        <div className="mrow">
+          <span>{t("tbl.impressions")}<b>{short(lm.views)}</b></span>
+          <span>{t("tbl.engagements")}<b>{short(e)}</b></span>
+          <span>{t("tbl.growth")}<b>{growth !== null && growth > 0 ? `+${growth}` : "0"}</b></span>
+        </div>
+      )}
     </div>
   );
 }
+
