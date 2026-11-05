@@ -25,19 +25,21 @@ export type ChainConfig = {
   explorerTx: string;
   /** Symbol shown to users, e.g. USDT. */
   tokenSymbol: string;
+  /** Human-readable network name, e.g. "BNB Smart Chain". */
+  chainName: string;
 };
 
-const CHAIN_DEFAULTS: Record<number, Pick<ChainConfig, "explorerTx" | "tokenSymbol" | "tokenDecimals">> = {
-  56: { explorerTx: "https://bscscan.com/tx/", tokenSymbol: "USDT", tokenDecimals: 18 },
-  97: { explorerTx: "https://testnet.bscscan.com/tx/", tokenSymbol: "USDT", tokenDecimals: 18 },
-  1: { explorerTx: "https://etherscan.io/tx/", tokenSymbol: "USDT", tokenDecimals: 6 },
+const CHAIN_DEFAULTS: Record<number, Pick<ChainConfig, "explorerTx" | "tokenSymbol" | "tokenDecimals" | "chainName">> = {
+  56: { explorerTx: "https://bscscan.com/tx/", tokenSymbol: "USDT", tokenDecimals: 18, chainName: "BNB Smart Chain" },
+  97: { explorerTx: "https://testnet.bscscan.com/tx/", tokenSymbol: "USDT", tokenDecimals: 18, chainName: "BSC Testnet" },
+  1: { explorerTx: "https://etherscan.io/tx/", tokenSymbol: "USDT", tokenDecimals: 6, chainName: "Ethereum" },
 };
 
 /** Public chain config. Env-overridable so staging can point at a testnet. */
 export function chainConfig(): ChainConfig {
   const env = typeof import.meta !== "undefined" ? import.meta.env : ({} as Record<string, string | undefined>);
   const chainId = Number(env["VITE_CHAIN_ID"] ?? 56) || 56;
-  const defaults = CHAIN_DEFAULTS[chainId] ?? { explorerTx: "", tokenSymbol: "USDT", tokenDecimals: 18 };
+  const defaults = CHAIN_DEFAULTS[chainId] ?? { explorerTx: "", tokenSymbol: "USDT", tokenDecimals: 18, chainName: `EVM ${chainId}` };
   return {
     chainId,
     tokenAddress: (env["VITE_USDT_TOKEN"] ?? "0x55d398326f99059fF775485246999027B3197955") as `0x${string}`,
@@ -47,6 +49,7 @@ export function chainConfig(): ChainConfig {
     treasuryAddress: ((env["VITE_TREASURY_ADDRESS"] || env["VITE_PLATFORM_WALLET"]) || null) as `0x${string}` | null,
     explorerTx: defaults.explorerTx,
     tokenSymbol: env["VITE_TOKEN_SYMBOL"] ?? defaults.tokenSymbol,
+    chainName: env["VITE_CHAIN_NAME"] ?? defaults.chainName,
   };
 }
 
