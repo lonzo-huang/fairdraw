@@ -112,13 +112,13 @@ export function FundingPanel({ c, busy, setBusy, onDone }: { c: FundingCampaign;
         )}
         {c.payment_method === "chain" && (
           <>
-            <div className="flex flex-col gap-2 sm:flex-row">
-              <Button size="lg" disabled={busy} onClick={payChain}>
-                <Wallet className="mr-2 h-4 w-4" />{chainBtnText}
+            <div className="flex flex-col items-stretch gap-2 sm:max-w-md">
+              <Button size="lg" disabled={busy} onClick={payChain} className="whitespace-normal">
+                <Wallet className="mr-2 h-4 w-4 shrink-0" />{chainBtnText}
               </Button>
-              <Button size="lg" variant="outline" onClick={() => setShowManual((s) => !s)}>
+              <Button size="lg" variant="outline" onClick={() => setShowManual((s) => !s)} className="whitespace-normal">
                 {t("m.fundOtherBtn")}
-                <ChevronDown className={`ml-2 h-4 w-4 transition-transform ${showManual ? "" : "-rotate-90"}`} />
+                <ChevronDown className={`ml-2 h-4 w-4 shrink-0 transition-transform ${showManual ? "" : "-rotate-90"}`} />
               </Button>
             </div>
             <p className="mt-1.5 text-xs text-muted-foreground">{t("m.fundVerify")}</p>
