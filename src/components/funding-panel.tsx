@@ -100,7 +100,7 @@ export function FundingPanel({ c, busy, setBusy, onDone }: { c: FundingCampaign;
     : `${t("m.fundChainPay")} ${total.toFixed(2)} ${cfg.tokenSymbol}`;
 
   return (
-    <section className="rounded-xl border border-primary/40 bg-primary/5 p-5">
+    <div className="ticket-wrap"><div className="ticket-inner p-5">
       {/* Amount header */}
       <div className="flex items-start justify-between gap-3">
         <div>
@@ -123,6 +123,7 @@ export function FundingPanel({ c, busy, setBusy, onDone }: { c: FundingCampaign;
 
       {c.payment_method === "chain" && (
         <>
+          <hr className="perf-line -mx-5 mb-0 mt-0" aria-hidden="true" />
           {/* Segmented tab */}
           <div className="mt-4 flex gap-0.5 rounded-lg border border-border bg-background/50 p-0.5">
             {(["wallet", "transfer"] as const).map((tb) => (
@@ -137,7 +138,7 @@ export function FundingPanel({ c, busy, setBusy, onDone }: { c: FundingCampaign;
 
           {tab === "wallet" && (
             <div className="mt-4 space-y-2">
-              <Button className="w-full" size="lg" disabled={busy} onClick={payChain}>
+              <Button className="w-full btn-gradient" size="lg" disabled={busy} onClick={payChain}>
                 <Wallet className="mr-2 h-4 w-4 shrink-0" />{chainBtnText}
               </Button>
               <p className="text-xs text-muted-foreground">{t("m.fundVerify")}</p>
@@ -199,13 +200,20 @@ export function FundingPanel({ c, busy, setBusy, onDone }: { c: FundingCampaign;
       )}
 
       {c.payment_method === "stripe" && (
-        <Button className="mt-4 w-full" disabled={busy} onClick={payStripe}>
+        <>
+        <hr className="perf-line -mx-5 mb-0 mt-4" aria-hidden="true" />
+        <Button className="mt-4 w-full btn-gradient" disabled={busy} onClick={payStripe}>
           {t("m.fundStripe")} {total.toFixed(2)} {c.currency}
         </Button>
+        </>
       )}
       {c.payment_method === "manual" && (
         <p className="mt-4 text-sm text-muted-foreground">{t("m.manualFund")}</p>
       )}
-    </section>
+      <div className="trust-bar -mx-5 -mb-5 mt-5">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{color:"var(--success)",flexShrink:0}}><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10Z"/><path d="m9 12 2 2 4-4"/></svg>
+        {t("m.fundTrust")}
+      </div>
+    </div></div>
   );
 }

@@ -169,10 +169,10 @@ function NewCampaign() {
   if (created && funded) return <AfterCreate c={created} />;
 
   return (
-    <div className="mx-auto max-w-5xl px-4 py-12">
+    <div className="page-new-bg mx-auto max-w-5xl px-4 py-12">
       <h1 className="text-4xl font-semibold">{t("new.title")}</h1>
       <div className="mt-8 grid gap-6 lg:grid-cols-[minmax(0,1fr)_360px]">
-      <form id="new-campaign" onSubmit={submit} className="space-y-8 rounded-xl border border-border bg-card p-6">
+      <form id="new-campaign" onSubmit={submit} className="space-y-0 panel-glass" style={{padding:"8px 32px"}}>
       <fieldset disabled={!!created} className="contents">
         <StepSection n={1} title={t("f.step1")} first>
           <div className="flex flex-wrap gap-1.5">
@@ -247,8 +247,8 @@ function NewCampaign() {
       </fieldset>
       </form>
 
-      <aside className="space-y-4 lg:sticky lg:top-20 lg:self-start">
-        <div className="rounded-xl border border-border bg-card p-4">
+      <aside className="space-y-4 lg:sticky lg:top-6 lg:self-start">
+        <div className="panel-glass p-4">
           <p className="font-medium">{t("new.preview")}</p>
           <div className="mt-3">
             <TweetPreview
@@ -332,7 +332,7 @@ function PrepayPanel({ c, onDone }: { c: Created; onDone: () => void }) {
   }
 
   return (
-    <div className="space-y-3 rounded-xl border border-indigo-500/40 bg-indigo-500/5 p-4 shadow-[0_4px_24px_-8px_rgba(99,102,241,0.25)]">
+    <div className="rounded-[22px] border border-[rgba(245,184,61,.35)] bg-gradient-to-b from-[#151a2a] to-[#0f1420] space-y-3 p-5 shadow-[0_20px_60px_-20px_rgba(124,92,255,.4)]">
       <p className="text-sm font-medium">💳 {t("pay.methodTitle")}</p>
       <div className="flex flex-col gap-2">
         <Button disabled={busy || !stripeSupports(currency)} onClick={() => choose("stripe")}>{t("pay.stripe")}</Button>

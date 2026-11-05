@@ -512,6 +512,7 @@ const dict = {
   "m.fundStep2Sub": { zh: "在转账记录里找到 0x 开头的交易哈希", en: "Find the 0x\u2026 hash in your transfer history" },
   "m.fundStep3T": { zh: "粘贴交易哈希", en: "Paste the transaction hash" },
   "m.fundHashFmt": { zh: "格式错误：需要 0x 开头的 66 位十六进制", en: "Invalid format: needs 0x + 64 hex characters" },
+  "m.fundTrust": { zh: "发布后 1 小时内可撤销 · 未达标 100% 自动退回", en: "Cancel within 1 h of publish · 100% refund if goal not met" },
   "m.fundOtherBtn": { zh: "钱包或交易所转账支付", en: "Pay by wallet/exchange transfer" },
   "m.fundOther": { zh: "已经从其他钱包或交易所转账？", en: "Sent from another wallet or exchange?" },
   "m.fundOtherHint": { zh: "展开查看收款地址，并提交交易哈希确认。", en: "Expand for the deposit address and submit your tx hash." },
