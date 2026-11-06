@@ -218,9 +218,6 @@ function ClaimView({ c, p, share, boundHandle, email, onDone }: { c: Camp; p: Pa
     methods.push({ k: "info", I: MessageCircle, tt: t("cl.mInfo"), s: t("cl.mInfoS"), tag: "w" });
   } else if (c.payment_method === "stripe" && funded) {
     if (share !== null) methods.push({ k: "gift", I: Gift, tt: t("cl.mGift"), s: t("cl.mGiftS"), tag: "w" });
-    methods.push({ k: "stripe", I: Landmark, tt: t("cl.mStripe"), s: t("cl.mStripeS"), tag: "g" });
-    methods.push({ k: "wise", I: Landmark, tt: t("cl.mWise"), s: t("cl.mWiseS"), tag: "" });
-    methods.push({ k: "info", I: MessageCircle, tt: t("cl.mInfo"), s: t("cl.mInfoS"), tag: "" });
   } else {
     if (share !== null) methods.push({ k: "gift", I: Gift, tt: t("cl.mGift"), s: t("cl.mGiftS"), tag: "w" });
     methods.push({ k: "info", I: MessageCircle, tt: t("cl.mInfo"), s: t("cl.mInfoS"), tag: "" });
@@ -251,15 +248,17 @@ function ClaimView({ c, p, share, boundHandle, email, onDone }: { c: Camp; p: Pa
             </div>
             {m.tag && <span className={`tg ${m.tag}`}>{m.tag === "g" ? t("cl.tagFast") : t("cl.tagManual")}</span>}
           </div>
-          <div className="cl-meth">
-            {methods.map((x) => (
-              <button key={x.k} type="button" className="cl-mo" role="radio" aria-checked={x.k === m.k} onClick={() => setMethod(x.k)}>
-                <span className="lg"><x.I /></span>
-                <span><b>{x.tt}</b><span>{x.s}</span></span>
-                <span className="radio" />
-              </button>
-            ))}
-          </div>
+          {methods.length > 1 && (
+            <div className="cl-meth">
+              {methods.map((x) => (
+                <button key={x.k} type="button" className="cl-mo" role="radio" aria-checked={x.k === m.k} onClick={() => setMethod(x.k)}>
+                  <span className="lg"><x.I /></span>
+                  <span><b>{x.tt}</b><span>{x.s}</span></span>
+                  <span className="radio" />
+                </button>
+              ))}
+            </div>
+          )}
         </div>
 
         <div className="cl-blk">
