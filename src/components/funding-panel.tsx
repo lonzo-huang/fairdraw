@@ -108,21 +108,34 @@ function MobileWalletPay({ depositTo, total, busy, txHash, setTxHash, hashError,
   const raw = parseUnits(total.toFixed(6), cfg.tokenDecimals).toString();
   // SLIP-44 coin ids used by Trust Wallet asset codes (c<id>_t<contract>).
   const trustAsset = ({ 56: "c20000714", 1: "c60", 97: "c20000714" } as Record<number, string>)[cfg.chainId];
+  const [copied, setCopied] = useState(false);
+  function copyForBinance() {
+    navigator.clipboard?.writeText(depositTo).catch(() => {});
+    setCopied(true);
+    setTimeout(() => setCopied(false), 3000);
+  }
   const wallets = [
-    { name: "MetaMask", bg: "#e88100",
+    { name: "MetaMask", bg: "#e88100", fg: "#fff",
       href: `https://metamask.app.link/send/${cfg.tokenAddress}@${cfg.chainId}/transfer?address=${depositTo}&uint256=${raw}` },
-    ...(trustAsset ? [{ name: "Trust Wallet", bg: "#3375bb",
+    ...(trustAsset ? [{ name: "Trust Wallet", bg: "#3375bb", fg: "#fff",
       href: `trust://send?asset=${trustAsset}_t${cfg.tokenAddress}&address=${depositTo}&amount=${total.toFixed(6)}` }] : []),
-    { name: "TokenPocket", bg: "#2980fe",
+    { name: "TokenPocket", bg: "#2980fe", fg: "#fff",
       href: `tpdapp://transfer?chain=BSC&contract=${cfg.tokenAddress}&to=${depositTo}&amount=${total.toFixed(6)}` },
-    { name: t("m.otherWallet"), bg: "#334",
+    { name: t("m.otherWallet"), bg: "#334", fg: "#fff",
       href: `ethereum:${cfg.tokenAddress}@${cfg.chainId}/transfer?address=${depositTo}&uint256=${raw}` },
   ];
   return (
     <div style={{display:"flex",flexDirection:"column",gap:8}}>
       <p style={{fontSize:12,color:"var(--muted-foreground)",marginBottom:2,textAlign:"center"}}>{t("m.mobileWalletHint")}</p>
+      <a href="https://app.binance.com/en/my/wallet/account/main/withdrawal/crypto/USDT" onClick={copyForBinance}
+        style={{display:"flex",alignItems:"center",gap:10,padding:"10px 14px",borderRadius:12,background:"#f0b90b",color:"#1e2026",fontWeight:700,fontSize:14,textDecoration:"none"}}>
+        <span style={{width:18,height:18,borderRadius:"50%",background:"#1e2026",color:"#f0b90b",display:"grid",placeItems:"center",fontSize:11,fontWeight:900}}>B</span>
+        币安 Binance {t("m.binanceTag")}
+        <span style={{marginLeft:"auto",fontSize:12,opacity:.85}}>{copied ? t("m.addrCopied") : `${total.toFixed(2)} ${cfg.tokenSymbol}`}</span>
+      </a>
+      <p style={{fontSize:11,color:"var(--muted-foreground)",textAlign:"center",margin:"0 0 4px"}}>{t("m.binanceHint")}</p>
       {wallets.map((w) => (
-        <a key={w.name} href={w.href} style={{display:"flex",alignItems:"center",gap:10,padding:"10px 14px",borderRadius:12,background:w.bg,color:"#fff",fontWeight:600,fontSize:14,textDecoration:"none"}}>
+        <a key={w.name} href={w.href} style={{display:"flex",alignItems:"center",gap:10,padding:"10px 14px",borderRadius:12,background:w.bg,color:w.fg,fontWeight:600,fontSize:14,textDecoration:"none"}}>
           <Wallet style={{width:18,height:18,flexShrink:0}} />{t("m.openIn")} {w.name}
           <span style={{marginLeft:"auto",fontSize:12,opacity:.85}}>{total.toFixed(2)} {cfg.tokenSymbol}</span>
         </a>
