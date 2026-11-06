@@ -246,6 +246,10 @@ function NewCampaign() {
       <form id="new-campaign" onSubmit={submit} className="space-y-0 panel-glass" style={{padding:"32px 36px"}}>
       <fieldset disabled={!!created && !editing} className="contents">
         <StepSection n={1} title={t("f.step1")} desc={t("f.step1D")} first>
+          <div className="grid gap-5 sm:grid-cols-2">
+            <Field label={t("f.currency")}><select className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm" value={f.currency} onChange={set("currency")}>{CURRENCIES.map((c) => <option key={c} value={c}>{c}</option>)}</select></Field>
+            <Field label={t("f.ends")}><select className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm" value={f.days} onChange={set("days")}><option value="1h">{t("f.hour1")}</option>{DURATIONS.map((d) => <option key={d} value={d}>{t(`f.day${d}` as "f.day1")}</option>)}</select></Field>
+          </div>
           <Field label={t("f.amount")}><div className="amount-wrap"><Input required type="number" min={0.01} step="0.01" placeholder="20" value={f.prize_amount} onChange={set("prize_amount")} /><span className="amount-unit">{f.currency}</span></div></Field>
           <div className="flex flex-wrap gap-2">
             {PRESET_AMOUNTS.map((a) => (
@@ -254,10 +258,6 @@ function NewCampaign() {
                 {a.toLocaleString("en-US")}
               </button>
             ))}
-          </div>
-          <div className="grid gap-5 sm:grid-cols-2">
-            <Field label={t("f.currency")}><select className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm" value={f.currency} onChange={set("currency")}>{CURRENCIES.map((c) => <option key={c} value={c}>{c}</option>)}</select></Field>
-            <Field label={t("f.ends")}><select className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm" value={f.days} onChange={set("days")}><option value="1h">{t("f.hour1")}</option>{DURATIONS.map((d) => <option key={d} value={d}>{t(`f.day${d}` as "f.day1")}</option>)}</select></Field>
           </div>
           <Field label={t("f.winners")}><>
             <Input type="number" min={1} max={100} required list="winner-options" value={f.winners_count} onChange={set("winners_count")} />
