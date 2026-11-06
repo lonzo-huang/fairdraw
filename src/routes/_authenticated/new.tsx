@@ -247,7 +247,10 @@ function NewCampaign() {
       <fieldset disabled={!!created && !editing} className="contents">
         <StepSection n={1} title={t("f.step1")} desc={t("f.step1D")} first>
           <div className="grid gap-5 sm:grid-cols-2">
-            <Field label={t("f.currency")}><select className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm" value={f.currency} onChange={set("currency")}>{CURRENCIES.map((c) => <option key={c} value={c}>{c}</option>)}</select></Field>
+            <Field label={t("f.currency")}>
+              <select className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm" value={f.currency} onChange={set("currency")}>{CURRENCIES.map((c) => <option key={c} value={c}>{c}</option>)}</select>
+              {f.currency !== "USDT" && <p style={{fontSize:12,color:"var(--destructive, #ef4444)",marginTop:4}}>{t("pay.nonUsdtHint")}</p>}
+            </Field>
             <Field label={t("f.ends")}><select className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm" value={f.days} onChange={set("days")}><option value="1h">{t("f.hour1")}</option>{DURATIONS.map((d) => <option key={d} value={d}>{t(`f.day${d}` as "f.day1")}</option>)}</select></Field>
           </div>
           <Field label={t("f.amount")}><div className="amount-wrap"><Input required type="number" min={0.01} step="0.01" placeholder="20" value={f.prize_amount} onChange={set("prize_amount")} /><span className="amount-unit">{f.currency}</span></div></Field>
@@ -412,7 +415,9 @@ function PayTicket({ pool, fee, total, currency, method, setMethod, stripeOk, ch
         <div className="perf-notch" aria-hidden="true" />
         <div className="t-bot">
           <div className="seg-tabs" role="tablist">
-            <button type="button" role="tab" aria-selected={method === "stripe"} disabled={!stripeOk} onClick={() => stripeOk && setMethod("stripe")}>{t("pay.stripeTab")}</button>
+            <span title={t("pay.stripeDisabled")} style={{cursor:"not-allowed",display:"inline-block",flex:1}}>
+              <button type="button" role="tab" aria-selected={false} disabled style={{opacity:0.4,pointerEvents:"none",width:"100%"}}>{t("pay.stripeTab")}</button>
+            </span>
             <button type="button" role="tab" aria-selected={method === "chain"} disabled={!chainOk} onClick={() => chainOk && setMethod("chain")}>{t("pay.chainTab")}</button>
           </div>
           {method === "stripe" && (
