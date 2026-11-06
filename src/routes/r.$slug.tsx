@@ -66,6 +66,10 @@ function ResultPage() {
   const { slug } = Route.useParams();
   const matchRoute = useMatchRoute();
   if (matchRoute({ to: "/r/$slug/claim", params: { slug } })) return <Outlet />;
+  return <ResultPageContent slug={slug} />;
+}
+
+function ResultPageContent({ slug }: { slug: string }) {
   const { t, lang } = useI18n();
   const { user } = useAuth();
   const [steps, setSteps] = useState<[StepState, StepState, StepState]>(["", "", ""]);
