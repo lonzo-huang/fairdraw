@@ -76,7 +76,7 @@ function dailySeries(snaps: SnapRow[], key: "view" | "eng" | "fol", days: number
   const groups = new Map<string, SnapRow[]>();
   for (const s of snaps) {
     const m = asM(s.metrics);
-    const gk = key === "fol" ? (m?.author_handle ?? s.campaign_id) : s.campaign_id;
+    const gk = key === "fol" ? (m?.author_handle?.toLowerCase() ?? s.campaign_id) : s.campaign_id;
     (groups.get(gk) ?? groups.set(gk, []).get(gk)!).push(s);
   }
   const out = new Array<number>(days).fill(0);
@@ -94,7 +94,9 @@ function dailySeries(snaps: SnapRow[], key: "view" | "eng" | "fol", days: number
       const idx = d - start;
       if (idx < 0 || idx >= days) return;
       const pk = keys[i - 1];
-      const prev = i > 0 && pk !== undefined ? (daily.get(pk) ?? 0) : 0;
+      // First observed day is the baseline — without it a pre-existing
+      // follower/view count would be booked as "new" on day one.
+      const prev = i > 0 && pk !== undefined ? (daily.get(pk) ?? 0) : daily.get(d)!;
       out[idx] += Math.max(0, daily.get(d)! - prev);
     });
   }
