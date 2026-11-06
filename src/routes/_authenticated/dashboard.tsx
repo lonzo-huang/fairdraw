@@ -33,6 +33,11 @@ type Camp = {
   escrow_status: string; payment_method: string;
 };
 type St = "pay" | "draft" | "live" | "done" | "end";
+type Win = {
+  p: { id: string; campaign_id: string; winner_handle: string; status: string; proof: string | null };
+  c: Camp;
+  drawnAt?: string;
+};
 
 const asM = (m: unknown): Metrics | null => (m ?? null) as Metrics | null;
 const eng = (m: Metrics | null): number | null => {
@@ -141,7 +146,7 @@ function Dashboard() {
     );
   }
 
-  const { campaigns, snaps } = data;
+  const { campaigns, snaps, wins } = data;
   const now = Date.now();
   const snapsByCamp = new Map<string, SnapRow[]>();
   for (const s of snaps) (snapsByCamp.get(s.campaign_id) ?? snapsByCamp.set(s.campaign_id, []).get(s.campaign_id)!).push(s);
@@ -280,7 +285,7 @@ function Dashboard() {
 
         <div className="panel table">
           <div className="thead">
-            <span>{t("tbl.campaign")}</span><span>{t("tbl.status")}</span>
+            <span>{t("tbl.campaign")}</span><span>{t("tbl.status")}</span><span>{t("tbl.progress")}</span>
             <span className="r">{t("tbl.impressions")}</span><span className="r">{t("tbl.engagements")}</span>
             <span className="r">{t("tbl.growth")}</span><span className="r">{t("tbl.created")}</span><span className="r">{t("tbl.actions")}</span>
           </div>
@@ -301,6 +306,44 @@ function Dashboard() {
           )}
         </div>
       </section>
+
+      {/* ── campaigns I won ── */}
+      {wins.length > 0 && (
+        <section style={{ marginTop: 40 }}>
+          <div className="list-h">
+            <div>
+              <h2>{t("win.title")}</h2>
+              <p>{t("win.sub")}</p>
+            </div>
+          </div>
+          <div className="panel table">
+            <div className="thead wcols">
+              <span>{t("tbl.campaign")}</span>
+              <span className="r">{t("win.prize")}</span><span className="r">{t("win.payout")}</span><span className="r">{t("win.drawn")}</span>
+            </div>
+            {wins.map(({ p, c, drawnAt }) => {
+              const per = c.prize_amount !== null && c.winners_count ? Math.round((c.prize_amount / c.winners_count) * 100) / 100 : null;
+              const paid = p.status === "paid";
+              return (
+                <div key={p.id} className="tr wcols">
+                  <div className="act">
+                    <span className="av" style={{ background: avGrad(p.winner_handle) }}>{p.winner_handle.slice(0, 2).toUpperCase()}</span>
+                    <div className="act-m">
+                      <div className="act-t"><Link to="/r/$slug" params={{ slug: c.slug }}>{c.title}</Link></div>
+                      <div className="act-s">@{p.winner_handle}</div>
+                    </div>
+                  </div>
+                  <span className="metric r">{per !== null ? `${per} ${c.currency}` : c.prize}</span>
+                  <div className="st" style={{ justifySelf: "end" }}>
+                    <span className={`badge ${paid ? "b-live" : "b-wait"}`}>{paid ? t("r.paid") : p.status === "paying" ? t("win.paying") : t("r.pending")}</span>
+                  </div>
+                  <span className="date r">{drawnAt ? md(new Date(drawnAt)) : "—"}</span>
+                </div>
+              );
+            })}
+          </div>
+        </section>
+      )}
     </div>
   );
 }
@@ -413,7 +456,7 @@ function CampRow({ r, badge }: { r: { c: Camp; lm: Metrics | null; st: St; e: nu
   const conds = condKeys(c);
   const goal = (c.conditions as Conditions | null)?.min_replies;
   const now = typeof lm?.replies === "number" ? lm.replies : null;
-  const pct = st === "live" && typeof goal === "number" && goal > 0 && now !== null ? Math.min(100, Math.round((now / goal) * 100)) : null;
+  const pct = typeof goal === "number" && goal > 0 && now !== null ? Math.min(100, Math.round((now / goal) * 100)) : null;
 
   return (
     <div className="tr">
@@ -445,28 +488,19 @@ function CampRow({ r, badge }: { r: { c: Camp; lm: Metrics | null; st: St; e: nu
         <span className="wait-note">{t("dash.payNote")}</span>
       ) : st === "draft" ? (
         <span className="wait-note">{t("dash.waitNote")}</span>
+      ) : pct !== null ? (
+        <div className="prog">
+          <div className="prog-t"><span><b>{now}</b> / {goal}</span><span>{pct}%</span></div>
+          <div className="bar"><i style={{ width: `${pct}%` }} /></div>
+        </div>
       ) : st === "live" ? (
-        pct !== null ? (
-          <div className="prog">
-            <div className="prog-t"><span>{t("dash.replyProg")}</span><span><b>{now}</b> / {goal} · {pct}%</span></div>
-            <div className="bar"><i style={{ width: `${pct}%` }} /></div>
-          </div>
-        ) : lm === null ? (
-          <span className="wait-note"><span className="live-dot" />{t("dash.fetching")}</span>
-        ) : (
-          <>
-            <span className="metric r">{short(lm.views)}</span>
-            <span className="metric r">{short(e)}</span>
-            <span className={`metric r ${growth !== null && growth > 0 ? "up" : "dim"}`}>{growth !== null && growth > 0 ? `+${growth}` : "0"}</span>
-          </>
-        )
+        <span className="wait-note"><span className="live-dot" />{t("dash.fetching")}</span>
       ) : (
-        <>
-          <span className="metric r">{short(lm?.views)}</span>
-          <span className="metric r">{short(e)}</span>
-          <span className={`metric r ${growth !== null && growth > 0 ? "up" : "dim"}`}>{growth !== null && growth > 0 ? `+${growth}` : "0"}</span>
-        </>
+        <span className="metric dim">—</span>
       )}
+      <span className="metric r">{short(lm?.views)}</span>
+      <span className="metric r">{short(e)}</span>
+      <span className={`metric r ${growth !== null && growth > 0 ? "up" : "dim"}`}>{growth !== null && growth > 0 ? `+${growth}` : "0"}</span>
       <span className="date r">{md(new Date(c.created_at))}</span>
       <div className="ops">
         {st === "pay" ? (

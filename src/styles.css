@@ -420,7 +420,8 @@
 .page-dash .tabs button .c{font-family:var(--num);font-size:12px;margin-left:6px;padding:1px 7px;border-radius:999px;background:rgba(255,255,255,.07);color:var(--muted-foreground)}
 .page-dash .tabs button[aria-selected="true"] .c{background:rgba(124,92,255,.25);color:#cfc4ff}
 .page-dash .table{overflow:hidden}
-.page-dash .thead,.page-dash .tr{display:grid;grid-template-columns:minmax(0,2.6fr) 110px 110px 90px 90px 80px 120px;align-items:center;gap:12px;padding:0 20px}
+.page-dash .thead,.page-dash .tr{display:grid;grid-template-columns:minmax(0,2.2fr) 96px minmax(150px,1.3fr) 90px 90px 84px 78px 112px;align-items:center;gap:12px;padding:0 24px}
+.page-dash .thead.wcols,.page-dash .tr.wcols{grid-template-columns:minmax(0,2.4fr) 130px 120px 110px}
 .page-dash .thead{height:44px;font-size:12px;color:#646f85;border-bottom:1px solid rgba(255,255,255,.07)}
 .page-dash .thead .r,.page-dash .tr .r{text-align:right}
 .page-dash .tr{min-height:78px;padding-top:12px;padding-bottom:12px;border-bottom:1px solid rgba(255,255,255,.07);transition:background .15s}
@@ -462,13 +463,13 @@
 .page-dash .ib[data-tip]:hover::after{content:attr(data-tip);position:absolute;bottom:calc(100% + 6px);left:50%;transform:translateX(-50%);padding:4px 8px;border-radius:6px;background:#141b2b;border:1px solid rgba(255,255,255,.14);font-size:12px;white-space:nowrap;color:var(--foreground);z-index:5}
 .page-dash .cta{height:34px;padding:0 12px;border-radius:10px;border:1px solid rgba(245,184,61,.45);background:rgba(245,184,61,.1);color:#ffd98a;font-size:13px;font-weight:500;white-space:nowrap;transition:all .2s;cursor:pointer;display:inline-flex;align-items:center;text-decoration:none}
 .page-dash .cta:hover{background:rgba(245,184,61,.2)}
-.page-dash .prog{grid-column:span 3;display:flex;flex-direction:column;gap:6px}
-.page-dash .prog-t{display:flex;justify-content:space-between;font-size:12px;color:#646f85}
+.page-dash .prog{display:flex;flex-direction:column;gap:6px;min-width:0}
+.page-dash .prog-t{display:flex;justify-content:space-between;font-size:12px;color:#646f85;white-space:nowrap}
 .page-dash .prog-t b{font-family:var(--num);color:var(--muted-foreground);font-weight:500}
 .page-dash .bar{height:6px;border-radius:6px;background:rgba(255,255,255,.06);overflow:hidden}
 .page-dash .bar i{display:block;height:100%;border-radius:6px;background:linear-gradient(90deg,#3b82f6,#7c5cff)}
-.page-dash .wait-note{grid-column:span 3;font-size:12px;color:#646f85}
-.page-dash .empty{padding:56px 20px;text-align:center}
+.page-dash .wait-note{font-size:12px;color:#646f85;min-width:0}
+.page-dash .empty{padding:56px 24px;text-align:center}
 .page-dash .empty h3{font-size:16px}
 .page-dash .empty p{color:#646f85;font-size:13px;margin:4px 0 16px}
 @media (max-width:1080px){
