@@ -212,7 +212,7 @@ function CampaignPage() {
                     <div><h3>{t("ana.condTitle")}</h3><p>{t("ana.condSub")}</p></div>
                     <div className="ov-pct">{hasConds ? `${prog?.progress ?? 0}%` : "—"}{hasConds && <small>{translate(lang, "ana.metCount", { a: met, b: condTotal })}</small>}</div>
                   </div>
-                  <CondRows checks={prog?.checks ?? []} />
+                  <CondRows checks={prog?.checks ?? []} live={open} />
                 </section>
                 <section className="panel card">
                   <div className="card-h"><div><h3>{t("ana.timeline")}</h3></div></div>
@@ -310,8 +310,8 @@ function netGrowth(m: Metrics | null, fm: Metrics | null): number | null {
   return typeof m?.followers === "number" && typeof fm?.followers === "number" ? Math.max(0, m.followers - fm.followers) : null;
 }
 
-/** Four headline KPI cards — real snapshot values only; "—" when a metric was never read. */
-function StatsRow({ snaps, latestM, firstM, linked }: { snaps: Snap[]; latestM: Metrics | null; firstM: Metrics | null; linked: boolean }) {
+/** Four headline KPI cards — real snapshot values only; "获取中" marks fields the sweep is still retrying. */
+function StatsRow({ snaps, latestM, firstM, linked, open }: { snaps: Snap[]; latestM: Metrics | null; firstM: Metrics | null; linked: boolean; open: boolean }) {
   const { t, lang } = useI18n();
   const prevM = asMetrics(snaps[snaps.length - 2]?.metrics);
   const engagements = totalEngagements(latestM);
@@ -348,9 +348,9 @@ function StatsRow({ snaps, latestM, firstM, linked }: { snaps: Snap[]; latestM: 
       {cards.map((cd2) => (
         <div key={cd2.l} className="panel stat">
           <div className="stat-h">{cd2.l}<span className="stat-ic" style={{ background: cd2.bg, color: cd2.col }}><cd2.I /></span></div>
-          <div className={`stat-v${cd2.v === null ? " empty" : ""}`} style={cd2.vCol && cd2.v !== null ? { color: cd2.vCol } : undefined}>{cd2.v ?? "—"}</div>
+          <div className={`stat-v${cd2.v === null ? " empty" : ""}`} style={cd2.vCol && cd2.v !== null ? { color: cd2.vCol } : undefined}>{cd2.v ?? (open && linked ? <span className="pend">{t("ana.pending")}</span> : "—")}</div>
           <div className="stat-f">
-            <span>{cd2.v === null ? t("ana.statWait") : cd2.note}</span>
+            <span>{cd2.v === null ? (open && linked ? t("ana.pendingSub") : t("ana.statWait")) : cd2.note}</span>
             {cd2.v !== null && cd2.spark && (
               <svg className="spark" viewBox="0 0 72 24" preserveAspectRatio="none">
                 <polyline fill="none" stroke={cd2.col} strokeWidth="1.8" strokeLinecap="round" vectorEffect="non-scaling-stroke" points={cd2.spark} />
@@ -364,7 +364,7 @@ function StatsRow({ snaps, latestM, firstM, linked }: { snaps: Snap[]; latestM: 
 }
 
 /** Condition rows in the mockup style: icon, label, now/goal, status tag, progress bar. */
-function CondRows({ checks }: { checks: ConditionCheck[] }) {
+function CondRows({ checks, live }: { checks: ConditionCheck[]; live: boolean }) {
   const { t, lang } = useI18n();
   if (!checks.length) return <p className="note" style={{ marginTop: 0 }}>{t("cond.none")}</p>;
   return (
@@ -382,7 +382,7 @@ function CondRows({ checks }: { checks: ConditionCheck[] }) {
               <span className="nm">{t(`cond.${ch.label}` as "cond.likes")}</span>
               <span className="val">{numeric ? ch.current : "—"}<small> / {ch.target}</small></span>
               <span className={`st ${st}`}>
-                {met ? t("cond.met") : st === "go" ? translate(lang, "ana.metLeft", { n: Math.max(0, Number(ch.target) - Number(ch.current)) }) : t("cond.unknown")}
+                {met ? t("cond.met") : st === "go" ? translate(lang, "ana.metLeft", { n: Math.max(0, Number(ch.target) - Number(ch.current)) }) : live ? t("ana.pending") : t("cond.unknown")}
               </span>
             </div>
             <div className="cbar"><i className={met ? "ok" : ""} style={{ width: `${w}%` }} /></div>

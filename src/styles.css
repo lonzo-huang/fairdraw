@@ -446,6 +446,8 @@
 .page-dash .b-live{color:#34d399;background:rgba(52,211,153,.1);border-color:rgba(52,211,153,.3)}
 .page-dash .b-live::before{animation:dash-pulse 1.8s infinite}
 .page-dash .b-wait{color:#ffd98a;background:rgba(245,184,61,.1);border-color:rgba(245,184,61,.3)}
+.page-dash .b-pay{color:#fb923c;background:rgba(251,146,60,.1);border-color:rgba(251,146,60,.3)}
+.page-dash .wait-note .live-dot{margin-right:6px}
 .page-dash .b-done{color:#a99bff;background:rgba(124,92,255,.12);border-color:rgba(124,92,255,.35)}
 .page-dash .b-end{color:#646f85;background:rgba(255,255,255,.04);border-color:rgba(255,255,255,.14)}
 @keyframes dash-pulse{0%{box-shadow:0 0 0 0 rgba(52,211,153,.5)}70%{box-shadow:0 0 0 6px rgba(52,211,153,0)}100%{box-shadow:0 0 0 0 rgba(52,211,153,0)}}
@@ -672,6 +674,8 @@
 .page-ana .b-done{color:#8ab4ff;background:rgba(59,130,246,.12);border-color:rgba(59,130,246,.32)}
 .page-ana .b-end{color:#646f85;background:rgba(255,255,255,.04);border-color:rgba(255,255,255,.14)}
 @keyframes anapulse{0%{box-shadow:0 0 0 0 rgba(52,211,153,.5)}70%{box-shadow:0 0 0 6px rgba(52,211,153,0)}100%{box-shadow:0 0 0 0 rgba(52,211,153,0)}}
+.page-ana .pend{display:inline-flex;align-items:center;gap:6px;font-size:14px;font-weight:500;color:#f5b83d;letter-spacing:.02em}
+.page-ana .pend::before{content:"";width:6px;height:6px;border-radius:50%;background:currentColor;animation:anapulse 1.8s infinite}
 .page-ana .top{display:grid;grid-template-columns:minmax(0,1fr) 380px;gap:24px;margin-top:12px;align-items:stretch}
 .page-ana .title{font-size:30px;font-weight:700;line-height:1.3;margin:12px 0 6px}
 .page-ana .title .amt{font-family:var(--num);color:#ffd98a}

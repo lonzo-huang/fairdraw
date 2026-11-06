@@ -30,8 +30,9 @@ type Camp = {
   id: string; slug: string; title: string; prize: string; prize_amount: number | null;
   currency: string; status: string; ends_at: string; created_at: string;
   tweet_url: string | null; conditions: unknown; winners_count: number | null;
+  escrow_status: string; payment_method: string;
 };
-type St = "wait" | "live" | "done" | "end";
+type St = "pay" | "draft" | "live" | "done" | "end";
 
 const asM = (m: unknown): Metrics | null => (m ?? null) as Metrics | null;
 const eng = (m: Metrics | null): number | null => {
@@ -48,11 +49,13 @@ const short = (n: number | null | undefined): string => {
 };
 const md = (d: Date) => `${d.getMonth() + 1}/${d.getDate()}`;
 
-/** Live/open/wait/done classification matching the mockup badges. */
+/** Pay → draft → live → done/end pipeline, matching real funding + publish gates. */
 function stOf(c: Camp, now: number): St {
   if (c.status === "drawn") return "done";
   if (c.status === "cancelled" || Date.parse(c.ends_at) <= now) return "end";
-  return c.tweet_url ? "live" : "wait";
+  const unpaid = !!c.prize_amount && (c.payment_method === "stripe" || c.payment_method === "chain") && c.escrow_status === "awaiting";
+  if (unpaid) return "pay";
+  return c.tweet_url ? "live" : "draft";
 }
 
 const COND_ICON: Record<string, React.ElementType> = {
@@ -168,23 +171,24 @@ function Dashboard() {
   });
   const cnt: Record<string, number> = { all: rows.length };
   for (const r of rows) cnt[r.st] = (cnt[r.st] ?? 0) + 1;
-  const order: Record<St, number> = { wait: 0, live: 1, done: 2, end: 3 };
+  const order: Record<St, number> = { pay: 0, draft: 1, live: 2, done: 3, end: 4 };
   const list = rows
     .filter((r) => (filt === "all" || r.st === filt) && (!q || (r.c.title + (r.handle ?? "")).toLowerCase().includes(q.toLowerCase())))
     .sort((a, b) => order[a.st] - order[b.st] || Date.parse(b.c.created_at) - Date.parse(a.c.created_at));
 
   const TABS: [string, string][] = [
-    ["all", t("dash.stAll")], ["live", t("status.open")], ["wait", t("dash.stWait")],
-    ["done", t("status.drawn")], ["end", t("status.ended")],
+    ["all", t("dash.stAll")], ["live", t("status.open")], ["draft", t("dash.stWait")],
+    ["pay", t("dash.stPay")], ["done", t("status.drawn")], ["end", t("status.ended")],
   ];
   const BADGE: Record<St, { cls: string; label: string }> = {
-    wait: { cls: "b-wait", label: t("dash.stWait") },
+    pay: { cls: "b-pay", label: t("dash.stPay") },
+    draft: { cls: "b-wait", label: t("dash.stWait") },
     live: { cls: "b-live", label: t("status.open") },
     done: { cls: "b-done", label: t("status.drawn") },
     end: { cls: "b-end", label: t("status.ended") },
   };
-  const MIX_COL: Record<St, string> = { live: "#34d399", wait: "#f5b83d", done: "#7c5cff", end: "#646f85" };
-  const mixOrder: St[] = ["live", "wait", "done", "end"];
+  const MIX_COL: Record<St, string> = { live: "#34d399", pay: "#fb923c", draft: "#f5b83d", done: "#7c5cff", end: "#646f85" };
+  const mixOrder: St[] = ["live", "draft", "pay", "done", "end"];
   const LBL: Record<"view" | "eng" | "fol", string> = { view: t("dash.suffView"), eng: t("dash.suffEng"), fol: t("dash.suffFol") };
   const METRIC_LABEL: Record<"view" | "eng" | "fol", string> = { view: t("trend.impressions"), eng: t("trend.engagements"), fol: t("dash.mFol") };
   const chartArr = S[metric].slice(90 - range);
@@ -200,7 +204,7 @@ function Dashboard() {
         </div>
         <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
           <select className="sel" value={range} onChange={(e) => setRange(Number(e.target.value))} aria-label={lang === "zh" ? "时间范围" : "Range"}>
-            {[7, 30, 90].map((d) => <option key={d} value={d}>{t(`range.${d}`)}</option>)}
+            {[7, 30, 90].map((d) => <option key={d} value={d}>{t(`range.${d}` as "range.7")}</option>)}
           </select>
           <Link to="/new" className="btn-gradient" style={{ textDecoration: "none", width: "auto", padding: "0 20px" }}>
             <Plus style={{ width: 18, height: 18 }} />{t("dash.new")}
@@ -239,7 +243,7 @@ function Dashboard() {
           <div>
             <h2>{t("trend.title")}</h2>
             <p>{t("dash.chartSub")}</p>
-            <div className="chart-sum">{metric === "fol" ? `+${Math.round(chartSum)}` : short(chartSum)}<small>{t(`range.${range}`)} {LBL[metric]}</small></div>
+            <div className="chart-sum">{metric === "fol" ? `+${Math.round(chartSum)}` : short(chartSum)}<small>{t(`range.${range}` as "range.7")} {LBL[metric]}</small></div>
           </div>
           <div className="pills" role="tablist">
             {(["view", "eng", "fol"] as const).map((k) => (
@@ -435,7 +439,9 @@ function CampRow({ r, badge }: { r: { c: Camp; lm: Metrics | null; st: St; e: nu
         </div>
       </div>
       <div className="st"><span className={`badge ${badge.cls}`}>{badge.label}</span></div>
-      {st === "wait" ? (
+      {st === "pay" ? (
+        <span className="wait-note">{t("dash.payNote")}</span>
+      ) : st === "draft" ? (
         <span className="wait-note">{t("dash.waitNote")}</span>
       ) : st === "live" ? (
         pct !== null ? (
@@ -443,7 +449,15 @@ function CampRow({ r, badge }: { r: { c: Camp; lm: Metrics | null; st: St; e: nu
             <div className="prog-t"><span>{t("dash.replyProg")}</span><span><b>{now}</b> / {goal} · {pct}%</span></div>
             <div className="bar"><i style={{ width: `${pct}%` }} /></div>
           </div>
-        ) : <span className="wait-note">{t("dash.waitNote")}</span>
+        ) : lm === null ? (
+          <span className="wait-note"><span className="live-dot" />{t("dash.fetching")}</span>
+        ) : (
+          <>
+            <span className="metric r">{short(lm.views)}</span>
+            <span className="metric r">{short(e)}</span>
+            <span className={`metric r ${growth !== null && growth > 0 ? "up" : "dim"}`}>{growth !== null && growth > 0 ? `+${growth}` : "0"}</span>
+          </>
+        )
       ) : (
         <>
           <span className="metric r">{short(lm?.views)}</span>
@@ -453,7 +467,12 @@ function CampRow({ r, badge }: { r: { c: Camp; lm: Metrics | null; st: St; e: nu
       )}
       <span className="date r">{md(new Date(c.created_at))}</span>
       <div className="ops">
-        {st === "wait" ? (
+        {st === "pay" ? (
+          <>
+            <Link to="/manage/$id" params={{ id: c.id }} className="cta">{t("dash.payCta")}</Link>
+            <Link to="/manage/$id" params={{ id: c.id }} className="ib" data-tip={t("tbl.manage")} aria-label={t("tbl.manage")}><MoreHorizontal /></Link>
+          </>
+        ) : st === "draft" ? (
           <>
             <Link to="/manage/$id" params={{ id: c.id }} className="cta">{t("dash.publish")}</Link>
             <Link to="/manage/$id" params={{ id: c.id }} className="ib" data-tip={t("tbl.manage")} aria-label={t("tbl.manage")}><MoreHorizontal /></Link>

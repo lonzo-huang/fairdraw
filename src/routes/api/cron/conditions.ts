@@ -33,22 +33,35 @@ export const Route = createFileRoute("/api/cron/conditions")({
         if (error) return new Response(error.message, { status: 500 });
         if (!campaigns?.length) return Response.json({ due: 0, checked: 0, errors: 0 });
 
-        // Latest snapshot per campaign doubles as the last-checked marker.
+        // Latest snapshot per campaign doubles as the last-checked marker and
+        // carries the per-field `missing` flags from the previous round.
         const { data: snaps } = await supabaseAdmin
           .from("condition_snapshots")
-          .select("campaign_id, fetched_at")
+          .select("campaign_id, fetched_at, metrics")
           .in("campaign_id", campaigns.map((c) => c.id))
           .order("fetched_at", { ascending: false })
           .limit(1000);
-        const last = new Map<string, number>();
+        const last = new Map<string, { t: number; missing: boolean }>();
         for (const s of snaps ?? []) {
-          if (!last.has(s.campaign_id)) last.set(s.campaign_id, Date.parse(s.fetched_at));
+          if (!last.has(s.campaign_id)) {
+            const miss = (s.metrics as { missing?: unknown } | null)?.missing;
+            last.set(s.campaign_id, {
+              t: Date.parse(s.fetched_at),
+              missing: Array.isArray(miss) && miss.length > 0,
+            });
+          }
         }
 
         const due = campaigns
           .filter((c) => {
-            const t = last.get(c.id);
-            return !t || Date.now() - t > COOLDOWN_MS;
+            const s = last.get(c.id);
+            return !s || Date.now() - s.t > COOLDOWN_MS;
+          })
+          // Incomplete data retries first: never-snapshotted or still-missing
+          // fields go ahead of complete campaigns, then by deadline.
+          .sort((a, b) => {
+            const prio = (id: string) => { const s = last.get(id); return !s || s.missing ? 1 : 0; };
+            return prio(b.id) - prio(a.id) || Date.parse(a.ends_at) - Date.parse(b.ends_at);
           })
           .slice(0, BATCH_LIMIT);
 

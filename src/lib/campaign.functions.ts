@@ -412,6 +412,12 @@ export async function runConditionCheckCore(db: any, c: CheckableCampaign): Prom
       if (e.eligibility_status === "eligible" || (e.eligibility_status === "verified" && blueVerified)) metrics.verified++;
     }
 
+    // Flag every remote field that is still unread — the sweep retries it
+    // next round and dashboards can tell "fetching" apart from "zero".
+    metrics.missing = c.tweet_url
+      ? MISSING_METRIC_KEYS.filter((k) => metrics[k] === null || metrics[k] === undefined)
+      : [];
+
     const { checks, progress } = computeProgress(conditions, metrics);
     await db.from("condition_snapshots").insert({
       campaign_id: c.id,
@@ -434,6 +440,9 @@ export async function runConditionCheckCore(db: any, c: CheckableCampaign): Prom
     }
     return { checks, progress, metrics };
 }
+
+/** Remote metric fields the sweep tries to read every round. */
+const MISSING_METRIC_KEYS = ["likes", "replies", "reposts", "quotes", "bookmarks", "views", "followers"] as const;
 
 const METRIC_COND_KEYS = ["min_likes", "min_replies", "min_reposts", "min_quotes", "min_views", "min_participants", "min_verified"] as const;
 

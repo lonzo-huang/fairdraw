@@ -29,6 +29,8 @@ export type Metrics = {
   keyword_found: boolean | null;
   participants: number;
   verified: number;
+  /** Remote fields still unread this sweep — the next sweep retries them. */
+  missing?: string[];
 };
 
 export type ConditionCheck = {
