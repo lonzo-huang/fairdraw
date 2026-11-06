@@ -216,7 +216,7 @@ function ClaimView({ c, p, share, boundHandle, email, onDone }: { c: Camp; p: Pa
     if (c.payment_method === "chain" && funded) methods.push({ k: "chain", I: Wallet, tt: t("cl.mChain"), s: t("cl.mChainS"), tag: "g" });
     if (funded) methods.push({ k: "wise", I: Landmark, tt: t("cl.mWise"), s: t("cl.mWiseS"), tag: "" });
     methods.push({ k: "info", I: MessageCircle, tt: t("cl.mInfo"), s: t("cl.mInfoS"), tag: "w" });
-  } else if (c.payment_method === "stripe" && funded) {
+  } else if (c.payment_method === "stripe") {
     if (share !== null) methods.push({ k: "gift", I: Gift, tt: t("cl.mGift"), s: t("cl.mGiftS"), tag: "w" });
   } else {
     if (share !== null) methods.push({ k: "gift", I: Gift, tt: t("cl.mGift"), s: t("cl.mGiftS"), tag: "w" });
