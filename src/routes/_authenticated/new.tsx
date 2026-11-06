@@ -73,6 +73,7 @@ function NewCampaign() {
   );
   const [payMethod, setPayMethod] = useState<"stripe" | "chain">("stripe");
   const [editing, setEditing] = useState(false);
+  const [showStripeNote, setShowStripeNote] = useState(false);
   const { data: fees = [] } = useFeeTiers();
   const checkout = useServerFn(startStripeCheckout);
   const set = (k: keyof typeof f) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) =>
@@ -342,7 +343,7 @@ function NewCampaign() {
             <button type="button" className="shrink-0 text-xs opacity-80 hover:underline hover:opacity-100" onClick={() => setEditing(true)}>{t("f.modify")}</button>
           </div>
         )}
-        <PayTicket pool={pool} fee={fee} total={total} currency={f.currency} method={effMethod} setMethod={setPayMethod} stripeOk={stripeOk} chainOk={chainOk} canPay={canPay} busy={busy} setBusy={setBusy} onPay={payNow} getCampaign={ensureChainCampaign} onFunded={() => setFunded(true)} />
+        <PayTicket pool={pool} fee={fee} total={total} currency={f.currency} method={effMethod} setMethod={setPayMethod} stripeOk={stripeOk} chainOk={chainOk} canPay={canPay} busy={busy} setBusy={setBusy} onPay={payNow} getCampaign={ensureChainCampaign} onFunded={() => setFunded(true)} showStripeNote={showStripeNote} setShowStripeNote={setShowStripeNote} />
       </aside>
       </div>
       </div>
@@ -383,7 +384,7 @@ function TweetPreview({ name, handle, avatar, now, text }: { name: string; handl
 }
 
 /** Always-visible payment ticket: live pool+fee total, method tabs, single pay CTA that saves the campaign then starts checkout. */
-function PayTicket({ pool, fee, total, currency, method, setMethod, stripeOk, chainOk, canPay, busy, setBusy, onPay, getCampaign, onFunded }: {
+function PayTicket({ pool, fee, total, currency, method, setMethod, stripeOk, chainOk, canPay, busy, setBusy, onPay, getCampaign, onFunded, showStripeNote, setShowStripeNote }: {
   pool: number; fee: number; total: number; currency: string;
   method: "stripe" | "chain"; setMethod: (m: "stripe" | "chain") => void;
   stripeOk: boolean; chainOk: boolean; canPay: boolean;
@@ -391,6 +392,7 @@ function PayTicket({ pool, fee, total, currency, method, setMethod, stripeOk, ch
   onPay: () => void;
   getCampaign: () => Promise<FundingCampaign | null>;
   onFunded: () => void;
+  showStripeNote: boolean; setShowStripeNote: (v: boolean) => void;
 }) {
   const { t } = useI18n();
   const chainName = chainConfig().chainName;
@@ -415,11 +417,14 @@ function PayTicket({ pool, fee, total, currency, method, setMethod, stripeOk, ch
         <div className="perf-notch" aria-hidden="true" />
         <div className="t-bot">
           <div className="seg-tabs" role="tablist">
-            <span title={t("pay.stripeDisabled")} style={{cursor:"not-allowed",display:"inline-block",flex:1}}>
-              <button type="button" role="tab" aria-selected={false} disabled style={{opacity:0.4,pointerEvents:"none",width:"100%"}}>{t("pay.stripeTab")}</button>
+            <span style={{display:"inline-block",flex:1}}>
+              <button type="button" role="tab" aria-selected={false} style={{opacity:0.4,width:"100%",cursor:"not-allowed"}} onClick={() => setShowStripeNote(!showStripeNote)}>{t("pay.stripeTab")}</button>
             </span>
             <button type="button" role="tab" aria-selected={method === "chain"} disabled={!chainOk} onClick={() => chainOk && setMethod("chain")}>{t("pay.chainTab")}</button>
           </div>
+          {showStripeNote && (
+            <p style={{fontSize:12,color:"var(--muted-foreground)",marginTop:10,textAlign:"center",padding:"6px 10px",background:"rgba(255,255,255,.04)",borderRadius:8}}>{t("pay.stripeDisabled")}</p>
+          )}
           {method === "stripe" && (
             <>
               <button type="button" className="btn-gradient" style={{marginTop:14}} disabled={busy || !canPay} onClick={onPay}>

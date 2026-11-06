@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { Check, Copy, Wallet } from "lucide-react";
 import { useServerFn } from "@tanstack/react-start";
@@ -88,6 +88,30 @@ export function FundingPanel({ c, busy, setBusy, onDone }: { c: FundingCampaign;
   );
 }
 
+/** Shown on mobile when window.ethereum is absent — guides the user to open the page inside their wallet's DApp browser. */
+function MobileWalletLinks() {
+  const { t } = useI18n();
+  const url = typeof window !== "undefined" ? window.location.href : "https://www.fairdraw.win";
+  const enc = encodeURIComponent(url);
+  const wallets = [
+    { name: "MetaMask",    href: `https://metamask.app.link/dapp/${url.replace(/^https?:\/\//, "")}`,        bg: "#e88100" },
+    { name: "Trust Wallet",href: `https://link.trustwallet.com/open_url?coin_id=20000714&url=${enc}`,        bg: "#3375bb" },
+    { name: "OKX Wallet",  href: `okx://wallet/dapp/url?dappUrl=${enc}`,                                     bg: "#000" },
+    { name: "TokenPocket", href: `tpdapp://open?params=${encodeURIComponent(JSON.stringify({ url, source: "fairdraw" }))}`, bg: "#2980fe" },
+  ];
+  return (
+    <div style={{display:"flex",flexDirection:"column",gap:8}}>
+      <p style={{fontSize:12,color:"var(--muted-foreground)",marginBottom:2,textAlign:"center"}}>{t("m.mobileWalletHint")}</p>
+      {wallets.map((w) => (
+        <a key={w.name} href={w.href} style={{display:"flex",alignItems:"center",gap:10,padding:"10px 14px",borderRadius:12,background:w.bg,color:"#fff",fontWeight:600,fontSize:14,textDecoration:"none"}}>
+          <Wallet style={{width:18,height:18,flexShrink:0}} />{t("m.openIn")} {w.name}
+        </a>
+      ))}
+      <p style={{fontSize:11,color:"var(--muted-foreground)",textAlign:"center",marginTop:4}}>{t("m.mobileWalletOr")}</p>
+    </div>
+  );
+}
+
 /**
  * Chain payment body: wallet-connect or manual transfer sub-tabs.
  * `getCampaign` resolves the campaign row on demand — the /new ticket passes a
@@ -107,6 +131,7 @@ export function ChainFundingBody({ getCampaign, total, busy, setBusy, onDone }: 
   const [txHash, setTxHash] = useState("");
   const [hashError, setHashError] = useState("");
   const [payStep, setPayStep] = useState<"idle" | "wallet" | "chain">("idle");
+  const isMobile = useMemo(() => typeof navigator !== "undefined" && /Android|iPhone|iPad|iPod/i.test(navigator.userAgent), []);
   const [copied, setCopied] = useState(false);
   const [qrUrl, setQrUrl] = useState<string | null>(null);
   const cfg = chainConfig();
@@ -123,7 +148,11 @@ export function ChainFundingBody({ getCampaign, total, busy, setBusy, onDone }: 
   const formattedAddr = depositTo ? depositTo.replace(/(.{4})(?=.)/g, "$1 ") : "";
 
   async function payChain() {
-    if (!hasEthereum()) { toast.error(t("m.noMetaMask")); setTab("transfer"); return; }
+    if (!hasEthereum()) {
+      if (!isMobile) { toast.error(t("m.noMetaMask")); setTab("transfer"); }
+      // On mobile: UI already shows deep-link panel; nothing more to do.
+      return;
+    }
     if (!cfg.escrowAddress && !cfg.receiverAddress && !cfg.treasuryAddress) { toast.error(t("m.noReceiver")); return; }
     setBusy(true);
     setPayStep("wallet");
@@ -189,12 +218,18 @@ export function ChainFundingBody({ getCampaign, total, busy, setBusy, onDone }: 
 
       {tab === "wallet" && (
         <div style={{marginTop:"14px"}}>
-          <button className="btn-gradient" disabled={busy} onClick={payChain} type="button">
-            <Wallet style={{width:20,height:20}} />{chainBtnText}
-          </button>
-          <div className="wallets-list">
-            <span>MetaMask</span><span>OKX Wallet</span><span>Binance Wallet</span><span>TokenPocket</span>
-          </div>
+          {isMobile && !hasEthereum() ? (
+            <MobileWalletLinks />
+          ) : (
+            <>
+              <button className="btn-gradient" disabled={busy} onClick={payChain} type="button">
+                <Wallet style={{width:20,height:20}} />{chainBtnText}
+              </button>
+              <div className="wallets-list">
+                <span>MetaMask</span><span>OKX Wallet</span><span>Binance Wallet</span><span>TokenPocket</span>
+              </div>
+            </>
+          )}
         </div>
       )}
 
@@ -245,3 +280,4 @@ export function ChainFundingBody({ getCampaign, total, busy, setBusy, onDone }: 
     </>
   );
 }
+
