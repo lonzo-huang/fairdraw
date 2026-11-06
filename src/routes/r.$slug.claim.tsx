@@ -111,15 +111,23 @@ function ClaimPage() {
   const boundHandle = (boundRaw?.user_name ?? boundRaw?.preferred_username ?? boundRaw?.screen_name ?? null) as string | null;
 
   const myPayout = payouts.find((p) => myHandles.includes(norm(p.winner_handle ?? "")));
-  const infoSubmitted = !!myPayout && (!!myPayout.claim_info || !!myPayout.stripe_account_id || !!myPayout.wise_transfer_id || !!myPayout.tx_hash);
   const paid = myPayout?.status === "paid";
-  const processing = !!myPayout && !paid && (myPayout.status === "paying" || infoSubmitted);
+  // Real payout mechanism initiated (irreversible): stripe onboarding, wise transfer, on-chain tx, or status=paying.
+  // claim_info alone is just a note — the user should still be able to pick a proper payout method.
+  const payoutStarted = !!myPayout && !paid && (
+    myPayout.status === "paying" ||
+    !!myPayout.stripe_account_id ||
+    !!myPayout.wise_transfer_id ||
+    !!myPayout.tx_hash
+  );
+  // For step indicator: any info at all (including a plain note) marks step 3 as touched.
+  const hasAnyInfo = !!myPayout && (!!myPayout.claim_info || !!myPayout.stripe_account_id || !!myPayout.wise_transfer_id || !!myPayout.tx_hash);
 
   const view: "signin" | "wait" | "visitor" | "sent" | "claim" =
     !user ? "signin"
     : !d || payouts.length === 0 ? "wait"
     : !myPayout ? "visitor"
-    : paid || processing ? "sent"
+    : paid || payoutStarted ? "sent"
     : "claim";
 
   return (
@@ -155,7 +163,7 @@ function ClaimPage() {
             {[
               { tt: t("rs.stepDraw"), s: drawnAt ? drawnAt.toLocaleDateString(lang === "zh" ? "zh-CN" : "en-GB", { month: "short", day: "numeric" }) : "—", done: true },
               { tt: t("rs.stepNotice"), s: t("cl.stepNotified"), done: true },
-              { tt: t("rs.stepAddr"), s: infoSubmitted || paid ? t("rs.infoDone") : t("cl.stepNow"), done: infoSubmitted || paid },
+              { tt: t("rs.stepAddr"), s: hasAnyInfo || paid ? t("rs.infoDone") : t("cl.stepNow"), done: hasAnyInfo || paid },
               { tt: t("rs.stepPaid"), s: paid ? t("r.paid") : t("rs.autoPay"), done: paid },
             ].map((s2, i, arr) => (
               <div key={i} className={`cl-sp${s2.done ? " done" : i === arr.findIndex((x) => !x.done) ? " now" : ""}`}>
