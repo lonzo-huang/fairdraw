@@ -32,8 +32,7 @@ export const SYM: Record<string, string> = { CNY: "¥", USD: "$", EUR: "€" };
 
 export const REGIONS: GiftRegion[] = [
   { k: "CN", n: "中国大陆", nEn: "Mainland China", cur: "CNY" },
-  { k: "NL", n: "荷兰", nEn: "Netherlands", cur: "EUR" },
-  { k: "US", n: "美国", nEn: "United States", cur: "USD" },
+  { k: "INTL", n: "欧美", nEn: "International", cur: "USD" },
 ];
 
 export const CATALOG: Record<string, GiftCard[]> = {
@@ -45,21 +44,10 @@ export const CATALOG: Record<string, GiftCard[]> = {
     { id: "didi", n: "滴滴出行券", nEn: "DiDi voucher", c: "出行", cEn: "Travel", bg: "#ff7a29", ab: "DiDi", min: 20, max: 1000 },
     { id: "steamcn", n: "Steam 钱包", nEn: "Steam Wallet", c: "游戏", cEn: "Games", bg: "#1b2838", ab: "Steam", fixed: [50, 100, 200] },
   ],
-  NL: [
-    { id: "bol", n: "bol.com 礼品卡", nEn: "bol.com card", c: "购物", cEn: "Shopping", bg: "#0000a4", ab: "bol.", min: 5, max: 150 },
-    { id: "amznl", n: "Amazon.nl", nEn: "Amazon.nl", c: "购物", cEn: "Shopping", bg: "#232f3e", ab: "amazon", min: 5, max: 500 },
-    { id: "steameu", n: "Steam 钱包", nEn: "Steam Wallet", c: "游戏", cEn: "Games", bg: "#1b2838", ab: "Steam", fixed: [5, 10, 25, 50] },
-    { id: "netflix", n: "Netflix", nEn: "Netflix", c: "娱乐", cEn: "Fun", bg: "#e50914", ab: "NETFLIX", fixed: [15, 25, 50] },
-    { id: "ah", n: "Albert Heijn", nEn: "Albert Heijn", c: "超市", cEn: "Grocery", bg: "#00a0e2", ab: "AH", min: 5, max: 150 },
-    { id: "ns", n: "NS 火车卡", nEn: "NS rail card", c: "出行", cEn: "Travel", bg: "#ffc917", ab: "NS", fixed: [10, 20, 50] },
-  ],
-  US: [
-    { id: "amzus", n: "Amazon.com", nEn: "Amazon.com", c: "购物", cEn: "Shopping", bg: "#232f3e", ab: "amazon", min: 1, max: 2000 },
-    { id: "apple", n: "Apple 礼品卡", nEn: "Apple gift card", c: "数码", cEn: "Tech", bg: "#555", ab: "Apple", min: 10, max: 500 },
-    { id: "steamus", n: "Steam 钱包", nEn: "Steam Wallet", c: "游戏", cEn: "Games", bg: "#1b2838", ab: "Steam", fixed: [5, 10, 20, 50] },
-    { id: "uber", n: "Uber", nEn: "Uber", c: "出行", cEn: "Travel", bg: "#000", ab: "Uber", min: 15, max: 500 },
-    { id: "target", n: "Target", nEn: "Target", c: "购物", cEn: "Shopping", bg: "#cc0000", ab: "Target", min: 5, max: 500 },
-    { id: "spotify", n: "Spotify", nEn: "Spotify", c: "娱乐", cEn: "Fun", bg: "#1db954", ab: "Spotify", fixed: [10, 30, 60] },
+  INTL: [
+    { id: "amazon", n: "Amazon", nEn: "Amazon", c: "购物", cEn: "Shopping", bg: "#232f3e", ab: "amazon", min: 1, max: 2000 },
+    { id: "apple", n: "Apple 礼品卡", nEn: "Apple Gift Card", c: "数码", cEn: "Tech", bg: "#555", ab: "Apple", min: 10, max: 500 },
+    { id: "google", n: "Google Play", nEn: "Google Play", c: "娱乐", cEn: "Entertainment", bg: "#01875f", ab: "GP", min: 5, max: 500 },
   ],
 };
 
