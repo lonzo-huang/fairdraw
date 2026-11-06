@@ -1,4 +1,4 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, Outlet, useMatchRoute } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useEffect, useRef, useState } from "react";
@@ -64,6 +64,8 @@ export const Route = createFileRoute("/r/$slug")({
 
 function ResultPage() {
   const { slug } = Route.useParams();
+  const matchRoute = useMatchRoute();
+  if (matchRoute({ to: "/r/$slug/claim", params: { slug } })) return <Outlet />;
   const { t, lang } = useI18n();
   const { user } = useAuth();
   const [steps, setSteps] = useState<[StepState, StepState, StepState]>(["", "", ""]);
