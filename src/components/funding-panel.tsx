@@ -9,6 +9,7 @@ import { chainConfig } from "@/lib/payments";
 import { feeAmount } from "@/lib/fees";
 import { useFeeTiers } from "@/hooks/use-fee-tiers";
 import { fundEscrow, hasEthereum, sendTokenTransfer } from "@/lib/wallet";
+import { parseUnits } from "viem";
 
 export type FundingCampaign = { id: string; prize_amount?: number | null; currency?: string | null; payment_method: string; ends_at?: string | null };
 
@@ -88,16 +89,34 @@ export function FundingPanel({ c, busy, setBusy, onDone }: { c: FundingCampaign;
   );
 }
 
-/** Shown on mobile when window.ethereum is absent — guides the user to open the page inside their wallet's DApp browser. */
-function MobileWalletLinks() {
+/**
+ * Mobile wallets don't inject window.ethereum into external browsers. Instead of
+ * reopening the page in the wallet's DApp browser (which loses the login session),
+ * deep-link straight into the wallet's transfer screen with recipient/token/amount
+ * pre-filled. After paying, the user returns here and pastes the tx hash.
+ */
+function MobileWalletPay({ depositTo, total, busy, txHash, setTxHash, hashError, setHashError, onConfirm }: {
+  depositTo: string;
+  total: number;
+  busy: boolean;
+  txHash: string; setTxHash: (v: string) => void;
+  hashError: string; setHashError: (v: string) => void;
+  onConfirm: () => void;
+}) {
   const { t } = useI18n();
-  const url = typeof window !== "undefined" ? window.location.href : "https://www.fairdraw.win";
-  const enc = encodeURIComponent(url);
+  const cfg = chainConfig();
+  const raw = parseUnits(total.toFixed(6), cfg.tokenDecimals).toString();
+  // SLIP-44 coin ids used by Trust Wallet asset codes (c<id>_t<contract>).
+  const trustAsset = ({ 56: "c20000714", 1: "c60", 97: "c20000714" } as Record<number, string>)[cfg.chainId];
   const wallets = [
-    { name: "MetaMask",    href: `https://metamask.app.link/dapp/${url.replace(/^https?:\/\//, "")}`,        bg: "#e88100" },
-    { name: "Trust Wallet",href: `https://link.trustwallet.com/open_url?coin_id=20000714&url=${enc}`,        bg: "#3375bb" },
-    { name: "OKX Wallet",  href: `okx://wallet/dapp/url?dappUrl=${enc}`,                                     bg: "#000" },
-    { name: "TokenPocket", href: `tpdapp://open?params=${encodeURIComponent(JSON.stringify({ url, source: "fairdraw" }))}`, bg: "#2980fe" },
+    { name: "MetaMask", bg: "#e88100",
+      href: `https://metamask.app.link/send/${cfg.tokenAddress}@${cfg.chainId}/transfer?address=${depositTo}&uint256=${raw}` },
+    ...(trustAsset ? [{ name: "Trust Wallet", bg: "#3375bb",
+      href: `trust://send?asset=${trustAsset}_t${cfg.tokenAddress}&address=${depositTo}&amount=${total.toFixed(6)}` }] : []),
+    { name: "TokenPocket", bg: "#2980fe",
+      href: `tpdapp://transfer?chain=BSC&contract=${cfg.tokenAddress}&to=${depositTo}&amount=${total.toFixed(6)}` },
+    { name: t("m.otherWallet"), bg: "#334",
+      href: `ethereum:${cfg.tokenAddress}@${cfg.chainId}/transfer?address=${depositTo}&uint256=${raw}` },
   ];
   return (
     <div style={{display:"flex",flexDirection:"column",gap:8}}>
@@ -105,9 +124,16 @@ function MobileWalletLinks() {
       {wallets.map((w) => (
         <a key={w.name} href={w.href} style={{display:"flex",alignItems:"center",gap:10,padding:"10px 14px",borderRadius:12,background:w.bg,color:"#fff",fontWeight:600,fontSize:14,textDecoration:"none"}}>
           <Wallet style={{width:18,height:18,flexShrink:0}} />{t("m.openIn")} {w.name}
+          <span style={{marginLeft:"auto",fontSize:12,opacity:.85}}>{total.toFixed(2)} {cfg.tokenSymbol}</span>
         </a>
       ))}
-      <p style={{fontSize:11,color:"var(--muted-foreground)",textAlign:"center",marginTop:4}}>{t("m.mobileWalletOr")}</p>
+      <p style={{fontSize:11,color:"var(--muted-foreground)",textAlign:"center",margin:"6px 0 2px"}}>{t("m.mobileWalletOr")}</p>
+      <div className="hash-row">
+        <input className="hash-in" placeholder="0x…" value={txHash} spellCheck={false}
+          onChange={(e) => { setTxHash(e.target.value); setHashError(""); }} />
+        <button type="button" className="hash-btn" disabled={busy} onClick={onConfirm}>{t("m.confirmTx")}</button>
+      </div>
+      {hashError && <p style={{fontSize:12,color:"var(--destructive)",marginTop:2}}>{hashError}</p>}
     </div>
   );
 }
@@ -219,7 +245,15 @@ export function ChainFundingBody({ getCampaign, total, busy, setBusy, onDone }: 
       {tab === "wallet" && (
         <div style={{marginTop:"14px"}}>
           {isMobile && !hasEthereum() ? (
-            <MobileWalletLinks />
+            depositTo ? (
+              <MobileWalletPay depositTo={depositTo} total={total} busy={busy}
+                txHash={txHash} setTxHash={setTxHash} hashError={hashError} setHashError={setHashError}
+                onConfirm={confirmManual} />
+            ) : (
+              <button className="btn-gradient" disabled={busy} onClick={payChain} type="button">
+                <Wallet style={{width:20,height:20}} />{chainBtnText}
+              </button>
+            )
           ) : (
             <>
               <button className="btn-gradient" disabled={busy} onClick={payChain} type="button">
