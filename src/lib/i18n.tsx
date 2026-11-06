@@ -731,6 +731,7 @@ const dict = {
   "m.binanceTag": { zh: "提币（推荐，手续费低）", en: "withdraw (recommended, low fee)" },
   "m.addrCopied": { zh: "地址已复制", en: "Address copied" },
   "m.binanceHint": { zh: "点上面按钮复制收款地址 → 打开币安 App → 提币 USDT → 网络选 BSC (BEP20)", en: "Tap to copy the address → open Binance app → withdraw USDT → pick BSC (BEP20)" },
+  "m.binanceQrHint": { zh: "币安用户：打开币安 App → 提币 → USDT → 扫左侧二维码填地址，手续费 ~1 USDT", en: "Binance users: open the app → Withdraw → USDT → scan the QR for the address (~1 USDT fee)" },
   "m.noReceiver": { zh: "平台收款钱包未配置（VITE_PLATFORM_WALLET）。", en: "Platform wallet not configured (VITE_PLATFORM_WALLET)." },
   "m.winnerWallet": { zh: "中奖者钱包地址（0x…）", en: "Winner wallet address (0x…)" },
   "m.payOnchain": { zh: "链上派奖", en: "Pay on-chain" },

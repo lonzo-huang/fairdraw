@@ -89,6 +89,29 @@ export function FundingPanel({ c, busy, setBusy, onDone }: { c: FundingCampaign;
   );
 }
 
+/** Binance withdrawal CTA — copies the deposit address; the user then withdraws USDT (BEP20) inside the Binance app/site. */
+function BinanceCopyBtn({ depositTo, total }: { depositTo: string; total: number }) {
+  const { t } = useI18n();
+  const cfg = chainConfig();
+  const [copied, setCopied] = useState(false);
+  function copy() {
+    navigator.clipboard?.writeText(depositTo).catch(() => {});
+    setCopied(true);
+    setTimeout(() => setCopied(false), 3000);
+  }
+  return (
+    <>
+      <button type="button" onClick={copy}
+        style={{display:"flex",alignItems:"center",gap:10,padding:"10px 14px",borderRadius:12,background:"#f0b90b",color:"#1e2026",fontWeight:700,fontSize:14,border:0,cursor:"pointer",width:"100%"}}>
+        <span style={{width:18,height:18,borderRadius:"50%",background:"#1e2026",color:"#f0b90b",display:"grid",placeItems:"center",fontSize:11,fontWeight:900,flexShrink:0}}>B</span>
+        币安 Binance {t("m.binanceTag")}
+        <span style={{marginLeft:"auto",fontSize:12,opacity:.85}}>{copied ? t("m.addrCopied") : `${total.toFixed(2)} ${cfg.tokenSymbol}`}</span>
+      </button>
+      <p style={{fontSize:11,color:"var(--muted-foreground)",textAlign:"center",margin:"4px 0 0"}}>{t("m.binanceHint")}</p>
+    </>
+  );
+}
+
 /**
  * Mobile wallets don't inject window.ethereum into external browsers. Instead of
  * reopening the page in the wallet's DApp browser (which loses the login session),
@@ -108,12 +131,6 @@ function MobileWalletPay({ depositTo, total, busy, txHash, setTxHash, hashError,
   const raw = parseUnits(total.toFixed(6), cfg.tokenDecimals).toString();
   // SLIP-44 coin ids used by Trust Wallet asset codes (c<id>_t<contract>).
   const trustAsset = ({ 56: "c20000714", 1: "c60", 97: "c20000714" } as Record<number, string>)[cfg.chainId];
-  const [copied, setCopied] = useState(false);
-  function copyForBinance() {
-    navigator.clipboard?.writeText(depositTo).catch(() => {});
-    setCopied(true);
-    setTimeout(() => setCopied(false), 3000);
-  }
   const wallets = [
     { name: "MetaMask", bg: "#e88100", fg: "#fff",
       href: `https://metamask.app.link/send/${cfg.tokenAddress}@${cfg.chainId}/transfer?address=${depositTo}&uint256=${raw}` },
@@ -127,13 +144,7 @@ function MobileWalletPay({ depositTo, total, busy, txHash, setTxHash, hashError,
   return (
     <div style={{display:"flex",flexDirection:"column",gap:8}}>
       <p style={{fontSize:12,color:"var(--muted-foreground)",marginBottom:2,textAlign:"center"}}>{t("m.mobileWalletHint")}</p>
-      <button type="button" onClick={copyForBinance}
-        style={{display:"flex",alignItems:"center",gap:10,padding:"10px 14px",borderRadius:12,background:"#f0b90b",color:"#1e2026",fontWeight:700,fontSize:14,border:0,cursor:"pointer"}}>
-        <span style={{width:18,height:18,borderRadius:"50%",background:"#1e2026",color:"#f0b90b",display:"grid",placeItems:"center",fontSize:11,fontWeight:900}}>B</span>
-        币安 Binance {t("m.binanceTag")}
-        <span style={{marginLeft:"auto",fontSize:12,opacity:.85}}>{copied ? t("m.addrCopied") : `${total.toFixed(2)} ${cfg.tokenSymbol}`}</span>
-      </button>
-      <p style={{fontSize:11,color:"var(--muted-foreground)",textAlign:"center",margin:"0 0 4px"}}>{t("m.binanceHint")}</p>
+      <BinanceCopyBtn depositTo={depositTo} total={total} />
       {wallets.map((w) => (
         <a key={w.name} href={w.href} style={{display:"flex",alignItems:"center",gap:10,padding:"10px 14px",borderRadius:12,background:w.bg,color:w.fg,fontWeight:600,fontSize:14,textDecoration:"none"}}>
           <Wallet style={{width:18,height:18,flexShrink:0}} />{t("m.openIn")} {w.name}
@@ -275,6 +286,11 @@ export function ChainFundingBody({ getCampaign, total, busy, setBusy, onDone }: 
               <div className="wallets-list">
                 <span>MetaMask</span><span>OKX Wallet</span><span>Binance Wallet</span><span>TokenPocket</span>
               </div>
+              {depositTo && (
+                <div style={{marginTop:12}}>
+                  <BinanceCopyBtn depositTo={depositTo} total={total} />
+                </div>
+              )}
             </>
           )}
         </div>
@@ -300,6 +316,7 @@ export function ChainFundingBody({ getCampaign, total, busy, setBusy, onDone }: 
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/><path d="M12 9v4M12 17h.01"/></svg>
             {t("m.fundWarnNet")}
           </div>
+          <p style={{fontSize:11,color:"var(--muted-foreground)",textAlign:"center",margin:"8px 0 0"}}>{t("m.binanceQrHint")}</p>
           <ol className="steps-list">
             <li>
               <span className="steps-n">1</span>
