@@ -202,7 +202,7 @@ const dict = {
   "kpi.giveaways": { zh: "活动总数", en: "Total giveaways" },
   "kpi.live": { zh: "进行中", en: "live" },
   "kpi.scope": { zh: "区间内快照增量", en: "Snapshot delta in range" },
-  "kpi.noData": { zh: "该区间暂无快照数据", en: "No snapshots in this range" },
+  "kpi.noData": { zh: "暂无基期可对比", en: "No prior period to compare" },
   "trend.title": { zh: "表现趋势", en: "Performance trend" },
   "trend.caption": { zh: "所选区间内全部活动的快照聚合。", en: "Aggregate of campaign snapshots in the selected range." },
   "trend.impressions": { zh: "曝光", en: "Impressions" },
