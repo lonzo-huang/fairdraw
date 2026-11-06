@@ -4,10 +4,9 @@ import { useServerFn } from "@tanstack/react-start";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
-import { chainConfig, FIAT_CURRENCIES } from "@/lib/payments";
 import { translate, useI18n } from "@/lib/i18n";
 import { useAuth } from "@/hooks/use-auth";
-import { autoStripePayout, claimChainPayout, claimStripePayout, claimWisePayout, getWiseClaimRequirements, submitPayoutInfo, syncWisePayout } from "@/lib/payment.functions";
+import { autoStripePayout, syncWisePayout } from "@/lib/payment.functions";
 import { canonicalList, listHash, makeSeed, pickWinners, type Candidate } from "@/lib/draw";
 import { computeProgress, parseConditions, type Metrics } from "@/lib/conditions";
 import { Button } from "@/components/ui/button";
@@ -307,16 +306,7 @@ function ResultPage() {
             {myPayout && (
               <div className="claim">
                 <p>{t("rs.stepAddr")}</p>
-                <ClaimInfo
-                  payoutId={myPayout.id}
-                  claimInfo={myPayout.claim_info}
-                  stripe={c.payment_method === "stripe"}
-                  onboarded={!!myPayout.stripe_account_id}
-                  wise={!!myPayout.wise_transfer_id}
-                  paying={myPayout.status === "paying"}
-                  currency={c.currency}
-                  onDone={refetch}
-                />
+                <Link to="/r/$slug/claim" params={{ slug }} className="ghost">{t("win.claim")} →</Link>
               </div>
             )}
           </div>
@@ -422,201 +412,5 @@ function ResultPage() {
   );
 }
 
-/**
- * Countries the GB platform may transfer to — Stripe only allows /v1/transfers
- * to connected accounts in the platform's own region (GB/EEA/CH/NO/IS/LI).
- * Winners elsewhere claim via Wise.
- */
-const RECIPIENT_COUNTRIES = ["AT","BE","BG","HR","CY","CZ","DK","EE","FI","FR","DE","GR","HU","IS","IE","IT","LV","LI","LT","LU","MT","NL","NO","PL","PT","RO","SK","SI","ES","SE","CH","GB"];
 
-type WiseReq = { type: string; title: string; fields?: { name: string; group?: { key: string; name?: string; type?: string; required?: boolean; valuesAllowed?: { key: string; name: string }[] }[] }[] };
-
-function WiseClaim({ payoutId, currency, busy, setBusy, onDone }: { payoutId: string; currency: string; busy: boolean; setBusy: (b: boolean) => void; onDone: () => void }) {
-  const { t } = useI18n();
-  const getReqs = useServerFn(getWiseClaimRequirements);
-  const claim = useServerFn(claimWisePayout);
-  const [holder, setHolder] = useState("");
-  const [rtype, setRtype] = useState("");
-  const [dets, setDets] = useState<Record<string, string>>({});
-  // Token pools let the winner pick their receiving fiat (USDT→CNY etc.).
-  const isToken = currency.toUpperCase() === chainConfig().tokenSymbol;
-  const [fiat, setFiat] = useState("CNY");
-  const target = isToken ? fiat : currency;
-  const { data: reqs } = useQuery({ queryKey: ["wise-reqs", target], queryFn: () => getReqs({ data: { targetCurrency: target } }) });
-  const types = (reqs ?? []) as WiseReq[];
-  const sel = types.find((r) => r.type === rtype) ?? types[0];
-  const groups = (sel?.fields ?? []).flatMap((f) => f.group ?? []).filter((g) => g.key !== "accountHolderName");
-
-  async function go() {
-    if (!sel) return;
-    setBusy(true);
-    try {
-      await claim({ data: { payoutId, recipientType: sel.type, accountHolderName: holder, details: dets, ...(isToken ? { targetCurrency: target } : {}) } });
-      toast.success(t("r.wiseSent"));
-      onDone();
-    } catch (e) {
-      toast.error((e as Error).message);
-      setBusy(false);
-    }
-  }
-
-  return (
-    <span className="flex flex-col gap-2 rounded-md border border-input p-2">
-      {isToken && (
-        <select
-          aria-label={t("r.fiatCurrency")}
-          className="h-8 rounded-md border border-input bg-background px-1.5 text-xs"
-          value={fiat}
-          onChange={(e) => setFiat(e.target.value)}
-        >
-          {[...FIAT_CURRENCIES].map((fc) => <option key={fc} value={fc}>{fc}</option>)}
-        </select>
-      )}
-      <input
-        className="h-8 rounded-md border border-input bg-background px-2 text-xs"
-        placeholder={t("r.wiseHolder")}
-        value={holder}
-        onChange={(e) => setHolder(e.target.value)}
-      />
-      <select
-        aria-label={t("r.wiseType")}
-        className="h-8 rounded-md border border-input bg-background px-1.5 text-xs"
-        value={sel?.type ?? ""}
-        onChange={(e) => { setRtype(e.target.value); setDets({}); }}
-      >
-        {types.map((r) => <option key={r.type} value={r.type}>{r.title || r.type}</option>)}
-      </select>
-      {groups.map((g) =>
-        g.valuesAllowed?.length ? (
-          <select key={g.key} className="h-8 rounded-md border border-input bg-background px-1.5 text-xs" value={dets[g.key] ?? ""} onChange={(e) => setDets((d) => ({ ...d, [g.key]: e.target.value }))}>
-            <option value="">{g.name ?? g.key}</option>
-            {g.valuesAllowed.map((v) => <option key={v.key} value={v.key}>{v.name}</option>)}
-          </select>
-        ) : (
-          <input key={g.key} className="h-8 rounded-md border border-input bg-background px-2 text-xs" placeholder={g.name ?? g.key} value={dets[g.key] ?? ""} onChange={(e) => setDets((d) => ({ ...d, [g.key]: e.target.value }))} />
-        ),
-      )}
-      <Button size="sm" disabled={busy || !sel || !holder.trim() || groups.some((g) => !(dets[g.key] ?? "").trim())} onClick={go}>{t("r.claimWise")}</Button>
-    </span>
-  );
-}
-function ChainClaim({ payoutId, busy, setBusy, onDone }: { payoutId: string; busy: boolean; setBusy: (b: boolean) => void; onDone: () => void }) {
-  const { t } = useI18n();
-  const claim = useServerFn(claimChainPayout);
-  const [addr, setAddr] = useState("");
-
-  async function go() {
-    setBusy(true);
-    try {
-      await claim({ data: { payoutId, address: addr } });
-      toast.success(t("r.chainSent"));
-      onDone();
-    } catch (e) {
-      toast.error((e as Error).message);
-      setBusy(false);
-    }
-  }
-
-  return (
-    <span className="flex flex-col gap-2 rounded-md border border-input p-2 sm:flex-row">
-      <input
-        className="h-8 flex-1 rounded-md border border-input bg-background px-2 font-mono text-xs"
-        placeholder={t("r.chainAddr")}
-        value={addr}
-        maxLength={42}
-        onChange={(e) => setAddr(e.target.value)}
-      />
-      <Button size="sm" disabled={busy || !/^0x[0-9a-fA-F]{40}$/.test(addr.trim())} onClick={go}>{t("r.claimChain")}</Button>
-    </span>
-  );
-}
-
-function ClaimInfo({ payoutId, claimInfo, stripe, onboarded, wise, paying, currency, onDone }: { payoutId: string; claimInfo: string | null; stripe: boolean; onboarded: boolean; wise: boolean; paying: boolean; currency: string; onDone: () => void }) {
-  const { t } = useI18n();
-  const submit = useServerFn(submitPayoutInfo);
-  const claim = useServerFn(claimStripePayout);
-  const [info, setInfo] = useState(claimInfo ?? "");
-  const [open, setOpen] = useState(!claimInfo);
-  const [wiseOpen, setWiseOpen] = useState(false);
-  const [busy, setBusy] = useState(false);
-  const [country, setCountry] = useState("");
-
-  async function save() {
-    setBusy(true);
-    try {
-      await submit({ data: { payoutId, info } });
-      toast.success(t("r.claimInfoSaved"));
-      setOpen(false);
-      onDone();
-    } catch (e) {
-      toast.error((e as Error).message);
-    } finally {
-      setBusy(false);
-    }
-  }
-  async function stripeOnboard() {
-    setBusy(true);
-    try {
-      const r = await claim({ data: { payoutId, origin: window.location.origin, country } });
-      if (r.url) {
-        window.location.href = r.url;
-        return;
-      }
-      onDone();
-    } catch (e) {
-      toast.error((e as Error).message);
-      setBusy(false);
-    }
-  }
-
-  return (
-    <span className="flex w-full flex-col gap-2 border-t border-white/10 pt-2 font-sans">
-      {open ? (
-        <span className="flex flex-col gap-2 sm:flex-row">
-          <input
-            className="h-9 flex-1 rounded-md border border-input bg-background px-3 font-mono text-xs"
-            placeholder={t("r.claimInfoPlaceholder")}
-            value={info}
-            maxLength={200}
-            onChange={(e) => setInfo(e.target.value)}
-          />
-          <Button size="sm" disabled={busy || !info.trim()} onClick={save}>{t("r.claimInfoSubmit")}</Button>
-        </span>
-      ) : (
-        <span className="flex items-center gap-2 text-xs">
-          <span className="break-all opacity-80">{claimInfo}</span>
-          <button className="shrink-0 underline opacity-70" onClick={() => setOpen(true)}>{t("common.edit")}</button>
-        </span>
-      )}
-      {stripe && (
-        <span className="flex items-center gap-2">
-          {onboarded && <span className="text-xs opacity-70">{t("r.claimedInfo")}</span>}
-          {!onboarded && (
-            <select aria-label={t("r.claimCountry")} value={country} onChange={(e) => setCountry(e.target.value)} className="h-7 rounded-md border border-input bg-background px-1.5 text-xs">
-              <option value="">{t("r.claimCountry")}</option>
-              {RECIPIENT_COUNTRIES.map((cc) => <option key={cc} value={cc}>{cc}</option>)}
-            </select>
-          )}
-          <Button size="sm" variant="ghost" className="h-7 px-2 text-xs" disabled={busy || (!onboarded && !country)} onClick={stripeOnboard}>
-            {onboarded ? t("r.claimAgain") : t("r.claim")}
-          </Button>
-        </span>
-      )}
-      {wise || paying ? (
-        <span className="text-xs opacity-70">{t(wise ? "r.wisePending" : "r.payPending")}</span>
-      ) : wiseOpen ? (
-        <WiseClaim payoutId={payoutId} currency={currency} busy={busy} setBusy={setBusy} onDone={onDone} />
-      ) : (
-        <span className="flex flex-col gap-2">
-          <Button size="sm" variant="ghost" className="h-7 self-start px-2 text-xs" onClick={() => setWiseOpen(true)}>
-            {t("r.claimWise")}
-          </Button>
-          {currency.toUpperCase() === chainConfig().tokenSymbol && (
-            <ChainClaim payoutId={payoutId} busy={busy} setBusy={setBusy} onDone={onDone} />
-          )}
-        </span>
-      )}
-    </span>
-  );
-}
 

@@ -27,6 +27,7 @@ import { Route as RSlugRouteImport } from './routes/r.$slug'
 import { Route as AuthenticatedManageIdRouteImport } from './routes/_authenticated/manage.$id'
 import { Route as ApiCronConditionsRouteImport } from './routes/api/cron/conditions'
 import { Route as ApiStripeWebhookRouteImport } from './routes/api/stripe/webhook'
+import { Route as RSlugClaimRouteImport } from './routes/r.$slug.claim'
 import { Route as ApiPublicCampaignImageSlugRouteImport } from './routes/api/public/campaign-image.$slug'
 
 const IndexRoute = IndexRouteImport.update({
@@ -118,6 +119,11 @@ const ApiStripeWebhookRoute = ApiStripeWebhookRouteImport.update({
   path: '/api/stripe/webhook',
   getParentRoute: () => rootRouteImport,
 } as any)
+const RSlugClaimRoute = RSlugClaimRouteImport.update({
+  id: '/claim',
+  path: '/claim',
+  getParentRoute: () => RSlugRoute,
+} as any)
 const ApiPublicCampaignImageSlugRoute =
   ApiPublicCampaignImageSlugRouteImport.update({
     id: '/api/public/campaign-image/$slug',
@@ -139,10 +145,11 @@ export interface FileRoutesByFullPath {
   '/new': typeof AuthenticatedNewRoute
   '/c/$slug': typeof CSlugRoute
   '/go/$slug': typeof GoSlugRoute
-  '/r/$slug': typeof RSlugRoute
+  '/r/$slug': typeof RSlugRouteWithChildren
   '/manage/$id': typeof AuthenticatedManageIdRoute
   '/api/cron/conditions': typeof ApiCronConditionsRoute
   '/api/stripe/webhook': typeof ApiStripeWebhookRoute
+  '/r/$slug/claim': typeof RSlugClaimRoute
   '/api/public/campaign-image/$slug': typeof ApiPublicCampaignImageSlugRoute
 }
 export interface FileRoutesByTo {
@@ -159,10 +166,11 @@ export interface FileRoutesByTo {
   '/new': typeof AuthenticatedNewRoute
   '/c/$slug': typeof CSlugRoute
   '/go/$slug': typeof GoSlugRoute
-  '/r/$slug': typeof RSlugRoute
+  '/r/$slug': typeof RSlugRouteWithChildren
   '/manage/$id': typeof AuthenticatedManageIdRoute
   '/api/cron/conditions': typeof ApiCronConditionsRoute
   '/api/stripe/webhook': typeof ApiStripeWebhookRoute
+  '/r/$slug/claim': typeof RSlugClaimRoute
   '/api/public/campaign-image/$slug': typeof ApiPublicCampaignImageSlugRoute
 }
 export interface FileRoutesById {
@@ -181,10 +189,11 @@ export interface FileRoutesById {
   '/_authenticated/new': typeof AuthenticatedNewRoute
   '/c/$slug': typeof CSlugRoute
   '/go/$slug': typeof GoSlugRoute
-  '/r/$slug': typeof RSlugRoute
+  '/r/$slug': typeof RSlugRouteWithChildren
   '/_authenticated/manage/$id': typeof AuthenticatedManageIdRoute
   '/api/cron/conditions': typeof ApiCronConditionsRoute
   '/api/stripe/webhook': typeof ApiStripeWebhookRoute
+  '/r/$slug/claim': typeof RSlugClaimRoute
   '/api/public/campaign-image/$slug': typeof ApiPublicCampaignImageSlugRoute
 }
 export interface FileRouteTypes {
@@ -207,6 +216,7 @@ export interface FileRouteTypes {
     | '/manage/$id'
     | '/api/cron/conditions'
     | '/api/stripe/webhook'
+    | '/r/$slug/claim'
     | '/api/public/campaign-image/$slug'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -227,6 +237,7 @@ export interface FileRouteTypes {
     | '/manage/$id'
     | '/api/cron/conditions'
     | '/api/stripe/webhook'
+    | '/r/$slug/claim'
     | '/api/public/campaign-image/$slug'
   id:
     | '__root__'
@@ -248,6 +259,7 @@ export interface FileRouteTypes {
     | '/_authenticated/manage/$id'
     | '/api/cron/conditions'
     | '/api/stripe/webhook'
+    | '/r/$slug/claim'
     | '/api/public/campaign-image/$slug'
   fileRoutesById: FileRoutesById
 }
@@ -262,7 +274,7 @@ export interface RootRouteChildren {
   TermsRoute: typeof TermsRoute
   CSlugRoute: typeof CSlugRoute
   GoSlugRoute: typeof GoSlugRoute
-  RSlugRoute: typeof RSlugRoute
+  RSlugRoute: typeof RSlugRouteWithChildren
   ApiCronConditionsRoute: typeof ApiCronConditionsRoute
   ApiStripeWebhookRoute: typeof ApiStripeWebhookRoute
   ApiPublicCampaignImageSlugRoute: typeof ApiPublicCampaignImageSlugRoute
@@ -396,6 +408,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiStripeWebhookRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/r/$slug/claim': {
+      id: '/r/$slug/claim'
+      path: '/claim'
+      fullPath: '/r/$slug/claim'
+      preLoaderRoute: typeof RSlugClaimRouteImport
+      parentRoute: typeof RSlugRoute
+    }
     '/api/public/campaign-image/$slug': {
       id: '/api/public/campaign-image/$slug'
       path: '/api/public/campaign-image/$slug'
@@ -425,6 +444,16 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
 const AuthenticatedRouteRouteWithChildren =
   AuthenticatedRouteRoute._addFileChildren(AuthenticatedRouteRouteChildren)
 
+interface RSlugRouteChildren {
+  RSlugClaimRoute: typeof RSlugClaimRoute
+}
+
+const RSlugRouteChildren: RSlugRouteChildren = {
+  RSlugClaimRoute: RSlugClaimRoute,
+}
+
+const RSlugRouteWithChildren = RSlugRoute._addFileChildren(RSlugRouteChildren)
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AuthenticatedRouteRoute: AuthenticatedRouteRouteWithChildren,
@@ -436,7 +465,7 @@ const rootRouteChildren: RootRouteChildren = {
   TermsRoute: TermsRoute,
   CSlugRoute: CSlugRoute,
   GoSlugRoute: GoSlugRoute,
-  RSlugRoute: RSlugRoute,
+  RSlugRoute: RSlugRouteWithChildren,
   ApiCronConditionsRoute: ApiCronConditionsRoute,
   ApiStripeWebhookRoute: ApiStripeWebhookRoute,
   ApiPublicCampaignImageSlugRoute: ApiPublicCampaignImageSlugRoute,

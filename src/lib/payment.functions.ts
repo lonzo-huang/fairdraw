@@ -34,6 +34,29 @@ async function boundXHandle(supabase: any): Promise<string | null> {
   return typeof raw === "string" && raw ? normHandle(raw) : null;
 }
 
+/**
+ * Proves the caller is the winner. A Supabase-verified X identity matching
+ * the winning handle is sufficient — reply-import entries carry user_id NULL
+ * and are the only participation record for most winners. Accounts without
+ * an X identity fall back to an account-linked entry (manual joins).
+ */
+async function assertWinnerOwner(supabase: any, userId: string, campaignId: string, winnerHandle: string) {
+  const bound = await boundXHandle(supabase);
+  if (bound) {
+    if (bound !== normHandle(winnerHandle))
+      throw new Error("Your X account does not match the winning handle");
+    return;
+  }
+  const { data: mine } = await supabase
+    .from("entries")
+    .select("id")
+    .eq("campaign_id", campaignId)
+    .eq("user_id", userId)
+    .eq("handle", winnerHandle)
+    .maybeSingle();
+  if (!mine) throw new Error("This prize does not belong to your account");
+}
+
 async function requireAdmin(supabaseAdmin: any, userId: string) {
   const { data } = await supabaseAdmin
     .from("user_roles")
@@ -465,21 +488,7 @@ export const submitPayoutInfo = createServerFn({ method: "POST" })
     if (error || !p) throw new Error("Payout not found");
     if (p.status === "paid") throw new Error("Already paid");
 
-    // Only the account that owns the winning entry may claim.
-    const { data: mine } = await supabase
-      .from("entries")
-      .select("id")
-      .eq("campaign_id", p.campaign_id)
-      .eq("user_id", userId)
-      .eq("handle", p.winner_handle)
-      .maybeSingle();
-    if (!mine) throw new Error("This prize does not belong to your account");
-
-    // If the account is X-linked, its verified handle must equal the winning
-    // handle — blocks claiming a prize drawn for someone else's X account.
-    const bound = await boundXHandle(supabase);
-    if (bound && bound !== normHandle(p.winner_handle))
-      throw new Error("Your X account does not match the winning handle");
+    await assertWinnerOwner(supabase, userId, p.campaign_id, p.winner_handle);
 
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { error: upErr } = await supabaseAdmin
@@ -517,19 +526,7 @@ export const claimStripePayout = createServerFn({ method: "POST" })
     if (!c) throw new Error("Campaign not found");
     if (c.payment_method !== "stripe") throw new Error("This campaign does not pay out via Stripe");
 
-    // Only the account that owns the winning entry may claim.
-    const { data: mine } = await supabase
-      .from("entries")
-      .select("id")
-      .eq("campaign_id", c.id)
-      .eq("user_id", userId)
-      .eq("handle", p.winner_handle)
-      .maybeSingle();
-    if (!mine) throw new Error("This prize does not belong to your account");
-
-    const bound = await boundXHandle(supabase);
-    if (bound && bound !== normHandle(p.winner_handle))
-      throw new Error("Your X account does not match the winning handle");
+    await assertWinnerOwner(supabase, userId, c.id, p.winner_handle);
 
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { stripeV2 } = await import("@/lib/stripe.server");
@@ -773,19 +770,7 @@ export const claimWisePayout = createServerFn({ method: "POST" })
     if (!c) throw new Error("Campaign not found");
     if (c.escrow_status !== "charged" && c.escrow_status !== "funded") throw new Error("Pool is not funded");
 
-    // Only the account that owns the winning entry may claim.
-    const { data: mine } = await supabase
-      .from("entries")
-      .select("id")
-      .eq("campaign_id", c.id)
-      .eq("user_id", userId)
-      .eq("handle", p.winner_handle)
-      .maybeSingle();
-    if (!mine) throw new Error("This prize does not belong to your account");
-
-    const bound = await boundXHandle(supabase);
-    if (bound && bound !== normHandle(p.winner_handle))
-      throw new Error("Your X account does not match the winning handle");
+    await assertWinnerOwner(supabase, userId, c.id, p.winner_handle);
 
     const recipientType = data.recipientType.trim();
     const holder = data.accountHolderName.trim();
@@ -889,19 +874,7 @@ export const claimChainPayout = createServerFn({ method: "POST" })
     if (!c) throw new Error("Campaign not found");
     if (c.escrow_status !== "charged" && c.escrow_status !== "funded") throw new Error("Pool is not funded");
 
-    // Only the account that owns the winning entry may claim.
-    const { data: mine } = await supabase
-      .from("entries")
-      .select("id")
-      .eq("campaign_id", c.id)
-      .eq("user_id", userId)
-      .eq("handle", p.winner_handle)
-      .maybeSingle();
-    if (!mine) throw new Error("This prize does not belong to your account");
-
-    const bound = await boundXHandle(supabase);
-    if (bound && bound !== normHandle(p.winner_handle))
-      throw new Error("Your X account does not match the winning handle");
+    await assertWinnerOwner(supabase, userId, c.id, p.winner_handle);
 
     const { chainConfig } = await import("@/lib/payments");
     const cfg = chainConfig();

@@ -368,7 +368,7 @@ function Dashboard() {
                     {paid ? (
                       <Link to="/r/$slug" params={{ slug: c.slug }} className="ib" data-tip={t("c.result")} aria-label={t("c.result")}><BarChart3 /></Link>
                     ) : (
-                      <Link to="/r/$slug" params={{ slug: c.slug }} className="cta">{t("win.claim")}</Link>
+                      <Link to="/r/$slug/claim" params={{ slug: c.slug }} className="cta">{t("win.claim")}</Link>
                     )}
                   </div>
                 </div>
