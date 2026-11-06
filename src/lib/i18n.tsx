@@ -220,6 +220,7 @@ const dict = {
   "win.payout": { zh: "派奖", en: "Payout" },
   "win.drawn": { zh: "开奖时间", en: "Drawn" },
   "win.paying": { zh: "派奖中", en: "Paying out" },
+  "win.claim": { zh: "去领奖", en: "Claim" },
   "tbl.impressions": { zh: "曝光", en: "Impressions" },
   "tbl.engagements": { zh: "互动", en: "Engagements" },
   "tbl.growth": { zh: "净增关注", en: "Net growth" },

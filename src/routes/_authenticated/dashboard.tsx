@@ -345,7 +345,7 @@ function Dashboard() {
           <div className="panel table">
             <div className="thead wcols">
               <span>{t("tbl.campaign")}</span>
-              <span className="r">{t("win.prize")}</span><span className="r">{t("win.payout")}</span><span className="r">{t("win.drawn")}</span>
+              <span className="r">{t("win.prize")}</span><span className="r">{t("win.payout")}</span><span className="r">{t("win.drawn")}</span><span className="r">{t("tbl.actions")}</span>
             </div>
             {wins.map(({ p, c, drawnAt }) => {
               const per = c.prize_amount !== null && c.winners_count ? Math.round((c.prize_amount / c.winners_count) * 100) / 100 : null;
@@ -364,6 +364,13 @@ function Dashboard() {
                     <span className={`badge ${paid ? "b-live" : "b-wait"}`}>{paid ? t("r.paid") : p.status === "paying" ? t("win.paying") : t("r.pending")}</span>
                   </div>
                   <span className="date r">{drawnAt ? md(new Date(drawnAt)) : "—"}</span>
+                  <div className="ops">
+                    {paid ? (
+                      <Link to="/r/$slug" params={{ slug: c.slug }} className="ib" data-tip={t("c.result")} aria-label={t("c.result")}><BarChart3 /></Link>
+                    ) : (
+                      <Link to="/r/$slug" params={{ slug: c.slug }} className="cta">{t("win.claim")}</Link>
+                    )}
+                  </div>
                 </div>
               );
             })}
