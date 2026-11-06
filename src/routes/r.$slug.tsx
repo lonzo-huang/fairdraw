@@ -98,7 +98,13 @@ function ResultPage() {
         .select("handle")
         .eq("campaign_id", data!.c!.id)
         .eq("user_id", user!.id);
-      return (rows ?? []).map((r) => r.handle);
+      const handles = new Set((rows ?? []).map((r) => r.handle));
+      // Reply-import entries carry user_id NULL — the OAuth-bound X handle is
+      // the only link for most winners.
+      const idt = (user!.identities ?? []).find((i) => i.provider === "x" || i.provider === "twitter");
+      const raw = idt?.identity_data?.user_name ?? idt?.identity_data?.preferred_username ?? idt?.identity_data?.screen_name;
+      if (typeof raw === "string" && raw.trim()) handles.add(raw.trim().replace(/^@/, ""));
+      return [...handles].map((h) => h.trim().toLowerCase().replace(/^@/, "")).filter(Boolean);
     },
   });
 
@@ -163,7 +169,7 @@ function ResultPage() {
   const condState = new Map((condProg?.checks ?? []).map((ch) => [ch.key, ch.state]));
   const allPaid = payouts.length > 0 && payouts.every((p) => p.status === "paid");
   const allInfo = payouts.length > 0 && payouts.every((p) => p.claim_info || p.stripe_account_id || p.wise_transfer_id || p.status === "paid");
-  const myPayout = payouts.find((p) => p.status !== "paid" && myHandles.includes(p.winner_handle));
+  const myPayout = payouts.find((p) => p.status !== "paid" && myHandles.includes((p.winner_handle ?? "").trim().toLowerCase().replace(/^@/, "")));
   const paidProofs = payouts.filter((p) => p.status === "paid" && p.proof);
   const origin = typeof window !== "undefined" ? window.location.origin : "";
   const xText = translate(c.share_language === "en" ? "en" : "zh", "rs.xPost", {
