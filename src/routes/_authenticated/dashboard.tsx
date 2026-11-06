@@ -146,7 +146,7 @@ function Dashboard() {
     );
   }
 
-  const { campaigns, snaps, wins } = data;
+  const { campaigns, snaps, wins = [] } = data;
   const now = Date.now();
   const snapsByCamp = new Map<string, SnapRow[]>();
   for (const s of snaps) (snapsByCamp.get(s.campaign_id) ?? snapsByCamp.set(s.campaign_id, []).get(s.campaign_id)!).push(s);
@@ -327,10 +327,10 @@ function Dashboard() {
               return (
                 <div key={p.id} className="tr wcols">
                   <div className="act">
-                    <span className="av" style={{ background: avGrad(p.winner_handle) }}>{p.winner_handle.slice(0, 2).toUpperCase()}</span>
+                    <span className="av" style={{ background: avGrad(p.winner_handle ?? "?") }}>{(p.winner_handle ?? "?").slice(0, 2).toUpperCase()}</span>
                     <div className="act-m">
                       <div className="act-t"><Link to="/r/$slug" params={{ slug: c.slug }}>{c.title}</Link></div>
-                      <div className="act-s">@{p.winner_handle}</div>
+                      <div className="act-s">@{p.winner_handle ?? "—"}</div>
                     </div>
                   </div>
                   <span className="metric r">{per !== null ? `${per} ${c.currency}` : c.prize}</span>
