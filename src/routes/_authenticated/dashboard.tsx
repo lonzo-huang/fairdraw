@@ -124,7 +124,33 @@ function Dashboard() {
       const snaps = ids.length
         ? await fetchAllSnaps<SnapRow>((from, size) => supabase.from("condition_snapshots").select("campaign_id, metrics, fetched_at").in("campaign_id", ids).order("fetched_at", { ascending: true }).range(from, from + size - 1))
         : [];
-      return { campaigns: (campaigns ?? []) as Camp[], snaps };
+
+      // Campaigns I won: my X handles → payouts naming one of them.
+      // Entries linked to the account plus the X identity the user signed in
+      // with — reply-import entries carry user_id NULL, so the OAuth handle is
+      // the only link for most winners.
+      const { data: myEntries } = await supabase.from("entries").select("handle").eq("user_id", uid);
+      const idt = (u.user.identities ?? []).find((i) => i.provider === "x" || i.provider === "twitter");
+      const boundRaw = idt?.identity_data?.user_name ?? idt?.identity_data?.preferred_username ?? idt?.identity_data?.screen_name;
+      const bound = typeof boundRaw === "string" && boundRaw ? boundRaw.trim().replace(/^@/, "") : null;
+      const handleSet = new Set([...(myEntries ?? []).map((e2) => e2.handle), ...(bound ? [bound] : [])].filter(Boolean));
+      const norm = new Set([...handleSet].map((h) => h.trim().toLowerCase().replace(/^@/, "")).filter(Boolean));
+      const { data: myPayouts } = norm.size
+        ? await supabase.from("payouts").select("id, campaign_id, winner_handle, status, proof").in("winner_handle", [...handleSet, ...norm])
+        : { data: [] };
+      const winPayouts = (myPayouts ?? []).filter((p) => norm.has((p.winner_handle ?? "").trim().toLowerCase().replace(/^@/, "")));
+      const winIds = [...new Set(winPayouts.map((p) => p.campaign_id))];
+      const [{ data: winCamps }, { data: winDraws }] = await Promise.all([
+        winIds.length ? supabase.from("campaigns").select("*").in("id", winIds) : Promise.resolve({ data: [] }),
+        winIds.length ? supabase.from("draws").select("campaign_id, drawn_at").in("campaign_id", winIds) : Promise.resolve({ data: [] }),
+      ]);
+      const campById = new Map((winCamps ?? []).map((c) => [c.id, c as Camp]));
+      const drawnAtById = new Map((winDraws ?? []).map((d) => [d.campaign_id, d.drawn_at]));
+      const wins: Win[] = winPayouts
+        .map((p) => ({ p, c: campById.get(p.campaign_id)!, drawnAt: drawnAtById.get(p.campaign_id) }))
+        .filter((w) => !!w.c);
+
+      return { campaigns: (campaigns ?? []) as Camp[], snaps, wins };
     },
   });
 
