@@ -127,12 +127,12 @@ function MobileWalletPay({ depositTo, total, busy, txHash, setTxHash, hashError,
   return (
     <div style={{display:"flex",flexDirection:"column",gap:8}}>
       <p style={{fontSize:12,color:"var(--muted-foreground)",marginBottom:2,textAlign:"center"}}>{t("m.mobileWalletHint")}</p>
-      <a href="https://app.binance.com/en/my/wallet/account/main/withdrawal/crypto/USDT" onClick={copyForBinance}
-        style={{display:"flex",alignItems:"center",gap:10,padding:"10px 14px",borderRadius:12,background:"#f0b90b",color:"#1e2026",fontWeight:700,fontSize:14,textDecoration:"none"}}>
+      <button type="button" onClick={copyForBinance}
+        style={{display:"flex",alignItems:"center",gap:10,padding:"10px 14px",borderRadius:12,background:"#f0b90b",color:"#1e2026",fontWeight:700,fontSize:14,border:0,cursor:"pointer"}}>
         <span style={{width:18,height:18,borderRadius:"50%",background:"#1e2026",color:"#f0b90b",display:"grid",placeItems:"center",fontSize:11,fontWeight:900}}>B</span>
         币安 Binance {t("m.binanceTag")}
         <span style={{marginLeft:"auto",fontSize:12,opacity:.85}}>{copied ? t("m.addrCopied") : `${total.toFixed(2)} ${cfg.tokenSymbol}`}</span>
-      </a>
+      </button>
       <p style={{fontSize:11,color:"var(--muted-foreground)",textAlign:"center",margin:"0 0 4px"}}>{t("m.binanceHint")}</p>
       {wallets.map((w) => (
         <a key={w.name} href={w.href} style={{display:"flex",alignItems:"center",gap:10,padding:"10px 14px",borderRadius:12,background:w.bg,color:w.fg,fontWeight:600,fontSize:14,textDecoration:"none"}}>
