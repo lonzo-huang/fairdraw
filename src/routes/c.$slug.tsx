@@ -136,7 +136,7 @@ function CampaignPage() {
               <span className="av">{(latestM?.author_name ?? latestM?.author_handle ?? "𝕏").slice(0, 3).toUpperCase()}</span>
               <div style={{ minWidth: 0, flex: 1 }}>
                 <div className="n"><b>{latestM?.author_name ?? "—"}</b><span>{latestM?.author_handle ? `@${latestM.author_handle}` : ""}</span><ArrowUpRight /></div>
-                <div className="t">{latestM?.text ?? c.tweet_url}</div>
+                <div className="t">{latestM?.post_text ?? c.tweet_url}</div>
               </div>
             </a>
           ) : (
