@@ -89,8 +89,11 @@ export function FundingPanel({ c, busy, setBusy, onDone }: { c: FundingCampaign;
   );
 }
 
-/** Binance withdrawal CTA — copies the deposit address; the user then withdraws USDT (BEP20) inside the Binance app/site. */
-function BinanceCopyBtn({ depositTo, total }: { depositTo: string; total: number }) {
+/** One exchange withdrawal CTA — copies the deposit address for a Binance/OKX-style app. */
+function ExchangeCopyBtn({ label, mark, bg, fg, depositTo, total }: {
+  label: string; mark: string; bg: string; fg: string;
+  depositTo: string; total: number;
+}) {
   const { t } = useI18n();
   const cfg = chainConfig();
   const [copied, setCopied] = useState(false);
@@ -100,15 +103,24 @@ function BinanceCopyBtn({ depositTo, total }: { depositTo: string; total: number
     setTimeout(() => setCopied(false), 3000);
   }
   return (
-    <>
-      <button type="button" onClick={copy}
-        style={{display:"flex",alignItems:"center",gap:10,padding:"10px 14px",borderRadius:12,background:"#f0b90b",color:"#1e2026",fontWeight:700,fontSize:14,border:0,cursor:"pointer",width:"100%"}}>
-        <span style={{width:18,height:18,borderRadius:"50%",background:"#1e2026",color:"#f0b90b",display:"grid",placeItems:"center",fontSize:11,fontWeight:900,flexShrink:0}}>B</span>
-        币安 Binance {t("m.binanceTag")}
-        <span style={{marginLeft:"auto",fontSize:12,opacity:.85}}>{copied ? t("m.addrCopied") : `${total.toFixed(2)} ${cfg.tokenSymbol}`}</span>
-      </button>
-      <p style={{fontSize:11,color:"var(--muted-foreground)",textAlign:"center",margin:"4px 0 0"}}>{t("m.binanceHint")}</p>
-    </>
+    <button type="button" onClick={copy}
+      style={{display:"flex",alignItems:"center",gap:10,padding:"10px 14px",borderRadius:12,background:bg,color:fg,fontWeight:700,fontSize:14,border:0,cursor:"pointer",width:"100%"}}>
+      <span style={{width:18,height:18,borderRadius:"50%",background:fg,color:bg,display:"grid",placeItems:"center",fontSize:mark.length>1?8:11,fontWeight:900,flexShrink:0}}>{mark}</span>
+      {label} {t("m.binanceTag")}
+      <span style={{marginLeft:"auto",fontSize:12,opacity:.85}}>{copied ? t("m.addrCopied") : `${total.toFixed(2)} ${cfg.tokenSymbol}`}</span>
+    </button>
+  );
+}
+
+/** Exchange withdrawal CTAs (Binance / OKX) sharing one hint line. */
+function ExchangePayButtons({ depositTo, total }: { depositTo: string; total: number }) {
+  const { t } = useI18n();
+  return (
+    <div style={{display:"flex",flexDirection:"column",gap:8}}>
+      <ExchangeCopyBtn label="币安 Binance" mark="B" bg="#f0b90b" fg="#1e2026" depositTo={depositTo} total={total} />
+      <ExchangeCopyBtn label="欧易 OKX" mark="OK" bg="#000" fg="#fff" depositTo={depositTo} total={total} />
+      <p style={{fontSize:11,color:"var(--muted-foreground)",textAlign:"center",margin:0}}>{t("m.binanceHint")}</p>
+    </div>
   );
 }
 
@@ -144,7 +156,7 @@ function MobileWalletPay({ depositTo, total, busy, txHash, setTxHash, hashError,
   return (
     <div style={{display:"flex",flexDirection:"column",gap:8}}>
       <p style={{fontSize:12,color:"var(--muted-foreground)",marginBottom:2,textAlign:"center"}}>{t("m.mobileWalletHint")}</p>
-      <BinanceCopyBtn depositTo={depositTo} total={total} />
+      <ExchangePayButtons depositTo={depositTo} total={total} />
       {wallets.map((w) => (
         <a key={w.name} href={w.href} style={{display:"flex",alignItems:"center",gap:10,padding:"10px 14px",borderRadius:12,background:w.bg,color:w.fg,fontWeight:600,fontSize:14,textDecoration:"none"}}>
           <Wallet style={{width:18,height:18,flexShrink:0}} />{t("m.openIn")} {w.name}
@@ -288,7 +300,7 @@ export function ChainFundingBody({ getCampaign, total, busy, setBusy, onDone }: 
               </div>
               {depositTo && (
                 <div style={{marginTop:12}}>
-                  <BinanceCopyBtn depositTo={depositTo} total={total} />
+                  <ExchangePayButtons depositTo={depositTo} total={total} />
                 </div>
               )}
             </>
