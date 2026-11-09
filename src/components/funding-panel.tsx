@@ -89,26 +89,58 @@ export function FundingPanel({ c, busy, setBusy, onDone }: { c: FundingCampaign;
   );
 }
 
-/** One exchange withdrawal CTA — copies the deposit address for a Binance/OKX-style app. */
-function ExchangeCopyBtn({ label, mark, bg, fg, depositTo, total }: {
+/**
+ * One exchange withdrawal CTA. Web pages can't query installed apps, so the
+ * click copies the address then tries to open the app: Android uses an
+ * intent:// URL (auto-falls-back to the Play Store when missing); iOS fires
+ * the custom scheme and, if the page stays visible ~2.5s later, reports
+ * "app not detected". Desktop browsers just copy.
+ */
+function ExchangeCopyBtn({ label, mark, bg, fg, depositTo, total, scheme, pkg }: {
   label: string; mark: string; bg: string; fg: string;
   depositTo: string; total: number;
+  /** Custom URL scheme that opens the app on mobile, e.g. "bnc://app.binance.com". */
+  scheme: string;
+  /** Android package id — used to build an intent:// link with Play-Store fallback. */
+  pkg: string;
 }) {
   const { t } = useI18n();
   const cfg = chainConfig();
   const [copied, setCopied] = useState(false);
-  function copy() {
+  const [missing, setMissing] = useState(false);
+
+  function click() {
     navigator.clipboard?.writeText(depositTo).catch(() => {});
     setCopied(true);
+    setMissing(false);
     setTimeout(() => setCopied(false), 3000);
+    const isAndroid = /Android/i.test(navigator.userAgent);
+    const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
+    if (!isAndroid && !isIOS) return; // desktop: copy only
+    const url = isAndroid
+      ? `intent://${scheme.replace(/^[a-z]+:\/\//, "")}#Intent;scheme=${scheme.split("://")[0]};package=${pkg};S.browser_fallback_url=${encodeURIComponent(`https://play.google.com/store/apps/details?id=${pkg}`)};end`
+      : scheme;
+    const timer = setTimeout(() => {
+      document.removeEventListener("visibilitychange", onVis);
+      if (!document.hidden) setMissing(true);
+    }, 2500);
+    const onVis = () => {
+      if (document.hidden) { clearTimeout(timer); document.removeEventListener("visibilitychange", onVis); }
+    };
+    document.addEventListener("visibilitychange", onVis);
+    window.location.href = url;
   }
+
   return (
-    <button type="button" onClick={copy}
-      style={{display:"flex",alignItems:"center",gap:10,padding:"10px 14px",borderRadius:12,background:bg,color:fg,fontWeight:700,fontSize:14,border:0,cursor:"pointer",width:"100%"}}>
-      <span style={{width:18,height:18,borderRadius:"50%",background:fg,color:bg,display:"grid",placeItems:"center",fontSize:mark.length>1?8:11,fontWeight:900,flexShrink:0}}>{mark}</span>
-      {label} {t("m.binanceTag")}
-      <span style={{marginLeft:"auto",fontSize:12,opacity:.85}}>{copied ? t("m.addrCopied") : `${total.toFixed(2)} ${cfg.tokenSymbol}`}</span>
-    </button>
+    <>
+      <button type="button" onClick={click}
+        style={{display:"flex",alignItems:"center",gap:10,padding:"10px 14px",borderRadius:12,background:bg,color:fg,fontWeight:700,fontSize:14,border:0,cursor:"pointer",width:"100%"}}>
+        <span style={{width:18,height:18,borderRadius:"50%",background:fg,color:bg,display:"grid",placeItems:"center",fontSize:mark.length>1?8:11,fontWeight:900,flexShrink:0}}>{mark}</span>
+        {label} {t("m.binanceTag")}
+        <span style={{marginLeft:"auto",fontSize:12,opacity:.85}}>{copied ? t("m.addrCopied") : `${total.toFixed(2)} ${cfg.tokenSymbol}`}</span>
+      </button>
+      {missing && <p style={{fontSize:11,color:"var(--destructive)",textAlign:"center",margin:0}}>{t("m.appMissing")}</p>}
+    </>
   );
 }
 
@@ -117,8 +149,10 @@ function ExchangePayButtons({ depositTo, total }: { depositTo: string; total: nu
   const { t } = useI18n();
   return (
     <div style={{display:"flex",flexDirection:"column",gap:8}}>
-      <ExchangeCopyBtn label="币安 Binance" mark="B" bg="#f0b90b" fg="#1e2026" depositTo={depositTo} total={total} />
-      <ExchangeCopyBtn label="欧易 OKX" mark="OK" bg="#000" fg="#fff" depositTo={depositTo} total={total} />
+      <ExchangeCopyBtn label="币安 Binance" mark="B" bg="#f0b90b" fg="#1e2026" depositTo={depositTo} total={total}
+        scheme="bnc://app.binance.com" pkg="com.binance.dev" />
+      <ExchangeCopyBtn label="欧易 OKX" mark="OK" bg="#000" fg="#fff" depositTo={depositTo} total={total}
+        scheme="okx://wallet" pkg="com.okinc.okex.gp" />
       <p style={{fontSize:11,color:"var(--muted-foreground)",textAlign:"center",margin:0}}>{t("m.binanceHint")}</p>
     </div>
   );
