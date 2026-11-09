@@ -90,11 +90,42 @@ export function FundingPanel({ c, busy, setBusy, onDone }: { c: FundingCampaign;
 }
 
 /**
+ * Opens a custom-scheme app link on mobile and reports when nothing handled
+ * it. Android builds an intent:// URL — with `pkg` Chrome falls back to the
+ * Play Store automatically when the app is missing; iOS fires the raw scheme
+ * and a ~2.5s visibility timeout decides the app isn't installed (the page
+ * hides the moment an external app or dialog takes over).
+ */
+function openMobileApp(schemeUrl: string, opts: { pkg?: string; store?: string; onMissing?: () => void }) {
+  const isAndroid = /Android/i.test(navigator.userAgent);
+  const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
+  if (!isAndroid && !isIOS) { window.location.href = schemeUrl; return; }
+  let url = schemeUrl;
+  if (isAndroid) {
+    const m = schemeUrl.match(/^([a-z][a-z0-9+.-]*):(?:\/\/)?(.*)$/i);
+    if (m) {
+      url = `intent://${m[2]}#Intent;scheme=${m[1]};`
+        + (opts.pkg ? `package=${opts.pkg};` : "")
+        + (opts.store ? `S.browser_fallback_url=${encodeURIComponent(opts.store)};` : "")
+        + "end";
+    }
+  }
+  const timer = setTimeout(() => {
+    document.removeEventListener("visibilitychange", onVis);
+    if (!document.hidden) opts.onMissing?.();
+  }, 2500);
+  const onVis = () => {
+    if (document.hidden) { clearTimeout(timer); document.removeEventListener("visibilitychange", onVis); }
+  };
+  document.addEventListener("visibilitychange", onVis);
+  window.location.href = url;
+}
+
+/**
  * One exchange withdrawal CTA. Web pages can't query installed apps, so the
- * click copies the address then tries to open the app: Android uses an
- * intent:// URL (auto-falls-back to the Play Store when missing); iOS fires
- * the custom scheme and, if the page stays visible ~2.5s later, reports
- * "app not detected". Desktop browsers just copy.
+ * click copies the address then tries to open the app via openMobileApp —
+ * installed apps open, missing ones get a Play-Store redirect (Android) or an
+ * inline "not detected" hint (iOS). Desktop browsers just copy.
  */
 function ExchangeCopyBtn({ label, mark, bg, fg, depositTo, total, scheme, pkg }: {
   label: string; mark: string; bg: string; fg: string;
@@ -114,21 +145,12 @@ function ExchangeCopyBtn({ label, mark, bg, fg, depositTo, total, scheme, pkg }:
     setCopied(true);
     setMissing(false);
     setTimeout(() => setCopied(false), 3000);
-    const isAndroid = /Android/i.test(navigator.userAgent);
-    const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
-    if (!isAndroid && !isIOS) return; // desktop: copy only
-    const url = isAndroid
-      ? `intent://${scheme.replace(/^[a-z]+:\/\//, "")}#Intent;scheme=${scheme.split("://")[0]};package=${pkg};S.browser_fallback_url=${encodeURIComponent(`https://play.google.com/store/apps/details?id=${pkg}`)};end`
-      : scheme;
-    const timer = setTimeout(() => {
-      document.removeEventListener("visibilitychange", onVis);
-      if (!document.hidden) setMissing(true);
-    }, 2500);
-    const onVis = () => {
-      if (document.hidden) { clearTimeout(timer); document.removeEventListener("visibilitychange", onVis); }
-    };
-    document.addEventListener("visibilitychange", onVis);
-    window.location.href = url;
+    if (!/Android|iPhone|iPad|iPod/i.test(navigator.userAgent)) return; // desktop: copy only
+    openMobileApp(scheme, {
+      pkg,
+      store: `https://play.google.com/store/apps/details?id=${pkg}`,
+      onMissing: () => setMissing(true),
+    });
   }
 
   return (
@@ -177,26 +199,43 @@ function MobileWalletPay({ depositTo, total, busy, txHash, setTxHash, hashError,
   const raw = parseUnits(total.toFixed(6), cfg.tokenDecimals).toString();
   // SLIP-44 coin ids used by Trust Wallet asset codes (c<id>_t<contract>).
   const trustAsset = ({ 56: "c20000714", 1: "c60", 97: "c20000714" } as Record<number, string>)[cfg.chainId];
-  const wallets = [
+  const [missing, setMissing] = useState(false);
+  // MetaMask's https app.link resolves to the store itself; the rest are raw
+  // schemes that need try-open detection + a Play-Store fallback.
+  const wallets: { name: string; bg: string; fg: string; href?: string; scheme?: string; pkg?: string }[] = [
     { name: "MetaMask", bg: "#e88100", fg: "#fff",
       href: `https://metamask.app.link/send/${cfg.tokenAddress}@${cfg.chainId}/transfer?address=${depositTo}&uint256=${raw}` },
     ...(trustAsset ? [{ name: "Trust Wallet", bg: "#3375bb", fg: "#fff",
-      href: `trust://send?asset=${trustAsset}_t${cfg.tokenAddress}&address=${depositTo}&amount=${total.toFixed(6)}` }] : []),
+      scheme: `trust://send?asset=${trustAsset}_t${cfg.tokenAddress}&address=${depositTo}&amount=${total.toFixed(6)}`,
+      pkg: "com.wallet.crypto.trustapp" }] : []),
     { name: "TokenPocket", bg: "#2980fe", fg: "#fff",
-      href: `tpdapp://transfer?chain=BSC&contract=${cfg.tokenAddress}&to=${depositTo}&amount=${total.toFixed(6)}` },
+      scheme: `tpdapp://transfer?chain=BSC&contract=${cfg.tokenAddress}&to=${depositTo}&amount=${total.toFixed(6)}`,
+      pkg: "vip.mytokenpocket" },
     { name: t("m.otherWallet"), bg: "#334", fg: "#fff",
-      href: `ethereum:${cfg.tokenAddress}@${cfg.chainId}/transfer?address=${depositTo}&uint256=${raw}` },
+      scheme: `ethereum:${cfg.tokenAddress}@${cfg.chainId}/transfer?address=${depositTo}&uint256=${raw}` },
   ];
+  const rowStyle = {display:"flex",alignItems:"center",gap:10,padding:"10px 14px",borderRadius:12,fontWeight:600,fontSize:14} as const;
   return (
     <div style={{display:"flex",flexDirection:"column",gap:8}}>
       <p style={{fontSize:12,color:"var(--muted-foreground)",marginBottom:2,textAlign:"center"}}>{t("m.mobileWalletHint")}</p>
       <ExchangePayButtons depositTo={depositTo} total={total} />
-      {wallets.map((w) => (
-        <a key={w.name} href={w.href} style={{display:"flex",alignItems:"center",gap:10,padding:"10px 14px",borderRadius:12,background:w.bg,color:w.fg,fontWeight:600,fontSize:14,textDecoration:"none"}}>
+      {wallets.map((w) => w.href ? (
+        <a key={w.name} href={w.href} style={{...rowStyle,background:w.bg,color:w.fg,textDecoration:"none"}}>
           <Wallet style={{width:18,height:18,flexShrink:0}} />{t("m.openIn")} {w.name}
           <span style={{marginLeft:"auto",fontSize:12,opacity:.85}}>{total.toFixed(2)} {cfg.tokenSymbol}</span>
         </a>
+      ) : (
+        <button key={w.name} type="button" style={{...rowStyle,background:w.bg,color:w.fg,border:0,cursor:"pointer"}}
+          onClick={() => { setMissing(false); openMobileApp(w.scheme!, {
+            pkg: w.pkg,
+            store: w.pkg ? `https://play.google.com/store/apps/details?id=${w.pkg}` : undefined,
+            onMissing: () => setMissing(true),
+          }); }}>
+          <Wallet style={{width:18,height:18,flexShrink:0}} />{t("m.openIn")} {w.name}
+          <span style={{marginLeft:"auto",fontSize:12,opacity:.85}}>{total.toFixed(2)} {cfg.tokenSymbol}</span>
+        </button>
       ))}
+      {missing && <p style={{fontSize:11,color:"var(--destructive)",textAlign:"center",margin:0}}>{t("m.appMissing")}</p>}
       <p style={{fontSize:11,color:"var(--muted-foreground)",textAlign:"center",margin:"6px 0 2px"}}>{t("m.mobileWalletOr")}</p>
       <div className="hash-row">
         <input className="hash-in" placeholder="0x…" value={txHash} spellCheck={false}

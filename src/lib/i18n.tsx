@@ -732,7 +732,7 @@ const dict = {
   "m.addrCopied": { zh: "地址已复制", en: "Address copied" },
   "m.binanceHint": { zh: "点上面按钮复制收款地址 → 打开币安/欧易 App → 提币 USDT → 网络选 BSC (BEP20)，到账金额需 ≥ 应付总额", en: "Tap to copy the address → open Binance/OKX app → withdraw USDT → pick BSC (BEP20); received amount must be ≥ the total" },
   "m.binanceQrHint": { zh: "币安/欧易用户：打开 App → 提币 → USDT → 扫左侧二维码填地址，手续费 ~1 USDT", en: "Binance/OKX users: open the app → Withdraw → USDT → scan the QR for the address (~1 USDT fee)" },
-  "m.appMissing": { zh: "未检测到该 App——地址已复制，请安装后手动提币", en: "App not detected — address copied; install the app to withdraw" },
+  "m.appMissing": { zh: "未检测到该 App，请先安装", en: "App not detected — install it first" },
   "m.noReceiver": { zh: "平台收款钱包未配置（VITE_PLATFORM_WALLET）。", en: "Platform wallet not configured (VITE_PLATFORM_WALLET)." },
   "m.winnerWallet": { zh: "中奖者钱包地址（0x…）", en: "Winner wallet address (0x…)" },
   "m.payOnchain": { zh: "链上派奖", en: "Pay on-chain" },
