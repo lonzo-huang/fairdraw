@@ -200,6 +200,7 @@ function MobileWalletPay({ depositTo, total, busy, txHash, setTxHash, hashError,
   // SLIP-44 coin ids used by Trust Wallet asset codes (c<id>_t<contract>).
   const trustAsset = ({ 56: "c20000714", 1: "c60", 97: "c20000714" } as Record<number, string>)[cfg.chainId];
   const [missing, setMissing] = useState(false);
+  const [opening, setOpening] = useState<string | null>(null);
   // MetaMask's https app.link resolves to the store itself; the rest are raw
   // schemes that need try-open detection + a Play-Store fallback.
   const wallets: { name: string; bg: string; fg: string; href?: string; scheme?: string; pkg?: string }[] = [
@@ -217,6 +218,9 @@ function MobileWalletPay({ depositTo, total, busy, txHash, setTxHash, hashError,
   const rowStyle = {display:"flex",alignItems:"center",gap:10,padding:"10px 14px",borderRadius:12,fontWeight:600,fontSize:14} as const;
   return (
     <div style={{display:"flex",flexDirection:"column",gap:8}}>
+      {/MicroMessenger|QQ\//i.test(navigator.userAgent) && (
+        <p style={{fontSize:12,color:"var(--destructive)",textAlign:"center",margin:0}}>{t("m.wechatHint")}</p>
+      )}
       <p style={{fontSize:12,color:"var(--muted-foreground)",marginBottom:2,textAlign:"center"}}>{t("m.mobileWalletHint")}</p>
       <ExchangePayButtons depositTo={depositTo} total={total} />
       {wallets.map((w) => w.href ? (
@@ -226,13 +230,17 @@ function MobileWalletPay({ depositTo, total, busy, txHash, setTxHash, hashError,
         </a>
       ) : (
         <button key={w.name} type="button" style={{...rowStyle,background:w.bg,color:w.fg,border:0,cursor:"pointer"}}
-          onClick={() => { setMissing(false); openMobileApp(w.scheme!, {
-            pkg: w.pkg,
-            store: w.pkg ? `https://play.google.com/store/apps/details?id=${w.pkg}` : undefined,
-            onMissing: () => setMissing(true),
-          }); }}>
+          onClick={() => {
+            setMissing(false); setOpening(w.name);
+            setTimeout(() => setOpening((o) => (o === w.name ? null : o)), 3000);
+            openMobileApp(w.scheme!, {
+              pkg: w.pkg,
+              store: w.pkg ? `https://play.google.com/store/apps/details?id=${w.pkg}` : undefined,
+              onMissing: () => setMissing(true),
+            });
+          }}>
           <Wallet style={{width:18,height:18,flexShrink:0}} />{t("m.openIn")} {w.name}
-          <span style={{marginLeft:"auto",fontSize:12,opacity:.85}}>{total.toFixed(2)} {cfg.tokenSymbol}</span>
+          <span style={{marginLeft:"auto",fontSize:12,opacity:.85}}>{opening === w.name ? t("m.openingApp") : `${total.toFixed(2)} ${cfg.tokenSymbol}`}</span>
         </button>
       ))}
       {missing && <p style={{fontSize:11,color:"var(--destructive)",textAlign:"center",margin:0}}>{t("m.appMissing")}</p>}
