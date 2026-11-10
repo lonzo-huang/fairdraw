@@ -96,7 +96,7 @@ export function FundingPanel({ c, busy, setBusy, onDone }: { c: FundingCampaign;
  * unhandled one replaces the page with Safari's error page): `ios` gives an
  * https universal/download link, otherwise the missing hint fires instantly.
  */
-function openMobileApp(schemeUrl: string, opts: { pkg?: string; store?: string; ios?: string; onMissing?: () => void }) {
+function openMobileApp(schemeUrl: string, opts: { pkg?: string | undefined; store?: string | undefined; ios?: string | undefined; onMissing?: (() => void) | undefined }) {
   const isAndroid = /Android/i.test(navigator.userAgent);
   const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
   if (!isAndroid && !isIOS) { window.location.href = schemeUrl; return; }
@@ -142,7 +142,9 @@ function openMobileApp(schemeUrl: string, opts: { pkg?: string; store?: string; 
  * installed apps open, missing ones get a Play-Store redirect (Android) or an
  * inline "not detected" hint (iOS). Desktop browsers just copy.
  */
-function ExchangeCopyBtn({ label, mark, bg, fg, depositTo, total, scheme, pkg, store }: {
+const IS_IOS = typeof navigator !== "undefined" && /iPhone|iPad|iPod/i.test(navigator.userAgent);
+
+function ExchangeCopyBtn({ label, mark, bg, fg, depositTo, total, scheme, pkg, store, dl }: {
   label: string; mark: string; bg: string; fg: string;
   depositTo: string; total: number;
   /** Custom URL scheme that opens the app on mobile, e.g. "bnc://app.binance.com". */
@@ -159,28 +161,35 @@ function ExchangeCopyBtn({ label, mark, bg, fg, depositTo, total, scheme, pkg, s
   const [copied, setCopied] = useState(false);
   const [missing, setMissing] = useState(false);
 
-  function click() {
+  function copyAddr() {
     navigator.clipboard?.writeText(depositTo).catch(() => {});
     setCopied(true);
     setMissing(false);
     setTimeout(() => setCopied(false), 3000);
-    if (!/Android|iPhone|iPad|iPod/i.test(navigator.userAgent)) return; // desktop: copy only
-    openMobileApp(scheme, {
-      pkg,
-      store: store ?? `https://play.google.com/store/apps/details?id=${pkg}`,
-      ios: dl,
-      onMissing: () => setMissing(true),
-    });
   }
+  const btnStyle = {display:"flex",alignItems:"center",gap:10,padding:"10px 14px",borderRadius:12,background:bg,color:fg,fontWeight:700,fontSize:14} as const;
+  const inner = (
+    <>
+      <span style={{width:18,height:18,borderRadius:"50%",background:fg,color:bg,display:"grid",placeItems:"center",fontSize:mark.length>1?8:11,fontWeight:900,flexShrink:0}}>{mark}</span>
+      {label} {t("m.binanceTag")}
+      <span style={{marginLeft:"auto",fontSize:12,opacity:.85}}>{copied ? t("m.addrCopied") : `${total.toFixed(2)} ${cfg.tokenSymbol}`}</span>
+    </>
+  );
 
   return (
     <>
-      <button type="button" onClick={click}
-        style={{display:"flex",alignItems:"center",gap:10,padding:"10px 14px",borderRadius:12,background:bg,color:fg,fontWeight:700,fontSize:14,border:0,cursor:"pointer",width:"100%"}}>
-        <span style={{width:18,height:18,borderRadius:"50%",background:fg,color:bg,display:"grid",placeItems:"center",fontSize:mark.length>1?8:11,fontWeight:900,flexShrink:0}}>{mark}</span>
-        {label} {t("m.binanceTag")}
-        <span style={{marginLeft:"auto",fontSize:12,opacity:.85}}>{copied ? t("m.addrCopied") : `${total.toFixed(2)} ${cfg.tokenSymbol}`}</span>
-      </button>
+      {IS_IOS && dl ? (
+        // Real <a> element — Safari always treats native anchor clicks as user gestures.
+        <a href={dl} target="_blank" rel="noreferrer" onClick={copyAddr}
+          style={{...btnStyle,textDecoration:"none",cursor:"pointer"}}>
+          {inner}
+        </a>
+      ) : (
+        <button type="button" onClick={() => { copyAddr(); if (!/Android/i.test(navigator.userAgent)) return; openMobileApp(scheme, { pkg, store: store ?? `https://play.google.com/store/apps/details?id=${pkg}`, onMissing: () => setMissing(true) }); }}
+          style={{...btnStyle,border:0,cursor:"pointer",width:"100%"}}>
+          {inner}
+        </button>
+      )}
       {missing && (
         <p style={{fontSize:11,color:"var(--destructive)",textAlign:"center",margin:0}}>
           {t("m.appMissing")}
@@ -255,8 +264,11 @@ function MobileWalletPay({ depositTo, total, busy, txHash, setTxHash, hashError,
       )}
       <p style={{fontSize:12,color:"var(--muted-foreground)",marginBottom:2,textAlign:"center"}}>{t("m.mobileWalletHint")}</p>
       <ExchangePayButtons depositTo={depositTo} total={total} />
-      {wallets.map((w) => w.href ? (
-        <a key={w.name} href={w.href} style={{...rowStyle,background:w.bg,color:w.fg,textDecoration:"none"}}>
+      {wallets.map((w) => (w.href || (IS_IOS && w.ios)) ? (
+        // Real anchor: href for MetaMask (always), ios for iOS wallet buttons.
+        // Safari 100% treats native <a> clicks as user gestures.
+        <a key={w.name} href={w.href ?? w.ios} target={w.href ? undefined : "_blank"} rel="noreferrer"
+          style={{...rowStyle,background:w.bg,color:w.fg,textDecoration:"none"}}>
           <Wallet style={{width:18,height:18,flexShrink:0}} />{t("m.openIn")} {w.name}
           <span style={{marginLeft:"auto",fontSize:12,opacity:.85}}>{total.toFixed(2)} {cfg.tokenSymbol}</span>
         </a>
@@ -266,9 +278,7 @@ function MobileWalletPay({ depositTo, total, busy, txHash, setTxHash, hashError,
             setMissing(null); setOpening(w.name);
             setTimeout(() => setOpening((o) => (o === w.name ? null : o)), 3000);
             openMobileApp(w.scheme!, {
-              pkg: w.pkg,
-              store: w.pkg ? `https://play.google.com/store/apps/details?id=${w.pkg}` : undefined,
-              ios: w.ios,
+              ...(w.pkg ? { pkg: w.pkg, store: `https://play.google.com/store/apps/details?id=${w.pkg}` } : {}),
               onMissing: () => setMissing(w.dl ?? ""),
             });
           }}>
