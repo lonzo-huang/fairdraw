@@ -119,14 +119,10 @@ function openMobileApp(schemeUrl: string, opts: { pkg?: string; store?: string; 
   };
   document.addEventListener("visibilitychange", onVis);
   if (isIOS) {
-    // location.href to an unhandled scheme makes Safari navigate to a
-    // "this page did not load" error — a hidden iframe launches the app
-    // without ever touching the page's navigation.
-    const iframe = document.createElement("iframe");
-    iframe.style.display = "none";
-    document.body.appendChild(iframe);
-    iframe.src = url;
-    setTimeout(() => iframe.remove(), 3000);
+    // Any navigation to an unhandled scheme becomes Safari's "this page did
+    // not load" error — send it to a throwaway tab so this page survives and
+    // the not-installed hint stays visible. Installed apps still take over.
+    window.open(url, "_blank");
   } else {
     window.location.href = url;
   }
