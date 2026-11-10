@@ -127,13 +127,15 @@ function openMobileApp(schemeUrl: string, opts: { pkg?: string; store?: string; 
  * installed apps open, missing ones get a Play-Store redirect (Android) or an
  * inline "not detected" hint (iOS). Desktop browsers just copy.
  */
-function ExchangeCopyBtn({ label, mark, bg, fg, depositTo, total, scheme, pkg }: {
+function ExchangeCopyBtn({ label, mark, bg, fg, depositTo, total, scheme, pkg, store }: {
   label: string; mark: string; bg: string; fg: string;
   depositTo: string; total: number;
   /** Custom URL scheme that opens the app on mobile, e.g. "bnc://app.binance.com". */
   scheme: string;
-  /** Android package id — used to build an intent:// link with Play-Store fallback. */
+  /** Android package id — used to build an intent:// link. */
   pkg: string;
+  /** Fallback URL when the app is missing — defaults to its Play Store page. */
+  store?: string;
 }) {
   const { t } = useI18n();
   const cfg = chainConfig();
@@ -148,7 +150,7 @@ function ExchangeCopyBtn({ label, mark, bg, fg, depositTo, total, scheme, pkg }:
     if (!/Android|iPhone|iPad|iPod/i.test(navigator.userAgent)) return; // desktop: copy only
     openMobileApp(scheme, {
       pkg,
-      store: `https://play.google.com/store/apps/details?id=${pkg}`,
+      store: store ?? `https://play.google.com/store/apps/details?id=${pkg}`,
       onMissing: () => setMissing(true),
     });
   }
@@ -171,8 +173,9 @@ function ExchangePayButtons({ depositTo, total }: { depositTo: string; total: nu
   const { t } = useI18n();
   return (
     <div style={{display:"flex",flexDirection:"column",gap:8}}>
+      {/* Binance's Play listing is region-restricted — fall back to the official download page instead. */}
       <ExchangeCopyBtn label="币安 Binance" mark="B" bg="#f0b90b" fg="#1e2026" depositTo={depositTo} total={total}
-        scheme="bnc://app.binance.com" pkg="com.binance.dev" />
+        scheme="bnc://app.binance.com" pkg="com.binance.dev" store="https://www.binance.com/en/download" />
       <ExchangeCopyBtn label="欧易 OKX" mark="OK" bg="#000" fg="#fff" depositTo={depositTo} total={total}
         scheme="okx://wallet" pkg="com.okinc.okex.gp" />
       <p style={{fontSize:11,color:"var(--muted-foreground)",textAlign:"center",margin:0}}>{t("m.binanceHint")}</p>
