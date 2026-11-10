@@ -90,13 +90,13 @@ export function FundingPanel({ c, busy, setBusy, onDone }: { c: FundingCampaign;
 }
 
 /**
- * Opens a custom-scheme app link on mobile and reports when nothing handled
- * it. Android builds an intent:// URL — with `pkg` Chrome falls back to the
- * Play Store automatically when the app is missing; iOS fires the raw scheme
- * and a ~2.5s visibility timeout decides the app isn't installed (the page
- * hides the moment an external app or dialog takes over).
+ * Opens an app link on mobile and reports when nothing handled it. Android
+ * builds an intent:// URL — with `pkg` Chrome falls back to the Play Store
+ * automatically when the app is missing. iOS never attempts schemes (any
+ * unhandled one replaces the page with Safari's error page): `ios` gives an
+ * https universal/download link, otherwise the missing hint fires instantly.
  */
-function openMobileApp(schemeUrl: string, opts: { pkg?: string; store?: string; onMissing?: () => void }) {
+function openMobileApp(schemeUrl: string, opts: { pkg?: string; store?: string; ios?: string; onMissing?: () => void }) {
   const isAndroid = /Android/i.test(navigator.userAgent);
   const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
   if (!isAndroid && !isIOS) { window.location.href = schemeUrl; return; }
@@ -111,20 +111,12 @@ function openMobileApp(schemeUrl: string, opts: { pkg?: string; store?: string; 
     }
   }
   if (isIOS) {
-    // Any navigation to an unhandled scheme becomes Safari's "this page did
-    // not load" error — send it to a throwaway tab so this page survives.
-    // iOS can't tell us whether an app took the scheme, and the system
-    // prompts/new-tab themselves flicker document.hidden (which would kill a
-    // visibilitychange-cancelled timer). Poll instead: still-visible means
-    // nothing took over → show the hint; ~6s of continuous hidden means an
-    // app really opened and the user is paying → stay silent.
-    let ticks = 0;
-    const iv = setInterval(() => {
-      ticks++;
-      if (!document.hidden) { clearInterval(iv); opts.onMissing?.(); }
-      else if (ticks >= 6) clearInterval(iv);
-    }, 1000);
-    window.open(url, "_blank");
+    // iOS: EVERY scheme navigation that no app claims replaces this page with
+    // Safari's error page — iframe, window.open and location.href all lose
+    // the page. The only safe targets are https universal links: installed
+    // apps take them system-side, missing apps land on a real download page.
+    if (opts.ios) { window.location.href = opts.ios; return; }
+    opts.onMissing?.();
     return;
   }
   const timer = setTimeout(() => {
@@ -170,6 +162,7 @@ function ExchangeCopyBtn({ label, mark, bg, fg, depositTo, total, scheme, pkg, s
     openMobileApp(scheme, {
       pkg,
       store: store ?? `https://play.google.com/store/apps/details?id=${pkg}`,
+      ios: dl,
       onMissing: () => setMissing(true),
     });
   }
@@ -200,8 +193,9 @@ function ExchangePayButtons({ depositTo, total }: { depositTo: string; total: nu
       {/* Binance's Play listing is region-restricted — fall back to the official download page instead. */}
       <ExchangeCopyBtn label="币安 Binance" mark="B" bg="#f0b90b" fg="#1e2026" depositTo={depositTo} total={total}
         scheme="bnc://app.binance.com" pkg="com.binance.dev" store="https://www.binance.com/en/download" dl="https://www.binance.com/en/download" />
+      {/* OKX's universal entry doubles as app-open (deeplink param) + install page. */}
       <ExchangeCopyBtn label="欧易 OKX" mark="OK" bg="#000" fg="#fff" depositTo={depositTo} total={total}
-        scheme="okx://wallet" pkg="com.okinc.okex.gp" dl="https://www.okx.com/download" />
+        scheme="okx://wallet" pkg="com.okinc.okex.gp" dl="https://www.okx.com/download?deeplink=okx%3A%2F%2Fwallet" />
       <p style={{fontSize:11,color:"var(--muted-foreground)",textAlign:"center",margin:0}}>{t("m.binanceHint")}</p>
     </div>
   );
@@ -231,15 +225,16 @@ function MobileWalletPay({ depositTo, total, busy, txHash, setTxHash, hashError,
   const [opening, setOpening] = useState<string | null>(null);
   // MetaMask's https app.link resolves to the store itself; the rest are raw
   // schemes that need try-open detection + a Play-Store fallback.
-  const wallets: { name: string; bg: string; fg: string; href?: string; scheme?: string; pkg?: string; dl?: string }[] = [
+  const wallets: { name: string; bg: string; fg: string; href?: string; scheme?: string; pkg?: string; dl?: string; ios?: string }[] = [
     { name: "MetaMask", bg: "#e88100", fg: "#fff",
       href: `https://metamask.app.link/send/${cfg.tokenAddress}@${cfg.chainId}/transfer?address=${depositTo}&uint256=${raw}` },
     ...(trustAsset ? [{ name: "Trust Wallet", bg: "#3375bb", fg: "#fff",
       scheme: `trust://send?asset=${trustAsset}_t${cfg.tokenAddress}&address=${depositTo}&amount=${total.toFixed(6)}`,
-      pkg: "com.wallet.crypto.trustapp", dl: "https://trustwallet.com/download" }] : []),
+      pkg: "com.wallet.crypto.trustapp", dl: "https://trustwallet.com/download",
+      ios: `https://link.trustwallet.com/send?asset=${trustAsset}_t${cfg.tokenAddress}&address=${depositTo}&amount=${total.toFixed(6)}` }] : []),
     { name: "TokenPocket", bg: "#2980fe", fg: "#fff",
       scheme: `tpdapp://transfer?chain=BSC&contract=${cfg.tokenAddress}&to=${depositTo}&amount=${total.toFixed(6)}`,
-      pkg: "vip.mytokenpocket", dl: "https://www.tokenpocket.pro" },
+      pkg: "vip.mytokenpocket", dl: "https://www.tokenpocket.pro", ios: "https://www.tokenpocket.pro" },
     { name: t("m.otherWallet"), bg: "#334", fg: "#fff",
       scheme: `ethereum:${cfg.tokenAddress}@${cfg.chainId}/transfer?address=${depositTo}&uint256=${raw}` },
   ];
@@ -264,6 +259,7 @@ function MobileWalletPay({ depositTo, total, busy, txHash, setTxHash, hashError,
             openMobileApp(w.scheme!, {
               pkg: w.pkg,
               store: w.pkg ? `https://play.google.com/store/apps/details?id=${w.pkg}` : undefined,
+              ios: w.ios,
               onMissing: () => setMissing(w.dl ?? ""),
             });
           }}>
