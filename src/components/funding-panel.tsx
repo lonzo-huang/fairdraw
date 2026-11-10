@@ -118,7 +118,18 @@ function openMobileApp(schemeUrl: string, opts: { pkg?: string; store?: string; 
     if (document.hidden) { clearTimeout(timer); document.removeEventListener("visibilitychange", onVis); }
   };
   document.addEventListener("visibilitychange", onVis);
-  window.location.href = url;
+  if (isIOS) {
+    // location.href to an unhandled scheme makes Safari navigate to a
+    // "this page did not load" error — a hidden iframe launches the app
+    // without ever touching the page's navigation.
+    const iframe = document.createElement("iframe");
+    iframe.style.display = "none";
+    document.body.appendChild(iframe);
+    iframe.src = url;
+    setTimeout(() => iframe.remove(), 3000);
+  } else {
+    window.location.href = url;
+  }
 }
 
 /**
