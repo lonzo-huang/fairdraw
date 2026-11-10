@@ -113,9 +113,10 @@ function openMobileApp(schemeUrl: string, opts: { pkg?: string; store?: string; 
   if (isIOS) {
     // iOS: EVERY scheme navigation that no app claims replaces this page with
     // Safari's error page — iframe, window.open and location.href all lose
-    // the page. The only safe targets are https universal links: installed
-    // apps take them system-side, missing apps land on a real download page.
-    if (opts.ios) { window.location.href = opts.ios; return; }
+    // the page. The only safe targets are https universal links (installed
+    // apps take them system-side, missing apps land on a download page) —
+    // opened in a new tab so a hung/unreachable host can't freeze ours.
+    if (opts.ios) { window.open(opts.ios, "_blank"); return; }
     opts.onMissing?.();
     return;
   }
