@@ -111,12 +111,17 @@ function openMobileApp(schemeUrl: string, opts: { pkg?: string; store?: string; 
     }
   }
   if (isIOS) {
-    // iOS: EVERY scheme navigation that no app claims replaces this page with
-    // Safari's error page — iframe, window.open and location.href all lose
-    // the page. The only safe targets are https universal links (installed
-    // apps take them system-side, missing apps land on a download page) —
-    // opened in a new tab so a hung/unreachable host can't freeze ours.
-    if (opts.ios) { window.open(opts.ios, "_blank"); return; }
+    // iOS: schemes can destroy the page; window.open is silently blocked by
+    // Safari's popup filter. A programmatic <a> click is treated as a true
+    // user gesture and always works. Use App Store / universal links so
+    // the target is reachable even on China networks.
+    if (opts.ios) {
+      const a = document.createElement("a");
+      a.href = opts.ios; a.target = "_blank"; a.rel = "noreferrer";
+      document.body.appendChild(a); a.click();
+      setTimeout(() => document.body.removeChild(a), 200);
+      return;
+    }
     opts.onMissing?.();
     return;
   }
@@ -192,11 +197,13 @@ function ExchangePayButtons({ depositTo, total }: { depositTo: string; total: nu
   return (
     <div style={{display:"flex",flexDirection:"column",gap:8}}>
       {/* Binance's Play listing is region-restricted — fall back to the official download page instead. */}
+      {/* iOS targets use App Store links (accessible from China; App Store app intercepts them). */}
       <ExchangeCopyBtn label="币安 Binance" mark="B" bg="#f0b90b" fg="#1e2026" depositTo={depositTo} total={total}
-        scheme="bnc://app.binance.com" pkg="com.binance.dev" store="https://www.binance.com/en/download" dl="https://www.binance.com/en/download" />
-      {/* OKX's universal entry doubles as app-open (deeplink param) + install page. */}
+        scheme="bnc://app.binance.com" pkg="com.binance.dev" store="https://www.binance.com/en/download"
+        dl="https://apps.apple.com/app/binance-buy-bitcoin-crypto/id1436799971" />
       <ExchangeCopyBtn label="欧易 OKX" mark="OK" bg="#000" fg="#fff" depositTo={depositTo} total={total}
-        scheme="okx://wallet" pkg="com.okinc.okex.gp" dl="https://www.okx.com/download?deeplink=okx%3A%2F%2Fwallet" />
+        scheme="okx://wallet" pkg="com.okinc.okex.gp"
+        dl="https://apps.apple.com/app/okx-buy-bitcoin-eth-crypto/id1327268470" />
       <p style={{fontSize:11,color:"var(--muted-foreground)",textAlign:"center",margin:0}}>{t("m.binanceHint")}</p>
     </div>
   );
@@ -235,7 +242,8 @@ function MobileWalletPay({ depositTo, total, busy, txHash, setTxHash, hashError,
       ios: `https://link.trustwallet.com/send?asset=${trustAsset}_t${cfg.tokenAddress}&address=${depositTo}&amount=${total.toFixed(6)}` }] : []),
     { name: "TokenPocket", bg: "#2980fe", fg: "#fff",
       scheme: `tpdapp://transfer?chain=BSC&contract=${cfg.tokenAddress}&to=${depositTo}&amount=${total.toFixed(6)}`,
-      pkg: "vip.mytokenpocket", dl: "https://www.tokenpocket.pro", ios: "https://www.tokenpocket.pro" },
+      pkg: "vip.mytokenpocket", dl: "https://www.tokenpocket.pro",
+      ios: "https://apps.apple.com/app/tokenpocket-crypto-bitcoin/id1436028697" },
     { name: t("m.otherWallet"), bg: "#334", fg: "#fff",
       scheme: `ethereum:${cfg.tokenAddress}@${cfg.chainId}/transfer?address=${depositTo}&uint256=${raw}` },
   ];
