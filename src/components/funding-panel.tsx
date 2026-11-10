@@ -110,6 +110,23 @@ function openMobileApp(schemeUrl: string, opts: { pkg?: string; store?: string; 
         + "end";
     }
   }
+  if (isIOS) {
+    // Any navigation to an unhandled scheme becomes Safari's "this page did
+    // not load" error — send it to a throwaway tab so this page survives.
+    // iOS can't tell us whether an app took the scheme, and the system
+    // prompts/new-tab themselves flicker document.hidden (which would kill a
+    // visibilitychange-cancelled timer). Poll instead: still-visible means
+    // nothing took over → show the hint; ~6s of continuous hidden means an
+    // app really opened and the user is paying → stay silent.
+    let ticks = 0;
+    const iv = setInterval(() => {
+      ticks++;
+      if (!document.hidden) { clearInterval(iv); opts.onMissing?.(); }
+      else if (ticks >= 6) clearInterval(iv);
+    }, 1000);
+    window.open(url, "_blank");
+    return;
+  }
   const timer = setTimeout(() => {
     document.removeEventListener("visibilitychange", onVis);
     if (!document.hidden) opts.onMissing?.();
@@ -118,14 +135,7 @@ function openMobileApp(schemeUrl: string, opts: { pkg?: string; store?: string; 
     if (document.hidden) { clearTimeout(timer); document.removeEventListener("visibilitychange", onVis); }
   };
   document.addEventListener("visibilitychange", onVis);
-  if (isIOS) {
-    // Any navigation to an unhandled scheme becomes Safari's "this page did
-    // not load" error — send it to a throwaway tab so this page survives and
-    // the not-installed hint stays visible. Installed apps still take over.
-    window.open(url, "_blank");
-  } else {
-    window.location.href = url;
-  }
+  window.location.href = url;
 }
 
 /**
