@@ -107,12 +107,26 @@ function NewCampaign() {
   const autoPrize = amount && amount > 0 ? prizeSummary({ ...shareBase, prize: f.prize }) : "";
   const prizeText = prizeTouched ? f.prize : autoPrize;
 
-  const condNames = selKeys.map((k) => t(METRIC_LABEL[k]));
-  const prizeTail = amount && amount > 0
-    ? (lang === "zh" ? `赢 ${amount} ${f.currency}` : `to win ${amount} ${f.currency}`)
-    : (lang === "zh" ? "抽奖" : "giveaway");
-  const autoTitle = condNames.length
-    ? `${condNames.join(" + ")} ${prizeTail}`
+  const COND_SHORT_ZH: Record<MetricKey, string> = {
+    min_likes: "赞", min_replies: "回复", min_reposts: "转发",
+    min_quotes: "引用", min_views: "曝光", min_participants: "参与者", min_verified: "蓝V",
+  };
+  const COND_SHORT_EN: Record<MetricKey, string> = {
+    min_likes: "likes", min_replies: "replies", min_reposts: "reposts",
+    min_quotes: "quotes", min_views: "views", min_participants: "entrants", min_verified: "verified",
+  };
+  const condParts = selKeys.map((k) => {
+    const n = Math.floor(Number(vals[k])) || 100;
+    return lang === "zh" ? `${n} ${COND_SHORT_ZH[k]}` : `${n} ${COND_SHORT_EN[k]}`;
+  });
+  const autoTitle = condParts.length
+    ? lang === "zh"
+      ? amount && amount > 0
+        ? `达到 ${condParts.join(" + ")}，赢 ${amount} ${f.currency}`
+        : `达到 ${condParts.join(" + ")} 即抽奖`
+      : amount && amount > 0
+        ? `${condParts.join(" & ")} to win ${amount} ${f.currency}`
+        : `${condParts.join(" & ")} giveaway`
     : amount && amount > 0
       ? (lang === "zh" ? `${amount} ${f.currency} 抽奖` : `${amount} ${f.currency} giveaway`)
       : "";
