@@ -136,6 +136,8 @@ function ExchangeCopyBtn({ label, mark, bg, fg, depositTo, total, scheme, pkg, s
   pkg: string;
   /** Fallback URL when the app is missing — defaults to its Play Store page. */
   store?: string;
+  /** Official download page linked from the iOS "app not detected" hint. */
+  dl?: string;
 }) {
   const { t } = useI18n();
   const cfg = chainConfig();
@@ -163,7 +165,12 @@ function ExchangeCopyBtn({ label, mark, bg, fg, depositTo, total, scheme, pkg, s
         {label} {t("m.binanceTag")}
         <span style={{marginLeft:"auto",fontSize:12,opacity:.85}}>{copied ? t("m.addrCopied") : `${total.toFixed(2)} ${cfg.tokenSymbol}`}</span>
       </button>
-      {missing && <p style={{fontSize:11,color:"var(--destructive)",textAlign:"center",margin:0}}>{t("m.appMissing")}</p>}
+      {missing && (
+        <p style={{fontSize:11,color:"var(--destructive)",textAlign:"center",margin:0}}>
+          {t("m.appMissing")}
+          {dl && <> · <a href={dl} target="_blank" rel="noreferrer" style={{color:"inherit",textDecoration:"underline"}}>{t("m.downloadApp")}</a></>}
+        </p>
+      )}
     </>
   );
 }
@@ -175,9 +182,9 @@ function ExchangePayButtons({ depositTo, total }: { depositTo: string; total: nu
     <div style={{display:"flex",flexDirection:"column",gap:8}}>
       {/* Binance's Play listing is region-restricted — fall back to the official download page instead. */}
       <ExchangeCopyBtn label="币安 Binance" mark="B" bg="#f0b90b" fg="#1e2026" depositTo={depositTo} total={total}
-        scheme="bnc://app.binance.com" pkg="com.binance.dev" store="https://www.binance.com/en/download" />
+        scheme="bnc://app.binance.com" pkg="com.binance.dev" store="https://www.binance.com/en/download" dl="https://www.binance.com/en/download" />
       <ExchangeCopyBtn label="欧易 OKX" mark="OK" bg="#000" fg="#fff" depositTo={depositTo} total={total}
-        scheme="okx://wallet" pkg="com.okinc.okex.gp" />
+        scheme="okx://wallet" pkg="com.okinc.okex.gp" dl="https://www.okx.com/download" />
       <p style={{fontSize:11,color:"var(--muted-foreground)",textAlign:"center",margin:0}}>{t("m.binanceHint")}</p>
     </div>
   );
@@ -202,19 +209,20 @@ function MobileWalletPay({ depositTo, total, busy, txHash, setTxHash, hashError,
   const raw = parseUnits(total.toFixed(6), cfg.tokenDecimals).toString();
   // SLIP-44 coin ids used by Trust Wallet asset codes (c<id>_t<contract>).
   const trustAsset = ({ 56: "c20000714", 1: "c60", 97: "c20000714" } as Record<number, string>)[cfg.chainId];
-  const [missing, setMissing] = useState(false);
+  /** Holds the missing app's download URL ("" when it has none), null when nothing failed. */
+  const [missing, setMissing] = useState<string | null>(null);
   const [opening, setOpening] = useState<string | null>(null);
   // MetaMask's https app.link resolves to the store itself; the rest are raw
   // schemes that need try-open detection + a Play-Store fallback.
-  const wallets: { name: string; bg: string; fg: string; href?: string; scheme?: string; pkg?: string }[] = [
+  const wallets: { name: string; bg: string; fg: string; href?: string; scheme?: string; pkg?: string; dl?: string }[] = [
     { name: "MetaMask", bg: "#e88100", fg: "#fff",
       href: `https://metamask.app.link/send/${cfg.tokenAddress}@${cfg.chainId}/transfer?address=${depositTo}&uint256=${raw}` },
     ...(trustAsset ? [{ name: "Trust Wallet", bg: "#3375bb", fg: "#fff",
       scheme: `trust://send?asset=${trustAsset}_t${cfg.tokenAddress}&address=${depositTo}&amount=${total.toFixed(6)}`,
-      pkg: "com.wallet.crypto.trustapp" }] : []),
+      pkg: "com.wallet.crypto.trustapp", dl: "https://trustwallet.com/download" }] : []),
     { name: "TokenPocket", bg: "#2980fe", fg: "#fff",
       scheme: `tpdapp://transfer?chain=BSC&contract=${cfg.tokenAddress}&to=${depositTo}&amount=${total.toFixed(6)}`,
-      pkg: "vip.mytokenpocket" },
+      pkg: "vip.mytokenpocket", dl: "https://www.tokenpocket.pro" },
     { name: t("m.otherWallet"), bg: "#334", fg: "#fff",
       scheme: `ethereum:${cfg.tokenAddress}@${cfg.chainId}/transfer?address=${depositTo}&uint256=${raw}` },
   ];
@@ -234,19 +242,24 @@ function MobileWalletPay({ depositTo, total, busy, txHash, setTxHash, hashError,
       ) : (
         <button key={w.name} type="button" style={{...rowStyle,background:w.bg,color:w.fg,border:0,cursor:"pointer"}}
           onClick={() => {
-            setMissing(false); setOpening(w.name);
+            setMissing(null); setOpening(w.name);
             setTimeout(() => setOpening((o) => (o === w.name ? null : o)), 3000);
             openMobileApp(w.scheme!, {
               pkg: w.pkg,
               store: w.pkg ? `https://play.google.com/store/apps/details?id=${w.pkg}` : undefined,
-              onMissing: () => setMissing(true),
+              onMissing: () => setMissing(w.dl ?? ""),
             });
           }}>
           <Wallet style={{width:18,height:18,flexShrink:0}} />{t("m.openIn")} {w.name}
           <span style={{marginLeft:"auto",fontSize:12,opacity:.85}}>{opening === w.name ? t("m.openingApp") : `${total.toFixed(2)} ${cfg.tokenSymbol}`}</span>
         </button>
       ))}
-      {missing && <p style={{fontSize:11,color:"var(--destructive)",textAlign:"center",margin:0}}>{t("m.appMissing")}</p>}
+      {missing !== null && (
+        <p style={{fontSize:11,color:"var(--destructive)",textAlign:"center",margin:0}}>
+          {t("m.appMissing")}
+          {missing && <> · <a href={missing} target="_blank" rel="noreferrer" style={{color:"inherit",textDecoration:"underline"}}>{t("m.downloadApp")}</a></>}
+        </p>
+      )}
       <p style={{fontSize:11,color:"var(--muted-foreground)",textAlign:"center",margin:"6px 0 2px"}}>{t("m.mobileWalletOr")}</p>
       <div className="hash-row">
         <input className="hash-in" placeholder="0x…" value={txHash} spellCheck={false}

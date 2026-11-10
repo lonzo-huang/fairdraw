@@ -733,6 +733,7 @@ const dict = {
   "m.binanceHint": { zh: "点上面按钮复制收款地址 → 打开币安/欧易 App → 提币 USDT → 网络选 BSC (BEP20)，到账金额需 ≥ 应付总额", en: "Tap to copy the address → open Binance/OKX app → withdraw USDT → pick BSC (BEP20); received amount must be ≥ the total" },
   "m.binanceQrHint": { zh: "币安/欧易用户：打开 App → 提币 → USDT → 扫左侧二维码填地址，手续费 ~1 USDT", en: "Binance/OKX users: open the app → Withdraw → USDT → scan the QR for the address (~1 USDT fee)" },
   "m.appMissing": { zh: "未检测到该 App，请先安装", en: "App not detected — install it first" },
+  "m.downloadApp": { zh: "点此下载", en: "Download" },
   "m.openingApp": { zh: "正在打开 App…", en: "Opening app…" },
   "m.wechatHint": { zh: "微信/QQ 内置浏览器会拦截所有钱包跳转——请点右上角「在浏览器中打开」", en: "In-app browsers block wallet links — open this page in your system browser" },
   "m.noReceiver": { zh: "平台收款钱包未配置（VITE_PLATFORM_WALLET）。", en: "Platform wallet not configured (VITE_PLATFORM_WALLET)." },
