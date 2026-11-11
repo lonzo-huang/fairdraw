@@ -29,6 +29,7 @@ import { Route as RSlugRouteImport } from './routes/r.$slug'
 import { Route as AuthenticatedManageIdRouteImport } from './routes/_authenticated/manage.$id'
 import { Route as ApiCronConditionsRouteImport } from './routes/api/cron/conditions'
 import { Route as ApiStripeWebhookRouteImport } from './routes/api/stripe/webhook'
+import { Route as FaqPaymentIndexRouteImport } from './routes/faq.payment.index'
 import { Route as FaqPaymentBinanceRouteImport } from './routes/faq.payment.binance'
 import { Route as FaqPaymentMetamaskRouteImport } from './routes/faq.payment.metamask'
 import { Route as FaqPaymentOkxRouteImport } from './routes/faq.payment.okx'
@@ -134,6 +135,11 @@ const ApiStripeWebhookRoute = ApiStripeWebhookRouteImport.update({
   path: '/api/stripe/webhook',
   getParentRoute: () => rootRouteImport,
 } as any)
+const FaqPaymentIndexRoute = FaqPaymentIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => FaqPaymentRoute,
+} as any)
 const FaqPaymentBinanceRoute = FaqPaymentBinanceRouteImport.update({
   id: '/binance',
   path: '/binance',
@@ -185,6 +191,7 @@ export interface FileRoutesByFullPath {
   '/faq/payment/metamask': typeof FaqPaymentMetamaskRoute
   '/faq/payment/okx': typeof FaqPaymentOkxRoute
   '/r/$slug/claim': typeof RSlugClaimRoute
+  '/faq/payment/': typeof FaqPaymentIndexRoute
   '/api/public/campaign-image/$slug': typeof ApiPublicCampaignImageSlugRoute
 }
 export interface FileRoutesByTo {
@@ -201,7 +208,6 @@ export interface FileRoutesByTo {
   '/my-entries': typeof AuthenticatedMyEntriesRoute
   '/new': typeof AuthenticatedNewRoute
   '/c/$slug': typeof CSlugRoute
-  '/faq/payment': typeof FaqPaymentRouteWithChildren
   '/go/$slug': typeof GoSlugRoute
   '/r/$slug': typeof RSlugRouteWithChildren
   '/manage/$id': typeof AuthenticatedManageIdRoute
@@ -211,6 +217,7 @@ export interface FileRoutesByTo {
   '/faq/payment/metamask': typeof FaqPaymentMetamaskRoute
   '/faq/payment/okx': typeof FaqPaymentOkxRoute
   '/r/$slug/claim': typeof RSlugClaimRoute
+  '/faq/payment': typeof FaqPaymentIndexRoute
   '/api/public/campaign-image/$slug': typeof ApiPublicCampaignImageSlugRoute
 }
 export interface FileRoutesById {
@@ -239,6 +246,7 @@ export interface FileRoutesById {
   '/faq/payment/metamask': typeof FaqPaymentMetamaskRoute
   '/faq/payment/okx': typeof FaqPaymentOkxRoute
   '/r/$slug/claim': typeof RSlugClaimRoute
+  '/faq/payment/': typeof FaqPaymentIndexRoute
   '/api/public/campaign-image/$slug': typeof ApiPublicCampaignImageSlugRoute
 }
 export interface FileRouteTypes {
@@ -267,6 +275,7 @@ export interface FileRouteTypes {
     | '/faq/payment/metamask'
     | '/faq/payment/okx'
     | '/r/$slug/claim'
+    | '/faq/payment/'
     | '/api/public/campaign-image/$slug'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -283,7 +292,6 @@ export interface FileRouteTypes {
     | '/my-entries'
     | '/new'
     | '/c/$slug'
-    | '/faq/payment'
     | '/go/$slug'
     | '/r/$slug'
     | '/manage/$id'
@@ -293,6 +301,7 @@ export interface FileRouteTypes {
     | '/faq/payment/metamask'
     | '/faq/payment/okx'
     | '/r/$slug/claim'
+    | '/faq/payment'
     | '/api/public/campaign-image/$slug'
   id:
     | '__root__'
@@ -320,6 +329,7 @@ export interface FileRouteTypes {
     | '/faq/payment/metamask'
     | '/faq/payment/okx'
     | '/r/$slug/claim'
+    | '/faq/payment/'
     | '/api/public/campaign-image/$slug'
   fileRoutesById: FileRoutesById
 }
@@ -484,6 +494,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiStripeWebhookRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/faq/payment/': {
+      id: '/faq/payment/'
+      path: '/'
+      fullPath: '/faq/payment/'
+      preLoaderRoute: typeof FaqPaymentIndexRouteImport
+      parentRoute: typeof FaqPaymentRoute
+    }
     '/faq/payment/binance': {
       id: '/faq/payment/binance'
       path: '/binance'
@@ -545,12 +562,14 @@ interface FaqPaymentRouteChildren {
   FaqPaymentBinanceRoute: typeof FaqPaymentBinanceRoute
   FaqPaymentMetamaskRoute: typeof FaqPaymentMetamaskRoute
   FaqPaymentOkxRoute: typeof FaqPaymentOkxRoute
+  FaqPaymentIndexRoute: typeof FaqPaymentIndexRoute
 }
 
 const FaqPaymentRouteChildren: FaqPaymentRouteChildren = {
   FaqPaymentBinanceRoute: FaqPaymentBinanceRoute,
   FaqPaymentMetamaskRoute: FaqPaymentMetamaskRoute,
   FaqPaymentOkxRoute: FaqPaymentOkxRoute,
+  FaqPaymentIndexRoute: FaqPaymentIndexRoute,
 }
 
 const FaqPaymentRouteWithChildren = FaqPaymentRoute._addFileChildren(

@@ -22,7 +22,7 @@ function FaqBinance() {
   const { t, lang } = useI18n();
   return (
     <div className="mx-auto max-w-3xl px-5 py-16 sm:px-8">
-      <Link to="/guide" className="text-sm text-muted-foreground hover:text-foreground">{t("faq.pay.back")}</Link>
+      <Link to="/faq/payment" className="text-sm text-muted-foreground hover:text-foreground">{t("faq.pay.back")}</Link>
       <h1 className="mt-4 text-3xl font-semibold">{t("faq.bnb.title")}</h1>
 
       <article className="mt-8 space-y-4 text-sm leading-6 text-muted-foreground">
