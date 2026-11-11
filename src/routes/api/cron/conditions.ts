@@ -11,6 +11,9 @@ import { createFileRoute } from "@tanstack/react-router";
  */
 const BATCH_LIMIT = 20;
 const COOLDOWN_MS = 50_000;
+/** Keep sweeping for a short grace after ends_at so the post-deadline
+ *  auto-refund still fires; then the campaign drops out of the sweep. */
+const END_GRACE_MS = 30 * 60_000;
 
 export const Route = createFileRoute("/api/cron/conditions")({
   server: {
@@ -28,6 +31,7 @@ export const Route = createFileRoute("/api/cron/conditions")({
           .select("id, owner_id, status, ends_at, tweet_url, conditions, escrow_status, payment_method")
           .eq("status", "open")
           .not("tweet_url", "is", null)
+          .gt("ends_at", new Date(Date.now() - END_GRACE_MS).toISOString())
           .order("ends_at", { ascending: true })
           .limit(200);
         if (error) return new Response(error.message, { status: 500 });
