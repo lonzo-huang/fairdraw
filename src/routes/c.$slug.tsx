@@ -9,8 +9,8 @@ import { useAuth } from "@/hooks/use-auth";
 import { getCampaignShare } from "@/lib/campaign-share.functions";
 import { getEscrowState } from "@/lib/payment.functions";
 import { conditionSummary, prizeSummary } from "@/lib/campaign-share";
-import { fetchAllSnaps } from "@/lib/campaign-hub";
-import { Activity, ArrowUpRight, BadgeCheck, BarChart3, Eye, Heart, Link2, MessageCircle, MessageSquare, Percent, Repeat2, Search, ShieldCheck, UserPlus, Users } from "lucide-react";
+import { fetchAllSnaps, isLive, xHandleFromUrl, type HubCampaign } from "@/lib/campaign-hub";
+import { Activity, ArrowUpRight, BadgeCheck, Ban, BarChart3, Clock, Eye, Heart, Info, Link2, ListOrdered, Lock, MessageCircle, MessageSquare, Percent, Repeat2, Search, Share2, ShieldCheck, UserPlus, Users } from "lucide-react";
 
 export const Route = createFileRoute("/c/$slug")({
   loader: ({ params }) => getCampaignShare({ data: { slug: params.slug } }),
@@ -58,20 +58,22 @@ function CampaignPage() {
       const { data: c } = await supabase.from("campaigns").select("*").eq("slug", slug).maybeSingle();
       if (!c) return null;
       const { data: count } = await supabase.rpc("entry_count", { _campaign_id: c.id });
-      const [snaps, { data: draw }, escrow] = await Promise.all([
+      const [snaps, { data: draw }, escrow, { data: entries }, { data: hubs }] = await Promise.all([
         fetchAllSnaps((from, size) => supabase.from("condition_snapshots").select("metrics, progress, fetched_at").eq("campaign_id", c.id).order("fetched_at", { ascending: true }).range(from, from + size - 1)),
         supabase.from("draws").select("drawn_at").eq("campaign_id", c.id).maybeSingle(),
         c.payment_method === "chain" && c.prize_amount !== null ? getEscrowState({ data: { campaignId: c.id } }) : Promise.resolve(null),
+        supabase.from("entries").select("handle, eligibility_status, fetched_meta, created_at").eq("campaign_id", c.id).order("created_at", { ascending: false }).limit(120),
+        supabase.from("campaigns").select("id,slug,title,prize,prize_amount,currency,winners_count,ends_at,created_at,status,escrow_status,tweet_url,owner_id,clicks,conditions").eq("status", "open").not("tweet_url", "is", null).neq("id", c.id).order("created_at", { ascending: false }).limit(40),
       ]);
-      return { c, count: count ?? 0, snaps, drawAt: draw?.drawn_at ?? null, escrow };
+      return { c, count: count ?? 0, snaps, drawAt: draw?.drawn_at ?? null, escrow, entries: entries ?? [], hubs: hubs ?? [] };
     },
   });
   const cd = useCountdown(data?.c?.ends_at);
-  const [tab, setTab] = useState<"overview" | "engagement" | "impact">("overview");
+  const [tab, setTab] = useState("overview");
 
   if (isLoading) return <p className="p-10 text-center text-muted-foreground">{t("common.loading")}</p>;
   if (!data) return <p className="p-10 text-center text-muted-foreground">404</p>;
-  const { c, count, snaps, drawAt, escrow } = data;
+  const { c, count, snaps, drawAt, escrow, entries, hubs } = data;
   const latestSnap = snaps[snaps.length - 1] ?? null;
   const latestM = asMetrics(latestSnap?.metrics);
   // Baseline = the earliest snapshot that actually captured followers; older rows never had the field.
@@ -116,8 +118,64 @@ function CampaignPage() {
   else tlItems.push({ st: "", t: t("ev.drawSoon"), s: t("ev.drawWhen") });
   const copyShare = () => { navigator.clipboard.writeText(shareUrl).catch(() => {}); toast.success(t("c.copied")); };
 
+  // ── role-aware layout (visitor vs organiser) ──
+  const running = open && linked && !closed;
+  const tid = c.tweet_url?.match(/status(?:es)?\/(\d+)/)?.[1] ?? null;
+  const joinUrl = tid ? `https://x.com/intent/tweet?in_reply_to=${tid}` : (c.tweet_url ?? "#");
+  // Linked while open and not past deadline ⇒ the pool is already locked,
+  // so participation is open to every visitor.
+  const joinable = running;
+  const endedNoDraw = linked && closed && !drawn && c.status !== "cancelled";
+  const validN = entries.filter((e) => isValidEntry(e.eligibility_status)).length;
+  const badN = entries.length - validN;
+  // Slowest unmet numeric condition drives the organiser hint.
+  const lagging = prog?.checks
+    .filter((ch) => ch.state !== "met" && typeof ch.target === "number" && typeof ch.current === "number")
+    .sort((a, b) => (Number(a.current) / Number(a.target)) - (Number(b.current) / Number(b.target)))[0];
+  const shareTweet = (txt: string) => `https://x.com/intent/tweet?text=${encodeURIComponent(txt)}`;
+  const promoUrl = shareTweet(translate(lang, "c.promoText", { amt, url: shareUrl }));
+  const shareUrl2 = shareTweet(translate(lang, "c.shareText", { amt, url: shareUrl }));
+  const recos = (hubs as unknown as HubCampaign[]).filter((r) => isLive(r, Date.now()))
+    .sort((a, b) => {
+      const hs = (r: HubCampaign) => (xHandleFromUrl(r.tweet_url) ?? "") === (xHandleFromUrl(c.tweet_url) ?? "!");
+      return Number(hs(b)) - Number(hs(a)) || Date.parse(a.ends_at) - Date.parse(b.ends_at);
+    })
+    .slice(0, 4);
+  const copyReminder = () => {
+    const name = lagging ? t(`cond.${lagging.label}` as "cond.likes") : "";
+    navigator.clipboard.writeText(translate(lang, "c.reminderText", { name, url: shareUrl })).catch(() => {});
+    toast.success(t("c.copied"));
+  };
+  // Tab sets differ by role: organiser gets analysis, visitor gets rules.
+  const TABSET: [string, string][] = isOwner
+    ? [["overview", "ana.overview"], ["people", "c.tabPeople"], ["engagement", "c.tabAnalysis"], ["impact", "c.tabValue"]]
+    : [["overview", "c.tabProgress"], ["people", "c.tabPeopleV"], ["rules", "c.tabRules"]];
+  const tabNow = TABSET.some(([k]) => k === tab) ? tab : "overview";
+
   return (
     <div className="page-ana mx-auto max-w-[1200px] px-4 pb-20 pt-9 md:px-6">
+      {isOwner && (
+        <div className="ownbar">
+          <div className="l"><ShieldCheck /><div>{t("c.ownerBar")}<br /><small>{t("c.ownerBarSub")}</small></div></div>
+          <div className="r">
+            <button type="button" className="ghost" onClick={copyShare}><Link2 />{t("m.copyLink")}</button>
+            <Link to="/manage/$id" params={{ id: c.id }} className="ghost"><BarChart3 />{t("c.manageBtn")}</Link>
+          </div>
+        </div>
+      )}
+      {isOwner && running && lagging && (
+        <div className="hint">
+          <Info />
+          <div>{translate(lang, "c.hintSlow", { name: t(`cond.${lagging.label}` as "cond.likes"), cur: String(lagging.current), goal: String(lagging.target) })}</div>
+          <button type="button" onClick={copyReminder}>{t("c.copyReminder")}</button>
+        </div>
+      )}
+      {!isOwner && endedNoDraw && (
+        <div className="endbox">
+          <div className="banner"><Clock /><div><b>{t("c.endT")}</b><span>{t("c.endS")}</span></div></div>
+        </div>
+      )}
+
       <div className="crumb">
         {isOwner ? <Link to="/dashboard">{t("dash.title")}</Link> : <Link to="/">FairDraw</Link>}
         <span>/</span><span>{t("cy.details")}</span>
@@ -159,9 +217,17 @@ function CampaignPage() {
               <ArrowUpRight style={{ width: 14, height: 14 }} />{t("c.visit")}
             </a>
           )}
+          {!isOwner && running && (
+            <div className="how">
+              {([1, 2, 3] as const).map((n) => (
+                <div key={n} className="hw"><span className="n">{n}</span><b>{t(`c.how${n}t` as "c.how1t")}</b><span>{t(`c.how${n}s` as "c.how1s")}</span></div>
+              ))}
+            </div>
+          )}
         </div>
 
-        <div className="ticket">
+        <div className="side">
+          <div className="ticket">
           <div className="ticket-in">
             <div className="t-top">
               <div className="t-lab">{t("cy.total")}</div>
@@ -190,28 +256,57 @@ function CampaignPage() {
                   {!linked ? t("ana.timerWait") : new Date(c.ends_at).toLocaleDateString()}
                 </div>
               )}
-              <div className="t-row"><span>{t("c.participants")}</span><b>{linked ? count : "—"}</b></div>
-              {drawn && <Link to="/r/$slug" params={{ slug }} className="abtn" style={{ justifyContent: "center" }}>{t("c.result")}</Link>}
-              <button type="button" className="ghost" onClick={copyShare}><Link2 />{t("m.copyLink")}</button>
+              {running ? (
+                <>
+                  <div className="ppl"><b>{count}</b><span>{t("c.participants")}</span></div>
+                  {!isOwner ? (
+                    <>
+                      <div className="odds">{translate(lang, "c.odds", { n: String(Math.max(1, count)) })}</div>
+                      {joinable && <a className="btnx" href={joinUrl} target="_blank" rel="noopener noreferrer"><XIcon />{t("c.joinBtn")}</a>}
+                      {joinable && <div className="btn-note">{t("c.joinNote")}</div>}
+                      <div className="two">
+                        <button type="button" className="ghost" onClick={copyShare}><Link2 />{t("c.copyBtn")}</button>
+                        <a className="ghost" href={shareUrl2} target="_blank" rel="noopener noreferrer"><Share2 />{t("c.shareBtn")}</a>
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <div className="odds">{translate(lang, "c.validCnt", { ok: String(validN), no: String(badN) })}</div>
+                      <a className="btnx" href={promoUrl} target="_blank" rel="noopener noreferrer"><Share2 />{t("c.promoBtn")}</a>
+                      <div className="btn-note">{t("c.promoNote")}</div>
+                    </>
+                  )}
+                </>
+              ) : (
+                <>
+                  <div className="t-row"><span>{t("c.participants")}</span><b>{linked ? count : "—"}</b></div>
+                  {drawn && <Link to="/r/$slug" params={{ slug }} className="abtn" style={{ justifyContent: "center" }}>{t("c.result")}</Link>}
+                  <button type="button" className="ghost" onClick={copyShare}><Link2 />{t("m.copyLink")}</button>
+                </>
+              )}
             </div>
           </div>
+          </div>
+          {!isOwner && joinable && <CheckCard campaignId={c.id} />}
         </div>
       </div>
 
       <div className={`sync${linked ? "" : " off"}`}>
         <span>{linked ? `${t("ana.syncNote")}${latestSnap ? ` · ${t("ana.lastUpdated")} ${new Date(latestSnap.fetched_at).toLocaleString()}` : ""}` : t("ana.noSync")}</span>
       </div>
-      <StatsRow snaps={snaps} latestM={latestM} firstM={firstM} linked={linked} />
+      <StatsRow snaps={snaps} latestM={latestM} firstM={firstM} linked={linked} open={open} count={count} isOwner={isOwner} />
 
       {linked ? (
         <>
           <div className="tabs" role="tablist">
-            {(["overview", "engagement", "impact"] as const).map((tb) => (
-              <button key={tb} role="tab" aria-selected={tab === tb} onClick={() => setTab(tb)}>{t(`ana.${tb}`)}</button>
+            {TABSET.map(([k, key]) => (
+              <button key={k} role="tab" aria-selected={tabNow === k} onClick={() => setTab(k)}>
+                {t(key as "c.tabRules")}{(isOwner && (k === "engagement" || k === "impact")) && <Lock className="lock" />}
+              </button>
             ))}
           </div>
 
-          {tab === "overview" && (
+          {tabNow === "overview" && (
             <>
               <div className="g2">
                 <section className="panel card">
@@ -238,7 +333,26 @@ function CampaignPage() {
             </>
           )}
 
-          {tab === "engagement" && (
+          {tabNow === "people" && (
+            <section className="panel card">
+              <div className="card-h"><div><h3>{t(isOwner ? "c.tabPeople" : "c.tabPeopleV")}</h3><p>{t(isOwner ? "c.feedSubOwner" : "c.feedSub")}</p></div></div>
+              <PeopleFeed entries={entries} isOwner={isOwner} />
+            </section>
+          )}
+
+          {tabNow === "rules" && (
+            <section className="panel card">
+              <div className="rules">
+                <div className="rl"><Users /><div><b>{t("c.rule1t")}</b>{t("c.rule1s")}</div></div>
+                <div className="rl"><Ban /><div><b>{t("c.rule2t")}</b>{t("c.rule2s")}</div></div>
+                <div className="rl"><ListOrdered /><div><b>{t("c.rule3t")}</b>{t("c.rule3s")}</div></div>
+                <div className="rl"><ShieldCheck /><div><b>{t("c.rule4t")}</b>{t("c.rule4s")}</div></div>
+              </div>
+              <p className="note">{translate(lang, "c.rulesNote", { host: latestM?.author_handle ? `@${latestM.author_handle}` : "" })}</p>
+            </section>
+          )}
+
+          {tabNow === "engagement" && (
             <>
               <div className="g2">
                 <section className="panel card">
@@ -256,7 +370,7 @@ function CampaignPage() {
             </>
           )}
 
-          {tab === "impact" && (
+          {tabNow === "impact" && (
             <>
               <ValueGrid c={c} latestM={latestM} firstM={firstM} />
               <section className="panel card">
@@ -272,6 +386,18 @@ function CampaignPage() {
           <h3>{t("ana.emptyT")}</h3>
           <p>{t("ana.emptyS")}</p>
           {isOwner && <Link to="/manage/$id" params={{ id: c.id }} className="abtn">{t("ana.goLink")}</Link>}
+        </section>
+      )}
+
+      {!isOwner && recos.length > 0 && (
+        <section className="more">
+          <div className="more-h">
+            <div><h2>{t(endedNoDraw ? "c.moreTEnd" : "c.moreT")}</h2><p>{t(endedNoDraw ? "c.moreSEnd" : "c.moreS")}</p></div>
+            <Link to="/" className="more-a">{t("cy.viewAll")} →</Link>
+          </div>
+          <div className="more-g">
+            {recos.map((r) => <RecoCard key={r.id} r={r} curHost={xHandleFromUrl(c.tweet_url)} />)}
+          </div>
         </section>
       )}
 
@@ -318,7 +444,7 @@ function netGrowth(m: Metrics | null, fm: Metrics | null): number | null {
 }
 
 /** Four headline KPI cards — real snapshot values only; "获取中" marks fields the sweep is still retrying. */
-function StatsRow({ snaps, latestM, firstM, linked, open }: { snaps: Snap[]; latestM: Metrics | null; firstM: Metrics | null; linked: boolean; open: boolean }) {
+function StatsRow({ snaps, latestM, firstM, linked, open, count, isOwner }: { snaps: Snap[]; latestM: Metrics | null; firstM: Metrics | null; linked: boolean; open: boolean; count: number; isOwner: boolean }) {
   const { t, lang } = useI18n();
   const prevM = asMetrics(snaps[snaps.length - 2]?.metrics);
   const engagements = totalEngagements(latestM);
@@ -338,23 +464,25 @@ function StatsRow({ snaps, latestM, firstM, linked, open }: { snaps: Snap[]; lat
     return pts.map((v, j) => `${(j / (pts.length - 1)) * 72},${22 - (v / mx) * 20}`).join(" ");
   };
   const live = linked && latestM !== null;
-  const cards: { l: string; I: typeof Eye; bg: string; col: string; v: string | null; note: string; spark?: string | null; vCol?: string }[] = [
+  const cards: { l: string; I: typeof Eye; bg: string; col: string; v: string | null; note: string; spark?: string | null; vCol?: string; own?: boolean }[] = [
     { l: t("cy.exposure"), I: Eye, bg: "rgba(56,189,248,.12)", col: "#38bdf8",
       v: live && typeof latestM?.views === "number" ? fmtCompact(latestM.views) : null,
       note: viewDelta !== null ? translate(lang, "ana.statDelta", { n: viewDelta }) : t("ana.postLevel"), spark: sparkFor("views") },
     { l: t("ana.engagements"), I: Activity, bg: "rgba(124,92,255,.14)", col: "#a99bff",
       v: live && engagements !== null ? fmtCompact(engagements) : null,
       note: engDelta !== null ? translate(lang, "ana.statDelta", { n: engDelta }) : t("ana.postLevel"), spark: sparkFor("eng") },
-    { l: t("ana.engRate"), I: Percent, bg: "rgba(245,184,61,.12)", col: "#f5b83d",
+    { l: t("c.tabPeopleV"), I: Users, bg: "rgba(245,184,61,.12)", col: "#f5b83d",
+      v: linked ? fmtCompact(count) : null, note: t("c.replyEnter") },
+    { l: t("ana.engRate"), I: Percent, bg: "rgba(244,114,182,.12)", col: "#f472b6",
       v: live && rate !== null ? `${rate.toFixed(2)}%` : null, note: t("ana.engRateNote") },
-    { l: t("stat.newFollowers"), I: UserPlus, bg: "rgba(52,211,153,.12)", col: "#34d399",
-      v: live && growth !== null ? `+${fmtCompact(growth)}` : null, note: t("ana.accountLevel"), vCol: "#34d399" },
   ];
+  if (isOwner) cards.push({ l: t("stat.newFollowers"), I: UserPlus, bg: "rgba(52,211,153,.12)", col: "#34d399",
+    v: live && growth !== null ? `+${fmtCompact(growth)}` : null, note: t("ana.accountLevel"), vCol: "#34d399", own: true });
   return (
     <div className="stats">
       {cards.map((cd2) => (
         <div key={cd2.l} className="panel stat">
-          <div className="stat-h">{cd2.l}<span className="stat-ic" style={{ background: cd2.bg, color: cd2.col }}><cd2.I /></span></div>
+          <div className="stat-h"><span>{cd2.l}{cd2.own && <span className="own-tag">{t("c.onlyYou")}</span>}</span><span className="stat-ic" style={{ background: cd2.bg, color: cd2.col }}><cd2.I /></span></div>
           <div className={`stat-v${cd2.v === null ? " empty" : ""}`} style={cd2.vCol && cd2.v !== null ? { color: cd2.vCol } : undefined}>{cd2.v ?? (open && linked ? <span className="pend">{t("ana.pending")}</span> : "—")}</div>
           <div className="stat-f">
             <span>{cd2.v === null ? (open && linked ? t("ana.pendingSub") : t("ana.statWait")) : cd2.note}</span>
@@ -596,6 +724,115 @@ function TrendChart({ snaps }: { snaps: Snap[] }) {
         </div>
       )}
     </>
+  );
+}
+
+/** Reply-import entries count only when verified or owner-approved. */
+const isValidEntry = (s: string | null | undefined) => s === "verified" || s === "eligible";
+
+type EntryRow = { handle: string; eligibility_status: string | null; fetched_meta: unknown; created_at: string | null };
+type EntryMeta = { author_name?: string; text?: string; x_verified?: boolean };
+const metaOf = (m: unknown): EntryMeta => (m && typeof m === "object" ? (m as EntryMeta) : {});
+const hashStr = (s: string) => [...s].reduce((a, ch) => (a * 31 + ch.charCodeAt(0)) >>> 0, 7);
+const avBg = (s: string) => `hsl(${hashStr(s) % 360} 55% 36%)`;
+const relTime = (iso: string, lang: "zh" | "en") => {
+  const s = (Date.now() - Date.parse(iso)) / 1e3;
+  if (!isFinite(s)) return "";
+  if (s < 3600) return translate(lang, "c.minAgo", { n: String(Math.max(1, Math.round(s / 60))) });
+  if (s < 86400) return translate(lang, "c.hourAgo", { n: String(Math.round(s / 3600)) });
+  return translate(lang, "c.dayAgo", { n: String(Math.round(s / 86400)) });
+};
+
+function XIcon() {
+  return <svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16" aria-hidden="true"><path d="M18.2 2.3h3.4l-7.4 8.4 8.7 11.5h-6.8l-5.3-7-6.1 7H1.3l7.9-9L.9 2.3h7l4.8 6.4 5.5-6.4Z" /></svg>;
+}
+
+/** Visitor-facing "am I in?" — live lookup against the public entries table. */
+function CheckCard({ campaignId }: { campaignId: string }) {
+  const { t, lang } = useI18n();
+  const [h, setH] = useState("");
+  const [res, setRes] = useState<"idle" | "busy" | "ok" | "bad" | "none">("idle");
+  const run = async () => {
+    const x = h.trim().replace(/^@/, "").toLowerCase();
+    if (!x) { setRes("idle"); return; }
+    setRes("busy");
+    const { data: rows } = await supabase.from("entries").select("eligibility_status").eq("campaign_id", campaignId).ilike("handle", x);
+    const list = rows ?? [];
+    if (list.some((r) => isValidEntry(r.eligibility_status))) setRes("ok");
+    else if (list.length) setRes("bad");
+    else setRes("none");
+  };
+  return (
+    <div className="panel check">
+      <h3>{t("c.checkT")}</h3>
+      <p>{t("c.checkS")}</p>
+      <div className="ck-row">
+        <label className="ck-in"><span>@</span><input value={h} onChange={(e) => setH(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") void run(); }} placeholder={t("c.checkPh")} autoComplete="off" spellCheck={false} aria-label={t("c.checkPh")} /></label>
+        <button type="button" onClick={() => void run()} disabled={res === "busy"}>{t("c.checkBtn")}</button>
+      </div>
+      {res === "ok" && <div className="ck-res ok"><b>{translate(lang, "c.checkOk", { h: h.trim().replace(/^@/, "") })}</b>{t("c.checkOkS")}</div>}
+      {res === "bad" && <div className="ck-res bad"><b>{t("c.checkBad")}</b>{t("c.checkBadS")}</div>}
+      {res === "none" && <div className="ck-res no"><b>{translate(lang, "c.checkNone", { h: h.trim().replace(/^@/, "") })}</b>{t("c.checkNoneS")}</div>}
+    </div>
+  );
+}
+
+/** Participant feed — visitors see valid replies only; the organiser can audit filtered ones. */
+function PeopleFeed({ entries, isOwner }: { entries: EntryRow[]; isOwner: boolean }) {
+  const { t, lang } = useI18n();
+  const [f, setF] = useState<"all" | "ok" | "no">("all");
+  const ok = entries.filter((e) => isValidEntry(e.eligibility_status));
+  const no = entries.filter((e) => !isValidEntry(e.eligibility_status));
+  const rows = (!isOwner || f === "ok") ? ok : f === "no" ? no : entries;
+  if (!entries.length) return <p className="note" style={{ marginTop: 0 }}>{t("c.noEntries")}</p>;
+  const FT = [["all", entries.length], ["ok", ok.length], ["no", no.length]] as const;
+  return (
+    <>
+      {isOwner && (
+        <div className="ptabs" style={{ marginBottom: 6 }}>
+          {FT.map(([k, n]) => (
+            <button key={k} type="button" aria-selected={f === k} onClick={() => setF(k)}>{t(k === "all" ? "c.fAll" : k === "ok" ? "c.fOk" : "c.fNo")}<b>{n}</b></button>
+          ))}
+        </div>
+      )}
+      <div className="feed">
+        {rows.slice(0, 60).map((e, i) => {
+          const m = metaOf(e.fetched_meta);
+          const name = m.author_name?.trim() || e.handle;
+          const valid = isValidEntry(e.eligibility_status);
+          return (
+            <div key={i} className="fr">
+              <span className="av" style={{ background: avBg(e.handle) }}>{(name[0] ?? "?").toUpperCase()}</span>
+              <div className="t">
+                <b>{name}</b><span>@{e.handle} · {relTime(e.created_at ?? "", lang)}</span>
+                {m.text && <p>{m.text}</p>}
+              </div>
+              {isOwner && <span className={`tg ${valid ? "ok" : "no"}`}>{valid ? t("c.tgOk") : t("c.tgNo")}</span>}
+            </div>
+          );
+        })}
+      </div>
+    </>
+  );
+}
+
+/** Recommendation card — real live campaigns only, same-host first. */
+function RecoCard({ r, curHost }: { r: HubCampaign; curHost: string | null }) {
+  const { t, lang } = useI18n();
+  const host = xHandleFromUrl(r.tweet_url) ?? "anon";
+  const left = Math.max(0, Date.parse(r.ends_at) - Date.now());
+  const tag = curHost && host === curHost ? (["same", t("c.tagSame")] as const) : left < 6 * 3600e3 ? (["hot", t("c.tagSoon")] as const) : null;
+  const leftTxt = left < 3600e3 ? translate(lang, "c.leftM", { n: String(Math.max(1, Math.round(left / 6e4))) })
+    : left < 86400e3 ? translate(lang, "c.leftH", { n: String(Math.round(left / 3600e3)) })
+    : translate(lang, "c.leftD", { n: String(Math.round(left / 86400e3)) });
+  return (
+    <Link to="/c/$slug" params={{ slug: r.slug }} className="panel mc">
+      <div className="mc-h"><span className="av" style={{ background: avBg(host) }}>{(host[0] ?? "?").toUpperCase()}</span><span>@{host}</span></div>
+      <span className={`mc-tag${tag ? ` ${tag[0]}` : ""}`} style={tag ? undefined : { visibility: "hidden" }}>{tag ? tag[1] : "·"}</span>
+      <div className="amt">{r.prize_amount ?? r.prize}{r.prize_amount !== null && <small>{r.currency}</small>}</div>
+      <div className="w">{r.winners_count} {t("dash.winners")}</div>
+      <div className="ft"><span className={left < 6 * 3600e3 ? "urg" : ""}>{leftTxt}</span></div>
+    </Link>
   );
 }
 
