@@ -107,7 +107,9 @@ export function ChainFundingBody({ getCampaign, total, busy, setBusy, onDone }: 
   const cfg = chainConfig();
   const { data: paycfg } = useQuery({ queryKey: ["paycfg"], queryFn: () => getPaymentConfig() });
   const depositTo = paycfg?.chain.treasuryAddress ?? cfg.treasuryAddress ?? cfg.receiverAddress;
-  const tokenLabel = (paycfg?.fundingTokens ?? [{ symbol: cfg.tokenSymbol }]).map((x) => x.symbol).join(" / ");
+  const tokens = paycfg?.fundingTokens ?? [{ symbol: cfg.tokenSymbol, chainName: cfg.chainName }];
+  const tokenLabel = [...new Set(tokens.map((x) => x.symbol))].join(" / ");
+  const netChips = [...new Set(tokens.map((x) => `${x.symbol} · ${x.chainName ?? cfg.chainName}`))];
 
   useEffect(() => {
     if (!depositTo) return;
@@ -164,9 +166,16 @@ export function ChainFundingBody({ getCampaign, total, busy, setBusy, onDone }: 
           {t("m.fundEuHint")}
         </div>
       )}
-      <div className="bep20-warn">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/><path d="M12 9v4M12 17h.01"/></svg>
-        {t("m.fundWarnNet")}
+      <div className="bep20-warn" style={{flexDirection:"column",alignItems:"flex-start",gap:6}}>
+        <div style={{display:"flex",alignItems:"center",gap:6}}>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" style={{flexShrink:0}}><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/><path d="M12 9v4M12 17h.01"/></svg>
+          {t("m.fundWarnNet")}
+        </div>
+        <div style={{display:"flex",flexWrap:"wrap",gap:4,paddingLeft:22}}>
+          {netChips.map((chip) => (
+            <span key={chip} style={{fontSize:10,fontWeight:600,padding:"2px 7px",borderRadius:999,border:"1px solid rgba(255,255,255,.15)",background:"rgba(255,255,255,.05)",whiteSpace:"nowrap"}}>{chip}</span>
+          ))}
+        </div>
       </div>
       <p style={{fontSize:11,color:"var(--muted-foreground)",textAlign:"center",margin:"8px 0 0"}}>
         <a href="/faq/payment" style={{color:"var(--primary)",textDecoration:"underline"}}>{t("faq.pay.seeGuide")}</a>

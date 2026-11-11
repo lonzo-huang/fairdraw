@@ -34,12 +34,24 @@ function evmChain() {
 function defaultRpc(chainId: number): string {
   if (chainId === 56) return "https://bsc-dataseed.binance.org";
   if (chainId === 97) return "https://bsc-testnet.public.blastapi.io";
-  if (chainId === 1) return "https://ethereum-rpc.publicnode.com";
+  if (chainId === 8453) return "https://base-rpc.publicnode.com";
+  if (chainId === 137) return "https://polygon-bor-rpc.publicnode.com";
+  if (chainId === 42161) return "https://arbitrum-one-rpc.publicnode.com";
   return "https://ethereum-rpc.publicnode.com";
 }
 
 export function chainClient() {
   return createPublicClient({ chain: evmChain(), transport: http() });
+}
+
+/** Public client for an arbitrary accepted chain (funding token side-chains). */
+export function chainClientFor(chainId: number) {
+  if (chainId === chainConfig().chainId) return chainClient();
+  const rpc = process.env[`CHAIN_RPC_URL_${chainId}`] ?? defaultRpc(chainId);
+  return createPublicClient({
+    chain: defineChain({ id: chainId, name: `chain-${chainId}`, nativeCurrency: { name: "ETH", symbol: "ETH", decimals: 18 }, rpcUrls: { default: { http: [rpc] } } }),
+    transport: http(),
+  });
 }
 
 export type TransferMatch = {
@@ -49,51 +61,69 @@ export type TransferMatch = {
   amount: string;
   /** Symbol of the token contract the transfer was made on, e.g. "USDC". */
   token: string;
+  /** Chain the transfer happened on. */
+  chainId: number;
+  chainName: string;
 };
 
 /**
  * Verifies a transaction is a successful ERC-20 transfer on an accepted token
- * contract (primary USDT by default; pass `tokens` to also accept USDC).
- * Returns the first Transfer event matching `to` (or all transfers when `to`
- * is omitted). Amounts are in token units.
+ * contract (primary USDT by default; pass `tokens` to also accept USDC and/or
+ * side chains like Base/Polygon). Probes every chain in the token list until
+ * the hash resolves. Returns the first Transfer event matching `to` (or all
+ * transfers when `to` is omitted). Amounts are in token units.
  */
 export async function verifyTokenTransfer(
   txHash: `0x${string}`,
   expectedTo?: Address,
   minAmount?: number,
-  tokens?: { address: `0x${string}`; symbol: string; decimals: number }[],
+  tokens?: { chainId: number; chainName: string; address: `0x${string}`; symbol: string; decimals: number }[],
 ): Promise<TransferMatch> {
   const cfg = chainConfig();
-  const accepted = (tokens ?? [{ address: cfg.tokenAddress, symbol: cfg.tokenSymbol, decimals: cfg.tokenDecimals }])
+  const accepted = (tokens ?? [{ chainId: cfg.chainId, chainName: cfg.chainName, address: cfg.tokenAddress, symbol: cfg.tokenSymbol, decimals: cfg.tokenDecimals }])
     .map((t) => ({ ...t, addr: getAddress(t.address) }));
-  const client = chainClient();
-  const receipt = await client.getTransactionReceipt({ hash: txHash });
-  if (!receipt) throw new Error("Transaction not found — it may still be pending, retry in a few seconds");
-  if (receipt.status !== "success") throw new Error("Transaction failed on-chain");
-
   const wanted = expectedTo ? getAddress(expectedTo) : null;
+  const chainIds = [...new Set(accepted.map((t) => t.chainId))];
 
-  for (const log of receipt.logs) {
-    const token = accepted.find((t) => t.addr === getAddress(log.address));
-    if (!token) continue;
+  let sawFailed = false;
+  for (const chainId of chainIds) {
+    let receipt;
     try {
-      const decoded = decodeEventLog({ abi: [TRANSFER_EVENT], data: log.data, topics: log.topics });
-      if (decoded.eventName !== "Transfer") continue;
-      const { from, to, value } = decoded.args as { from: Address; to: Address; value: bigint };
-      if (wanted && getAddress(to) !== wanted) continue;
-      const minUnits = minAmount !== undefined ? parseUnits(String(minAmount), token.decimals) : 0n;
-      if (value < minUnits) continue;
-      return { from, to, amount: formatUnits(value, token.decimals), token: token.symbol };
+      receipt = await chainClientFor(chainId).getTransactionReceipt({ hash: txHash });
     } catch {
-      continue;
+      continue; // hash doesn't exist on this chain
     }
+    if (!receipt) continue;
+    if (receipt.status !== "success") { sawFailed = true; continue; }
+
+    const onChain = accepted.filter((t) => t.chainId === chainId);
+    for (const log of receipt.logs) {
+      const token = onChain.find((t) => t.addr === getAddress(log.address));
+      if (!token) continue;
+      try {
+        const decoded = decodeEventLog({ abi: [TRANSFER_EVENT], data: log.data, topics: log.topics });
+        if (decoded.eventName !== "Transfer") continue;
+        const { from, to, value } = decoded.args as { from: Address; to: Address; value: bigint };
+        if (wanted && getAddress(to) !== wanted) continue;
+        const minUnits = minAmount !== undefined ? parseUnits(String(minAmount), token.decimals) : 0n;
+        if (value < minUnits) continue;
+        return { from, to, amount: formatUnits(value, token.decimals), token: token.symbol, chainId, chainName: token.chainName };
+      } catch {
+        continue;
+      }
+    }
+    // Receipt exists on this chain but no matching transfer — the hash is
+    // real, so a wrong-token/wrong-recipient error is more useful than
+    // "not found" from probing the rest.
+    const symbols = onChain.map((t) => t.symbol).join(" or ");
+    throw new Error(
+      wanted
+        ? `No ${symbols} transfer to ${wanted} of at least ${minAmount} found in this transaction on ${onChain[0]?.chainName}`
+        : `No ${symbols} transfer found in this transaction on ${onChain[0]?.chainName}`,
+    );
   }
-  const symbols = accepted.map((t) => t.symbol).join(" or ");
-  throw new Error(
-    wanted
-      ? `No ${symbols} transfer to ${wanted} of at least ${minAmount} found in this transaction`
-      : `No ${symbols} transfer found in this transaction`,
-  );
+  if (sawFailed) throw new Error("Transaction failed on-chain");
+  throw new Error("Transaction not found — it may still be pending, retry in a few seconds");
 }
 
 export function isValidAddress(value: string): boolean {

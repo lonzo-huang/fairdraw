@@ -53,20 +53,39 @@ export function chainConfig(): ChainConfig {
   };
 }
 
-export type FundingToken = { address: `0x${string}`; symbol: string; decimals: number };
+export type FundingToken = { chainId: number; chainName: string; address: `0x${string}`; symbol: string; decimals: number };
+
+/** Native USDC contracts on the extra chains OKX etc. can withdraw to. */
+const USDC_BY_CHAIN: Record<number, { address: `0x${string}`; decimals: number; name: string }> = {
+  56: { address: "0x8AC76a51cc950d9822D68b83fE1Ad97B32Cd580d", decimals: 18, name: "BNB Chain" }, // Binance-Peg USDC
+  8453: { address: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913", decimals: 6, name: "Base" },
+  137: { address: "0x3c499c542cEF5E3811e1192ce70d8cC03d5c3359", decimals: 6, name: "Polygon" },
+  42161: { address: "0xaf88d065e77c8cC2239327C5EDb3A432268e5831", decimals: 6, name: "Arbitrum" },
+};
 
 /**
  * ERC-20 tokens accepted for pool funding. Escrow and winner payouts stay in
- * the primary token (USDT): extra tokens (USDC — the only compliant stablecoin
- * on EU-regulated exchanges post-MiCA) land in the treasury, and the oracle
- * wraps its own USDT float into the escrow contract.
+ * the primary token (USDT on BSC): extra tokens (USDC — the only compliant
+ * stablecoin on EU-regulated exchanges post-MiCA) land in the treasury on
+ * whichever chain the sender used, and the oracle wraps its own USDT float
+ * into the escrow contract. The treasury EOA address is identical on every
+ * EVM chain, so one QR/address serves all accepted networks.
  */
 export function fundingTokens(): FundingToken[] {
   const env = typeof import.meta !== "undefined" ? import.meta.env : ({} as Record<string, string | undefined>);
   const cfg = chainConfig();
-  const tokens: FundingToken[] = [{ address: cfg.tokenAddress, symbol: cfg.tokenSymbol, decimals: cfg.tokenDecimals }];
-  const usdc = env["VITE_USDC_TOKEN"] ?? (cfg.chainId === 56 ? "0x8AC76a51cc950d9822D68b83fE1Ad97B32Cd580d" : "");
-  if (usdc) tokens.push({ address: usdc as `0x${string}`, symbol: env["VITE_USDC_SYMBOL"] ?? "USDC", decimals: Number(env["VITE_USDC_DECIMALS"] ?? 18) || 18 });
+  const tokens: FundingToken[] = [
+    { chainId: cfg.chainId, chainName: cfg.chainName, address: cfg.tokenAddress, symbol: cfg.tokenSymbol, decimals: cfg.tokenDecimals },
+  ];
+  if (cfg.chainId !== 56) return tokens; // extra networks only on mainnet
+  const usdc56 = USDC_BY_CHAIN[56]!;
+  const usdc = env["VITE_USDC_TOKEN"] ?? usdc56.address;
+  tokens.push({ chainId: 56, chainName: usdc56.name, address: usdc as `0x${string}`, symbol: env["VITE_USDC_SYMBOL"] ?? "USDC", decimals: Number(env["VITE_USDC_DECIMALS"] ?? usdc56.decimals) || usdc56.decimals });
+  for (const chainId of [8453, 137, 42161]) {
+    const u = USDC_BY_CHAIN[chainId]!;
+    const override = env[`VITE_USDC_TOKEN_${chainId}`];
+    tokens.push({ chainId, chainName: u.name, address: (override ?? u.address) as `0x${string}`, symbol: "USDC", decimals: u.decimals });
+  }
   return tokens;
 }
 

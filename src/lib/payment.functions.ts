@@ -266,6 +266,7 @@ export const confirmChainPayment = createServerFn({ method: "POST" })
     let funder: string;
     let wrapTx: string | null = null;
     let paidToken = cfg.tokenSymbol;
+    let paidChainId = cfg.chainId;
     if (cfg.escrowAddress) {
       try {
         const dep = await verifyEscrowDeposit(data.txHash as `0x${string}`, c.id, pool);
@@ -275,6 +276,7 @@ export const confirmChainPayment = createServerFn({ method: "POST" })
         const tx = await verifyTokenTransfer(data.txHash as `0x${string}`, oracleAddress(), total, fundingTokens());
         funder = tx.from;
         paidToken = tx.token;
+        paidChainId = tx.chainId;
         const cancelAfter = Math.max(Math.floor(Date.now() / 1000), Math.floor(Date.parse(c.ends_at ?? "") / 1000) || 0);
         wrapTx = await oracleFundEscrow(c.id, pool, fee, cancelAfter);
       }
@@ -282,6 +284,7 @@ export const confirmChainPayment = createServerFn({ method: "POST" })
       const tx = await verifyTokenTransfer(data.txHash as `0x${string}`, cfg.receiverAddress!, total, fundingTokens());
       funder = tx.from;
       paidToken = tx.token;
+      paidChainId = tx.chainId;
     }
 
     await supabaseAdmin.from("payments").upsert(
@@ -294,7 +297,7 @@ export const confirmChainPayment = createServerFn({ method: "POST" })
         amount: total,
         currency: paidToken,
         external_ref: data.txHash,
-        meta: { pool, fee, from: funder, chain_id: cfg.chainId, escrow: !!cfg.escrowAddress } as unknown as Json,
+        meta: { pool, fee, from: funder, chain_id: cfg.chainId, paid_chain: paidChainId, paid_token: paidToken, escrow: !!cfg.escrowAddress } as unknown as Json,
       },
       { onConflict: "provider,external_ref" },
     );
@@ -1031,7 +1034,7 @@ export const getPaymentConfig = createServerFn({ method: "GET" }).handler(async 
       treasuryAddress: treasury,
       explorerTx: cfg.explorerTx,
     },
-    fundingTokens: fundingTokens().map((t) => ({ address: t.address, symbol: t.symbol, decimals: t.decimals })),
+    fundingTokens: fundingTokens().map((t) => ({ chainId: t.chainId, chainName: t.chainName, address: t.address, symbol: t.symbol, decimals: t.decimals })),
     eea,
     stripeEnabled: !!process.env["STRIPE_SECRET_KEY"],
   };
