@@ -272,18 +272,22 @@ export const confirmChainPayment = createServerFn({ method: "POST" })
         const dep = await verifyEscrowDeposit(data.txHash as `0x${string}`, c.id, pool);
         funder = dep.funder;
       } catch {
-        const { oracleAddress, oracleFundEscrow } = await import("@/lib/chain.server");
+        const { oracleAddress, oracleFundEscrow, escrowCampaign } = await import("@/lib/chain.server");
         const tx = await verifyTokenTransfer(data.txHash as `0x${string}`, oracleAddress(), total, fundingTokens());
         funder = tx.from;
         paidToken = tx.token;
         paidChainId = tx.chainId;
-        const cancelAfter = Math.max(Math.floor(Date.now() / 1000), Math.floor(Date.parse(c.ends_at ?? "") / 1000) || 0);
-        try {
-          wrapTx = await oracleFundEscrow(c.id, pool, fee, cancelAfter);
-        } catch {
-          // Verified transfer landed, but the treasury's BSC USDT float can't
-          // cover the escrow wrap right now. Retry after topping it up.
-          throw new Error("Payment verified — the platform is temporarily unable to lock the pool on-chain. Please contact support or retry in a few minutes; your transfer is confirmed.");
+        // Idempotent: a previous attempt may have locked the pool on-chain
+        // but died before the DB write — skip the wrap and just record it.
+        if (!(await escrowCampaign(c.id))) {
+          const cancelAfter = Math.max(Math.floor(Date.now() / 1000), Math.floor(Date.parse(c.ends_at ?? "") / 1000) || 0);
+          try {
+            wrapTx = await oracleFundEscrow(c.id, pool, fee, cancelAfter);
+          } catch {
+            // Verified transfer landed, but the treasury's BSC USDT float can't
+            // cover the escrow wrap right now. Retry after topping it up.
+            throw new Error("Payment verified — the platform is temporarily unable to lock the pool on-chain. Please contact support or retry in a few minutes; your transfer is confirmed.");
+          }
         }
       }
     } else {
@@ -293,7 +297,7 @@ export const confirmChainPayment = createServerFn({ method: "POST" })
       paidChainId = tx.chainId;
     }
 
-    await supabaseAdmin.from("payments").upsert(
+    const { error: payError } = await supabaseAdmin.from("payments").upsert(
       {
         campaign_id: c.id,
         user_id: userId,
@@ -307,6 +311,7 @@ export const confirmChainPayment = createServerFn({ method: "POST" })
       },
       { onConflict: "provider,external_ref" },
     );
+    if (payError) throw new Error(payError.message);
     const { error } = await supabaseAdmin
       .from("campaigns")
       .update({ escrow_status: "funded" })
