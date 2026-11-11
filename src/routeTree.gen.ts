@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/route'
+import { Route as AffiliateRouteImport } from './routes/affiliate'
 import { Route as AuthRouteImport } from './routes/auth'
 import { Route as ContactRouteImport } from './routes/contact'
 import { Route as GuideRouteImport } from './routes/guide'
@@ -22,11 +23,15 @@ import { Route as AuthenticatedDashboardRouteImport } from './routes/_authentica
 import { Route as AuthenticatedMyEntriesRouteImport } from './routes/_authenticated/my-entries'
 import { Route as AuthenticatedNewRouteImport } from './routes/_authenticated/new'
 import { Route as CSlugRouteImport } from './routes/c.$slug'
+import { Route as FaqPaymentRouteImport } from './routes/faq.payment'
 import { Route as GoSlugRouteImport } from './routes/go.$slug'
 import { Route as RSlugRouteImport } from './routes/r.$slug'
 import { Route as AuthenticatedManageIdRouteImport } from './routes/_authenticated/manage.$id'
 import { Route as ApiCronConditionsRouteImport } from './routes/api/cron/conditions'
 import { Route as ApiStripeWebhookRouteImport } from './routes/api/stripe/webhook'
+import { Route as FaqPaymentBinanceRouteImport } from './routes/faq.payment.binance'
+import { Route as FaqPaymentMetamaskRouteImport } from './routes/faq.payment.metamask'
+import { Route as FaqPaymentOkxRouteImport } from './routes/faq.payment.okx'
 import { Route as RSlugClaimRouteImport } from './routes/r.$slug.claim'
 import { Route as ApiPublicCampaignImageSlugRouteImport } from './routes/api/public/campaign-image.$slug'
 
@@ -37,6 +42,11 @@ const IndexRoute = IndexRouteImport.update({
 } as any)
 const AuthenticatedRouteRoute = AuthenticatedRouteRouteImport.update({
   id: '/_authenticated',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AffiliateRoute = AffiliateRouteImport.update({
+  id: '/affiliate',
+  path: '/affiliate',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AuthRoute = AuthRouteImport.update({
@@ -94,6 +104,11 @@ const CSlugRoute = CSlugRouteImport.update({
   path: '/c/$slug',
   getParentRoute: () => rootRouteImport,
 } as any)
+const FaqPaymentRoute = FaqPaymentRouteImport.update({
+  id: '/faq/payment',
+  path: '/faq/payment',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const GoSlugRoute = GoSlugRouteImport.update({
   id: '/go/$slug',
   path: '/go/$slug',
@@ -119,6 +134,21 @@ const ApiStripeWebhookRoute = ApiStripeWebhookRouteImport.update({
   path: '/api/stripe/webhook',
   getParentRoute: () => rootRouteImport,
 } as any)
+const FaqPaymentBinanceRoute = FaqPaymentBinanceRouteImport.update({
+  id: '/binance',
+  path: '/binance',
+  getParentRoute: () => FaqPaymentRoute,
+} as any)
+const FaqPaymentMetamaskRoute = FaqPaymentMetamaskRouteImport.update({
+  id: '/metamask',
+  path: '/metamask',
+  getParentRoute: () => FaqPaymentRoute,
+} as any)
+const FaqPaymentOkxRoute = FaqPaymentOkxRouteImport.update({
+  id: '/okx',
+  path: '/okx',
+  getParentRoute: () => FaqPaymentRoute,
+} as any)
 const RSlugClaimRoute = RSlugClaimRouteImport.update({
   id: '/claim',
   path: '/claim',
@@ -133,6 +163,7 @@ const ApiPublicCampaignImageSlugRoute =
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/affiliate': typeof AffiliateRoute
   '/auth': typeof AuthRoute
   '/contact': typeof ContactRoute
   '/guide': typeof GuideRoute
@@ -144,16 +175,21 @@ export interface FileRoutesByFullPath {
   '/my-entries': typeof AuthenticatedMyEntriesRoute
   '/new': typeof AuthenticatedNewRoute
   '/c/$slug': typeof CSlugRoute
+  '/faq/payment': typeof FaqPaymentRouteWithChildren
   '/go/$slug': typeof GoSlugRoute
   '/r/$slug': typeof RSlugRouteWithChildren
   '/manage/$id': typeof AuthenticatedManageIdRoute
   '/api/cron/conditions': typeof ApiCronConditionsRoute
   '/api/stripe/webhook': typeof ApiStripeWebhookRoute
+  '/faq/payment/binance': typeof FaqPaymentBinanceRoute
+  '/faq/payment/metamask': typeof FaqPaymentMetamaskRoute
+  '/faq/payment/okx': typeof FaqPaymentOkxRoute
   '/r/$slug/claim': typeof RSlugClaimRoute
   '/api/public/campaign-image/$slug': typeof ApiPublicCampaignImageSlugRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/affiliate': typeof AffiliateRoute
   '/auth': typeof AuthRoute
   '/contact': typeof ContactRoute
   '/guide': typeof GuideRoute
@@ -165,11 +201,15 @@ export interface FileRoutesByTo {
   '/my-entries': typeof AuthenticatedMyEntriesRoute
   '/new': typeof AuthenticatedNewRoute
   '/c/$slug': typeof CSlugRoute
+  '/faq/payment': typeof FaqPaymentRouteWithChildren
   '/go/$slug': typeof GoSlugRoute
   '/r/$slug': typeof RSlugRouteWithChildren
   '/manage/$id': typeof AuthenticatedManageIdRoute
   '/api/cron/conditions': typeof ApiCronConditionsRoute
   '/api/stripe/webhook': typeof ApiStripeWebhookRoute
+  '/faq/payment/binance': typeof FaqPaymentBinanceRoute
+  '/faq/payment/metamask': typeof FaqPaymentMetamaskRoute
+  '/faq/payment/okx': typeof FaqPaymentOkxRoute
   '/r/$slug/claim': typeof RSlugClaimRoute
   '/api/public/campaign-image/$slug': typeof ApiPublicCampaignImageSlugRoute
 }
@@ -177,6 +217,7 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/_authenticated': typeof AuthenticatedRouteRouteWithChildren
+  '/affiliate': typeof AffiliateRoute
   '/auth': typeof AuthRoute
   '/contact': typeof ContactRoute
   '/guide': typeof GuideRoute
@@ -188,11 +229,15 @@ export interface FileRoutesById {
   '/_authenticated/my-entries': typeof AuthenticatedMyEntriesRoute
   '/_authenticated/new': typeof AuthenticatedNewRoute
   '/c/$slug': typeof CSlugRoute
+  '/faq/payment': typeof FaqPaymentRouteWithChildren
   '/go/$slug': typeof GoSlugRoute
   '/r/$slug': typeof RSlugRouteWithChildren
   '/_authenticated/manage/$id': typeof AuthenticatedManageIdRoute
   '/api/cron/conditions': typeof ApiCronConditionsRoute
   '/api/stripe/webhook': typeof ApiStripeWebhookRoute
+  '/faq/payment/binance': typeof FaqPaymentBinanceRoute
+  '/faq/payment/metamask': typeof FaqPaymentMetamaskRoute
+  '/faq/payment/okx': typeof FaqPaymentOkxRoute
   '/r/$slug/claim': typeof RSlugClaimRoute
   '/api/public/campaign-image/$slug': typeof ApiPublicCampaignImageSlugRoute
 }
@@ -200,6 +245,7 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/affiliate'
     | '/auth'
     | '/contact'
     | '/guide'
@@ -211,16 +257,21 @@ export interface FileRouteTypes {
     | '/my-entries'
     | '/new'
     | '/c/$slug'
+    | '/faq/payment'
     | '/go/$slug'
     | '/r/$slug'
     | '/manage/$id'
     | '/api/cron/conditions'
     | '/api/stripe/webhook'
+    | '/faq/payment/binance'
+    | '/faq/payment/metamask'
+    | '/faq/payment/okx'
     | '/r/$slug/claim'
     | '/api/public/campaign-image/$slug'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/affiliate'
     | '/auth'
     | '/contact'
     | '/guide'
@@ -232,17 +283,22 @@ export interface FileRouteTypes {
     | '/my-entries'
     | '/new'
     | '/c/$slug'
+    | '/faq/payment'
     | '/go/$slug'
     | '/r/$slug'
     | '/manage/$id'
     | '/api/cron/conditions'
     | '/api/stripe/webhook'
+    | '/faq/payment/binance'
+    | '/faq/payment/metamask'
+    | '/faq/payment/okx'
     | '/r/$slug/claim'
     | '/api/public/campaign-image/$slug'
   id:
     | '__root__'
     | '/'
     | '/_authenticated'
+    | '/affiliate'
     | '/auth'
     | '/contact'
     | '/guide'
@@ -254,11 +310,15 @@ export interface FileRouteTypes {
     | '/_authenticated/my-entries'
     | '/_authenticated/new'
     | '/c/$slug'
+    | '/faq/payment'
     | '/go/$slug'
     | '/r/$slug'
     | '/_authenticated/manage/$id'
     | '/api/cron/conditions'
     | '/api/stripe/webhook'
+    | '/faq/payment/binance'
+    | '/faq/payment/metamask'
+    | '/faq/payment/okx'
     | '/r/$slug/claim'
     | '/api/public/campaign-image/$slug'
   fileRoutesById: FileRoutesById
@@ -266,6 +326,7 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AuthenticatedRouteRoute: typeof AuthenticatedRouteRouteWithChildren
+  AffiliateRoute: typeof AffiliateRoute
   AuthRoute: typeof AuthRoute
   ContactRoute: typeof ContactRoute
   GuideRoute: typeof GuideRoute
@@ -273,6 +334,7 @@ export interface RootRouteChildren {
   RankingsRoute: typeof RankingsRoute
   TermsRoute: typeof TermsRoute
   CSlugRoute: typeof CSlugRoute
+  FaqPaymentRoute: typeof FaqPaymentRouteWithChildren
   GoSlugRoute: typeof GoSlugRoute
   RSlugRoute: typeof RSlugRouteWithChildren
   ApiCronConditionsRoute: typeof ApiCronConditionsRoute
@@ -294,6 +356,13 @@ declare module '@tanstack/react-router' {
       path: ''
       fullPath: '/'
       preLoaderRoute: typeof AuthenticatedRouteRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/affiliate': {
+      id: '/affiliate'
+      path: '/affiliate'
+      fullPath: '/affiliate'
+      preLoaderRoute: typeof AffiliateRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/auth': {
@@ -373,6 +442,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof CSlugRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/faq/payment': {
+      id: '/faq/payment'
+      path: '/faq/payment'
+      fullPath: '/faq/payment'
+      preLoaderRoute: typeof FaqPaymentRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/go/$slug': {
       id: '/go/$slug'
       path: '/go/$slug'
@@ -407,6 +483,27 @@ declare module '@tanstack/react-router' {
       fullPath: '/api/stripe/webhook'
       preLoaderRoute: typeof ApiStripeWebhookRouteImport
       parentRoute: typeof rootRouteImport
+    }
+    '/faq/payment/binance': {
+      id: '/faq/payment/binance'
+      path: '/binance'
+      fullPath: '/faq/payment/binance'
+      preLoaderRoute: typeof FaqPaymentBinanceRouteImport
+      parentRoute: typeof FaqPaymentRoute
+    }
+    '/faq/payment/metamask': {
+      id: '/faq/payment/metamask'
+      path: '/metamask'
+      fullPath: '/faq/payment/metamask'
+      preLoaderRoute: typeof FaqPaymentMetamaskRouteImport
+      parentRoute: typeof FaqPaymentRoute
+    }
+    '/faq/payment/okx': {
+      id: '/faq/payment/okx'
+      path: '/okx'
+      fullPath: '/faq/payment/okx'
+      preLoaderRoute: typeof FaqPaymentOkxRouteImport
+      parentRoute: typeof FaqPaymentRoute
     }
     '/r/$slug/claim': {
       id: '/r/$slug/claim'
@@ -444,6 +541,22 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
 const AuthenticatedRouteRouteWithChildren =
   AuthenticatedRouteRoute._addFileChildren(AuthenticatedRouteRouteChildren)
 
+interface FaqPaymentRouteChildren {
+  FaqPaymentBinanceRoute: typeof FaqPaymentBinanceRoute
+  FaqPaymentMetamaskRoute: typeof FaqPaymentMetamaskRoute
+  FaqPaymentOkxRoute: typeof FaqPaymentOkxRoute
+}
+
+const FaqPaymentRouteChildren: FaqPaymentRouteChildren = {
+  FaqPaymentBinanceRoute: FaqPaymentBinanceRoute,
+  FaqPaymentMetamaskRoute: FaqPaymentMetamaskRoute,
+  FaqPaymentOkxRoute: FaqPaymentOkxRoute,
+}
+
+const FaqPaymentRouteWithChildren = FaqPaymentRoute._addFileChildren(
+  FaqPaymentRouteChildren,
+)
+
 interface RSlugRouteChildren {
   RSlugClaimRoute: typeof RSlugClaimRoute
 }
@@ -457,6 +570,7 @@ const RSlugRouteWithChildren = RSlugRoute._addFileChildren(RSlugRouteChildren)
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AuthenticatedRouteRoute: AuthenticatedRouteRouteWithChildren,
+  AffiliateRoute: AffiliateRoute,
   AuthRoute: AuthRoute,
   ContactRoute: ContactRoute,
   GuideRoute: GuideRoute,
@@ -464,6 +578,7 @@ const rootRouteChildren: RootRouteChildren = {
   RankingsRoute: RankingsRoute,
   TermsRoute: TermsRoute,
   CSlugRoute: CSlugRoute,
+  FaqPaymentRoute: FaqPaymentRouteWithChildren,
   GoSlugRoute: GoSlugRoute,
   RSlugRoute: RSlugRouteWithChildren,
   ApiCronConditionsRoute: ApiCronConditionsRoute,

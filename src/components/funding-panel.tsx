@@ -161,7 +161,9 @@ export function ChainFundingBody({ getCampaign, total, busy, setBusy, onDone }: 
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/><path d="M12 9v4M12 17h.01"/></svg>
         {t("m.fundWarnNet")}
       </div>
-      <p style={{fontSize:11,color:"var(--muted-foreground)",textAlign:"center",margin:"8px 0 0"}}>{t("m.binanceQrHint")}</p>
+      <p style={{fontSize:11,color:"var(--muted-foreground)",textAlign:"center",margin:"8px 0 0"}}>
+        <a href="/faq/payment" style={{color:"var(--primary)",textDecoration:"underline"}}>{t("faq.pay.seeGuide")}</a>
+      </p>
       <ol className="steps-list">
         <li>
           <span className="steps-n">1</span>

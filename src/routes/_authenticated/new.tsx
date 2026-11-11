@@ -71,7 +71,7 @@ function NewCampaign() {
   const [vals, setVals] = useState<Record<MetricKey, string>>(
     () => Object.fromEntries(METRIC_KEYS.map((k) => [k, "100"])) as Record<MetricKey, string>,
   );
-  const [payMethod, setPayMethod] = useState<"stripe" | "chain">("stripe");
+  const [payMethod, setPayMethod] = useState<"stripe" | "chain">("chain");
   const [editing, setEditing] = useState(false);
   const [showStripeNote, setShowStripeNote] = useState(false);
   const { data: fees = [] } = useFeeTiers();
