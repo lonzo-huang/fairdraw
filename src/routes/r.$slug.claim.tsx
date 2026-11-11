@@ -213,9 +213,10 @@ function ClaimView({ c, p, share, boundHandle, email, onDone }: { c: Camp; p: Pa
 
   const methods: { k: Method; I: typeof Wallet; tt: string; s: string; tag: "g" | "w" | "" }[] = [];
   if (isToken) {
+    // USDT pays out on-chain only (cl.b3p.chain). Keep a manual fallback
+    // for pools that aren't escrow-funded so methods is never empty.
     if (c.payment_method === "chain" && funded) methods.push({ k: "chain", I: Wallet, tt: t("cl.mChain"), s: t("cl.mChainS"), tag: "g" });
-    if (funded) methods.push({ k: "wise", I: Landmark, tt: t("cl.mWise"), s: t("cl.mWiseS"), tag: "" });
-    methods.push({ k: "info", I: MessageCircle, tt: t("cl.mInfo"), s: t("cl.mInfoS"), tag: "w" });
+    else methods.push({ k: "info", I: MessageCircle, tt: t("cl.mInfo"), s: t("cl.mInfoS"), tag: "w" });
   } else if (c.payment_method === "stripe") {
     if (share !== null) methods.push({ k: "gift", I: Gift, tt: t("cl.mGift"), s: t("cl.mGiftS"), tag: "w" });
   } else {
