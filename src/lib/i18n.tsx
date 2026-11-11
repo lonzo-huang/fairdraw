@@ -632,6 +632,8 @@ const dict = {
   "ana.engagement": { zh: "互动分析", en: "Engagement" },
   "ana.impact": { zh: "活动价值", en: "Impact" },
   "ana.engagements": { zh: "总互动", en: "Total engagements" },
+  "ana.hourly": { zh: "每小时新增互动", en: "New engagements per hour" },
+  "ana.hourlySub": { zh: "发布后的 24 小时", en: "First 24 hours after publish" },
   "ana.engRate": { zh: "互动率", en: "Engagement rate" },
   "ana.engRateNote": { zh: "总互动 ÷ 曝光 × 100%", en: "Engagements ÷ impressions × 100%" },
   "ana.postLevel": { zh: "帖子级数据", en: "Post-level" },

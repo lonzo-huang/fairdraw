@@ -356,22 +356,37 @@ function CampaignPage() {
             <>
               <div className="g2">
                 <section className="panel card">
+                  <div className="private"><Lock />{t("c.onlyYou")}</div>
+                  <div className="card-h">
+                    <div><h3>{t("ana.hourly")}</h3><p>{t("ana.hourlySub")}</p></div>
+                    <div className="legend">
+                      {DELTA_SERIES.map((s) => <span key={s.key} style={{ "--c": s.color } as CSSProperties}>{t(s.label)}</span>)}
+                    </div>
+                  </div>
+                  <HourlyChart snaps={snaps} since={Date.parse(c.created_at)} />
+                </section>
+                <section className="panel card">
+                  <div className="private"><Lock />{t("c.onlyYou")}</div>
                   <div className="card-h"><div><h3>{t("ana.breakdown")}</h3><p>{t("ana.mixSub")}</p></div></div>
                   <MixBreakdown metrics={latestM} />
                 </section>
+              </div>
+              <div className="g2" style={{ marginTop: 16 }}>
                 <section className="panel card">
+                  <TrendChart snaps={snaps} />
+                </section>
+                <section className="panel card">
+                  <div className="private"><Lock />{t("c.onlyYou")}</div>
                   <div className="card-h"><div><h3>{t("ana.qualTitle")}</h3><p>{t("ana.qualSub")}</p></div></div>
                   <QualCard metrics={latestM} count={count} growth={growth} />
                 </section>
               </div>
-              <section className="panel card" style={{ marginTop: 16 }}>
-                <TrendChart snaps={snaps} />
-              </section>
             </>
           )}
 
           {tabNow === "impact" && (
             <>
+              <div className="private"><Lock />{t("c.onlyYou")}</div>
               <ValueGrid c={c} latestM={latestM} firstM={firstM} />
               <section className="panel card">
                 <div className="card-h"><div><h3>{t("ana.impact")}</h3></div></div>
@@ -605,6 +620,65 @@ const DELTA_SERIES = [
   { key: "reposts" as const, label: "cond.reposts" as const, color: "#34d399" },
   { key: "quotes" as const, label: "cond.quotes" as const, color: "#f5b83d" },
 ];
+
+/** Stacked bars of engagement gained per hour since publish — demo's "每小时新增互动". */
+function HourlyChart({ snaps, since }: { snaps: Snap[]; since: number }) {
+  const { t } = useI18n();
+  const W = 640, H = 220, L = 30, R = 6, T = 10, B = 24;
+  const iw = W - L - R, ih = H - T - B, BUCKETS = 24;
+  const grid = Array.from({ length: BUCKETS }, () => DELTA_SERIES.map(() => 0));
+  let prev: (number | null)[] = DELTA_SERIES.map(() => null);
+  snaps.forEach((sp) => {
+    const m = asMetrics(sp.metrics);
+    const at = Date.parse(sp.fetched_at);
+    if (!m || !isFinite(at)) return;
+    const cur = DELTA_SERIES.map((s) => (typeof m[s.key] === "number" ? (m[s.key] as number) : null));
+    const idx = Math.floor((at - since) / 3600e3);
+    if (idx >= 0 && idx < BUCKETS) {
+      cur.forEach((v, j) => {
+        const p = prev[j];
+        // First usable snapshot counts its cumulative total in its own bucket.
+        grid[idx][j] += v === null ? 0 : p === null ? v : Math.max(0, v - p);
+      });
+    }
+    prev = cur;
+  });
+  const totals = grid.map((g) => g.reduce((a, b) => a + b, 0));
+  const mx = Math.max(1, ...totals);
+  if (!totals.some((v) => v > 0)) return <p className="note" style={{ marginTop: 0 }}>{t("ana.noSeries")}</p>;
+  const bw = (iw / BUCKETS) * 0.62;
+  const x = (i: number) => L + (i + 0.5) * (iw / BUCKETS);
+  return (
+    <div className="chart-box">
+      <svg viewBox={`0 0 ${W} ${H}`}>
+        {[0, 0.5, 1].map((f) => {
+          const yy = T + ih - f * ih;
+          return (
+            <g key={f}>
+              <line x1={L} x2={W - R} y1={yy} y2={yy} stroke="rgba(255,255,255,.06)" strokeDasharray={f ? "3 4" : undefined} />
+              <text x={L - 8} y={yy + 4} textAnchor="end" fill="#646f85" fontSize="11">{Math.round(mx * f)}</text>
+            </g>
+          );
+        })}
+        {grid.map((arr, i) => {
+          let y0 = T + ih;
+          return (
+            <g key={i}>
+              {arr.map((v, j) => {
+                const h = (v / mx) * ih;
+                if (h <= 0) return null;
+                const y = y0 - h;
+                y0 -= h + 1;
+                return <rect key={j} x={x(i) - bw / 2} y={y} width={bw} height={h} fill={DELTA_SERIES[j].color} />;
+              })}
+              {i % 4 === 0 && <text x={x(i)} y={H - 6} textAnchor="middle" fill="#646f85" fontSize="11">{i}h</text>}
+            </g>
+          );
+        })}
+      </svg>
+    </div>
+  );
+}
 
 /** Stacked bars of engagement gained between consecutive snapshots — real deltas only. */
 function DeltaChart({ snaps }: { snaps: Snap[] }) {

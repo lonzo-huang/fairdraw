@@ -1424,6 +1424,8 @@
 }
 
 /* ── campaign detail: role-aware sections (visitor / organiser) ── */
+.page-ana .private{display:inline-flex;align-items:center;gap:6px;font-size:12px;color:#cfc4ff;margin-bottom:14px}
+.page-ana .private svg{width:13px;height:13px}
 .page-ana .ownbar{display:flex;align-items:center;gap:14px;padding:12px 14px 12px 18px;margin-bottom:18px;border-radius:16px;background:linear-gradient(90deg,rgba(124,92,255,.16),rgba(59,130,246,.06));border:1px solid rgba(124,92,255,.35);flex-wrap:wrap}
 .page-ana .ownbar .l{display:flex;align-items:center;gap:10px;font-size:14px}
 .page-ana .ownbar .l svg{width:18px;height:18px;color:#a99bff;flex-shrink:0}
