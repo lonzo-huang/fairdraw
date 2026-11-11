@@ -176,7 +176,7 @@ def parse_detail(response, tid: str, focal_seen: bool, thread_ids: set):
 async def open_campaigns() -> list[dict]:
     # Only campaigns still running: ended >30min ago are finished — a short
     # grace after ends_at catches last-minute replies before dropping out.
-    grace = datetime.fromtimestamp(time.time() - 1800, tz=timezone.utc).isoformat()
+    grace = datetime.fromtimestamp(time.time() - 1800, tz=timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
     res = await rest(
         "GET",
         f"campaigns?status=eq.open&tweet_url=not.is.null&ends_at=gt.{grace}&select=id,tweet_url,ends_at",
