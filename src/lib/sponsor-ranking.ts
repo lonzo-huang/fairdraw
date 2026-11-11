@@ -67,12 +67,13 @@ export function scoreRows(rows: Base[]): ImpactRow[] {
 /**
  * Community-impact ranking: aggregate per X handle over snapshots inside the UTC period.
  * Reach/engagement are IN-PERIOD DELTAS — the last in-period value minus the last
- * snapshot before the period. A campaign created inside the period counts its full
- * cumulative value (it only exists since then); one created earlier but first
- * tracked in-period deltas from its first in-period reading, so stale cumulative
- * totals can never masquerade as this period's growth. Growth is the same delta
- * over the handle's combined follower series, so parallel campaigns never
- * double-count the same account. Campaigns silent all period don't rank.
+ * reading before the period, or minus the FIRST in-period reading when nothing
+ * older exists. The first snapshot is always a baseline, never counted itself:
+ * the post may predate tracking by months, so its cumulative total is unknowable
+ * period growth. Numbers can only undercount (the gap between campaign creation
+ * and the first check), never inflate. Growth is the same delta over the
+ * handle's combined follower series, so parallel campaigns never double-count
+ * the same account. Campaigns silent all period don't rank.
  */
 export function liveImpactRanking(campaigns: HubCampaign[], snaps: SnapLite[], now: number, period: RankPeriod, names: Map<string, string | null>): ImpactRow[] {
   const start = periodStart(now, period);
@@ -92,10 +93,10 @@ export function liveImpactRanking(campaigns: HubCampaign[], snaps: SnapLite[], n
     const idx = arr.findIndex((s) => Date.parse(s.fetched_at) >= start);
     if (idx < 0) continue; // no snapshot inside the period
     const inPeriod = arr.slice(idx);
-    // Baseline: last reading before the period. Without one, a campaign created
-    // inside the period counts from zero; a pre-existing campaign first tracked
-    // in-period counts only growth after its first in-period reading.
-    const baseM = idx > 0 ? asM(arr[idx - 1]!.metrics) : Date.parse(c.created_at) >= start ? null : asM(inPeriod[0]!.metrics);
+    // Baseline: last reading before the period, else the first in-period reading.
+    // Counting from zero would credit the post's whole lifetime total to this
+    // period — posts often predate tracking, so first readings are always a base.
+    const baseM = asM(arr[Math.max(0, idx - 1)]!.metrics);
     const last = asM(inPeriod[inPeriod.length - 1]!.metrics);
     const handle = last?.author_handle ?? xHandleFromUrl(c.tweet_url);
     const key = handle?.toLowerCase() ?? `u:${c.owner_id}`;
