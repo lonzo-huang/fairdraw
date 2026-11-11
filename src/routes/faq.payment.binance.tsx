@@ -13,36 +13,21 @@ export const Route = createFileRoute("/faq/payment/binance")({
   component: FaqBinance,
 });
 
+// ── 教程内容（待替换为正式操作指导文案）────────────────
+const CONTENT_ZH = <p>教程内容整理中…</p>;
+const CONTENT_EN = <p>Tutorial content coming soon…</p>;
+// ────────────────────────────────────────────────────────
+
 function FaqBinance() {
-  const { t } = useI18n();
-  const steps: Array<{ title: string; desc: string }> = [
-    { title: t("faq.bnb.s1"), desc: t("faq.bnb.s1d") },
-    { title: t("faq.bnb.s2"), desc: t("faq.bnb.s2d") },
-    { title: t("faq.bnb.s3"), desc: t("faq.bnb.s3d") },
-    { title: t("faq.bnb.s4"), desc: t("faq.bnb.s4d") },
-    { title: t("faq.bnb.s5"), desc: t("faq.bnb.s5d") },
-  ];
+  const { t, lang } = useI18n();
   return (
     <div className="mx-auto max-w-3xl px-5 py-16 sm:px-8">
-      <Link to="/faq/payment" className="text-sm text-muted-foreground hover:text-foreground">{t("faq.pay.back")}</Link>
+      <Link to="/guide" className="text-sm text-muted-foreground hover:text-foreground">{t("faq.pay.back")}</Link>
       <h1 className="mt-4 text-3xl font-semibold">{t("faq.bnb.title")}</h1>
-      <p className="mt-3 text-sm text-muted-foreground">{t("faq.bnb.desc")}</p>
 
-      <div className="mt-4 rounded-xl border border-destructive/30 bg-destructive/5 p-4 text-sm">
-        {t("faq.pay.network")}
-      </div>
-
-      <ol className="mt-8 space-y-6">
-        {steps.map((s, i) => (
-          <li key={i} className="flex gap-4">
-            <span className="steps-n flex-shrink-0">{i + 1}</span>
-            <div>
-              <div className="font-semibold">{s.title}</div>
-              <p className="mt-1 text-sm leading-6 text-muted-foreground">{s.desc}</p>
-            </div>
-          </li>
-        ))}
-      </ol>
+      <article className="mt-8 space-y-4 text-sm leading-6 text-muted-foreground">
+        {lang === "zh" ? CONTENT_ZH : CONTENT_EN}
+      </article>
 
       <div className="mt-10 text-sm text-muted-foreground">
         {t("faq.pay.need")}{" "}
