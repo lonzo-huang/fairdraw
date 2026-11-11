@@ -61,7 +61,10 @@ const USDC_BY_CHAIN: Record<number, { address: `0x${string}`; decimals: number; 
   8453: { address: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913", decimals: 6, name: "Base" },
   137: { address: "0x3c499c542cEF5E3811e1192ce70d8cC03d5c3359", decimals: 6, name: "Polygon" },
   42161: { address: "0xaf88d065e77c8cC2239327C5EDb3A432268e5831", decimals: 6, name: "Arbitrum" },
+  196: { address: "0xB6CEceAB302E2E4948951eE7843FC24E92933061", decimals: 6, name: "X Layer" }, // Circle native USDC (OKX withdrawals settle this)
 };
+/** Legacy bridged USDC on X Layer — accepted too in case a sender holds the pre-native tokens. */
+const XLAYER_BRIDGED_USDC = ["0x74b7f16337b8972027f6196a17a631ac6de26d22", "0xa8ce8aee21bc2a48a5ef670afcc9274c7bbbc035"] as const;
 
 /**
  * ERC-20 tokens accepted for pool funding. Escrow and winner payouts stay in
@@ -81,10 +84,13 @@ export function fundingTokens(): FundingToken[] {
   const usdc56 = USDC_BY_CHAIN[56]!;
   const usdc = env["VITE_USDC_TOKEN"] ?? usdc56.address;
   tokens.push({ chainId: 56, chainName: usdc56.name, address: usdc as `0x${string}`, symbol: env["VITE_USDC_SYMBOL"] ?? "USDC", decimals: Number(env["VITE_USDC_DECIMALS"] ?? usdc56.decimals) || usdc56.decimals });
-  for (const chainId of [8453, 137, 42161]) {
+  for (const chainId of [8453, 137, 42161, 196]) {
     const u = USDC_BY_CHAIN[chainId]!;
     const override = env[`VITE_USDC_TOKEN_${chainId}`];
     tokens.push({ chainId, chainName: u.name, address: (override ?? u.address) as `0x${string}`, symbol: "USDC", decimals: u.decimals });
+  }
+  for (const bridged of XLAYER_BRIDGED_USDC) {
+    tokens.push({ chainId: 196, chainName: "X Layer", address: bridged, symbol: "USDC", decimals: 6 });
   }
   return tokens;
 }

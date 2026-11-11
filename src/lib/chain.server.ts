@@ -37,6 +37,7 @@ function defaultRpc(chainId: number): string {
   if (chainId === 8453) return "https://base-rpc.publicnode.com";
   if (chainId === 137) return "https://polygon-bor-rpc.publicnode.com";
   if (chainId === 42161) return "https://arbitrum-one-rpc.publicnode.com";
+  if (chainId === 196) return "https://rpc.xlayer.tech";
   return "https://ethereum-rpc.publicnode.com";
 }
 
