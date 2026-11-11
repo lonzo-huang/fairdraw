@@ -23,20 +23,6 @@ export type ImpactRow = {
 };
 export type SnapLite = { campaign_id: string; fetched_at: string; metrics: unknown };
 
-// Names observed on https://xbangdan.com/accounts/ on 2026-10-29.
-// Metric values below are intentionally simulated and never stored as campaign records.
-const accounts = [
-  ["xupaopaogm", "徐跑跑"], ["zuichunyan123", "醉春烟💗"], ["DISONYYDS", "Dison"],
-  ["zhang2888", "小心"], ["vicentyip", "如是我闻"], ["michaelzsguo", "Michael Guo"],
-  ["rming_luckin", "R鸣"], ["wangchangfu88", "王长富"], ["chakmillion", "查百万"],
-  ["Btc8888XF", "7w 🕊️"], ["Zen_with_AI", "山景城小路"], ["zhngkn414984690", "张卡"],
-] as const;
-
-export function xDisplayName(handle: string, fallback?: string | null) {
-  if (handle.toLowerCase() === "mirrortekuk") return "英格兰AI哥";
-  return accounts.find(([h]) => h.toLowerCase() === handle.toLowerCase())?.[1] ?? fallback?.trim() ?? handle;
-}
-
 const WEIGHTS = { reach: 0.4, engagement: 0.35, growth: 0.25 } as const;
 
 const asM = (m: unknown): Metrics | null => (m ?? null) as Metrics | null;
@@ -81,10 +67,12 @@ export function scoreRows(rows: Base[]): ImpactRow[] {
 /**
  * Community-impact ranking: aggregate per X handle over snapshots inside the UTC period.
  * Reach/engagement are IN-PERIOD DELTAS — the last in-period value minus the last
- * snapshot before the period (campaigns with no prior snapshot count their full
- * cumulative value, which is the period's activity for a new post). Growth is the
- * same delta over the handle's combined follower series, so parallel campaigns
- * never double-count the same account. Campaigns silent all period don't rank.
+ * snapshot before the period. A campaign created inside the period counts its full
+ * cumulative value (it only exists since then); one created earlier but first
+ * tracked in-period deltas from its first in-period reading, so stale cumulative
+ * totals can never masquerade as this period's growth. Growth is the same delta
+ * over the handle's combined follower series, so parallel campaigns never
+ * double-count the same account. Campaigns silent all period don't rank.
  */
 export function liveImpactRanking(campaigns: HubCampaign[], snaps: SnapLite[], now: number, period: RankPeriod, names: Map<string, string | null>): ImpactRow[] {
   const start = periodStart(now, period);
@@ -95,7 +83,7 @@ export function liveImpactRanking(campaigns: HubCampaign[], snaps: SnapLite[], n
     (byCamp.get(s.campaign_id) ?? byCamp.set(s.campaign_id, []).get(s.campaign_id)!).push(s);
   }
   const camps = new Map(campaigns.map((c) => [c.id, c]));
-  type Acc = { handle: string | null; owner: string; reach: number[]; eng: number[]; followers: [number, number][]; count: number; camps: { slug: string; title: string; created_at: string }[] };
+  type Acc = { handle: string | null; authorName: string | null; owner: string; reach: number[]; eng: number[]; followers: [number, number][]; count: number; camps: { slug: string; title: string; created_at: string }[] };
   const acc = new Map<string, Acc>();
   for (const [cid, arr] of byCamp) {
     const c = camps.get(cid);
@@ -104,11 +92,15 @@ export function liveImpactRanking(campaigns: HubCampaign[], snaps: SnapLite[], n
     const idx = arr.findIndex((s) => Date.parse(s.fetched_at) >= start);
     if (idx < 0) continue; // no snapshot inside the period
     const inPeriod = arr.slice(idx);
-    const baseM = idx > 0 ? asM(arr[idx - 1]!.metrics) : null;
+    // Baseline: last reading before the period. Without one, a campaign created
+    // inside the period counts from zero; a pre-existing campaign first tracked
+    // in-period counts only growth after its first in-period reading.
+    const baseM = idx > 0 ? asM(arr[idx - 1]!.metrics) : Date.parse(c.created_at) >= start ? null : asM(inPeriod[0]!.metrics);
     const last = asM(inPeriod[inPeriod.length - 1]!.metrics);
     const handle = last?.author_handle ?? xHandleFromUrl(c.tweet_url);
     const key = handle?.toLowerCase() ?? `u:${c.owner_id}`;
-    const e = acc.get(key) ?? { handle, owner: c.owner_id, reach: [], eng: [], followers: [], count: 0, camps: [] };
+    const e = acc.get(key) ?? { handle, authorName: last?.author_name ?? null, owner: c.owner_id, reach: [], eng: [], followers: [], count: 0, camps: [] };
+    if (!e.authorName && last?.author_name) e.authorName = last.author_name;
     e.count += 1;
     e.camps.push({ slug: c.slug, title: c.title, created_at: c.created_at });
     if (typeof last?.views === "number") e.reach.push(Math.max(0, last.views - (typeof baseM?.views === "number" ? baseM.views : 0)));
@@ -128,7 +120,7 @@ export function liveImpactRanking(campaigns: HubCampaign[], snaps: SnapLite[], n
     return {
       id: key,
       handle: a.handle,
-      name: a.handle ? xDisplayName(a.handle) : names.get(a.owner) ?? "—",
+      name: a.authorName?.trim() || a.handle || names.get(a.owner) || "—",
       reach: a.reach.length ? a.reach.reduce((s, v) => s + v, 0) : null,
       engagement: a.eng.length ? a.eng.reduce((s, v) => s + v, 0) : null,
       growth,

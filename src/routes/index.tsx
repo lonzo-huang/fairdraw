@@ -6,7 +6,6 @@ import { todayLeader, xHandleFromUrl } from "@/lib/campaign-hub";
 import { usePublicHub } from "@/hooks/use-public-hub";
 import { Button } from "@/components/ui/button";
 import { DrawScene } from "@/components/draw-scene";
-import { xDisplayName } from "@/lib/sponsor-ranking";
 import { CampaignHub } from "@/components/campaign-hub";
 import { LiveTicker } from "@/components/live-ticker";
 import { MotionReveal } from "@/components/motion-surface";
@@ -29,8 +28,8 @@ function Index() {
   useEffect(() => { setNow(Date.now()); const timer = setInterval(() => setNow(Date.now()), 60000); return () => clearInterval(timer); }, []);
   const leader = todayLeader(campaigns.data ?? [], now);
   const leaderHandle = xHandleFromUrl(leader?.tweet_url);
-  const handle = leaderHandle ?? "MirrortekUK";
-  const displayName = xDisplayName(handle);
+  const handle = leaderHandle ?? "FairDraw";
+  const displayName = handle;
   const avatar = `https://unavatar.io/x/${handle}`;
   return <>
     <LiveTicker />

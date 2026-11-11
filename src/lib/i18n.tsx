@@ -51,6 +51,7 @@ const dict = {
   "rank.account": { zh: "X 账号", en: "X account" },
   "rank.profile": { zh: "X 主页", en: "X profile" },
   "rank.back": { zh: "返回增长排行榜", en: "Back to growth leaderboard" },
+  "rank.tooFew": { zh: "本周期上榜账号还不足 10 位，暂不出完整榜单。首页会实时展示当前排名。", en: "Fewer than 10 accounts ranked this period — the full board isn't published yet. The homepage shows the current standings live." },
   "rank.limit": { zh: "TOP 50 · 最多展示前50名", en: "TOP 50 · Up to 50 creators" },
   "rank.impact": { zh: "IMPACT", en: "IMPACT" },
   "rank.score": { zh: "影响力评分", en: "Impact score" },
