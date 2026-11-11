@@ -20,7 +20,6 @@ export type ImpactRow = {
   reachScore: number | null;
   engagementScore: number | null;
   growthScore: number | null;
-  sample: boolean;
 };
 export type SnapLite = { campaign_id: string; fetched_at: string; metrics: unknown };
 
@@ -79,41 +78,20 @@ export function scoreRows(rows: Base[]): ImpactRow[] {
   });
 }
 
-export function sampleImpactRanking(period: RankPeriod): ImpactRow[] {
-  const scale = period === "month" ? 1 : period === "week" ? 0.3 : 0.06;
-  const shift = period === "month" ? 0 : period === "week" ? 2 : 4;
-  const rows: Base[] = accounts.map((_, i) => {
-    const [handle, name] = accounts[(i + shift) % accounts.length] ?? accounts[0];
-    const k = (accounts.length - i) / accounts.length;
-    // Per-metric jitter decorrelates the fixtures so each metric tab sorts differently.
-    const jr = 0.55 + ((i * 5 + shift) % 9) / 10;
-    const je = 0.55 + ((i * 7 + shift * 2) % 9) / 10;
-    const jg = 0.55 + ((i * 3 + shift * 4) % 9) / 10;
-    return {
-      id: `sample-${handle}`, handle, name,
-      reach: Math.round(4_800_000 * k * jr * scale),
-      engagement: Math.round(96_000 * k * je * scale),
-      growth: Math.round(9_600 * k * jg * scale),
-      campaigns: Math.max(1, Math.round((accounts.length - i) / 2)),
-      campList: [],
-      sample: true,
-    };
-  });
-  return scoreRows(rows);
-}
-
 /**
  * Community-impact ranking: aggregate per X handle over snapshots inside the UTC period.
- * Reach/engagement use the latest in-period snapshot per campaign (cumulative post metrics);
- * growth is the account-level follower delta over the handle's combined snapshot series,
- * so parallel campaigns never double-count the same account.
+ * Reach/engagement are IN-PERIOD DELTAS — the last in-period value minus the last
+ * snapshot before the period (campaigns with no prior snapshot count their full
+ * cumulative value, which is the period's activity for a new post). Growth is the
+ * same delta over the handle's combined follower series, so parallel campaigns
+ * never double-count the same account. Campaigns silent all period don't rank.
  */
 export function liveImpactRanking(campaigns: HubCampaign[], snaps: SnapLite[], now: number, period: RankPeriod, names: Map<string, string | null>): ImpactRow[] {
   const start = periodStart(now, period);
   const byCamp = new Map<string, SnapLite[]>();
   for (const s of snaps) {
     const t = Date.parse(s.fetched_at);
-    if (t < start || t > now) continue;
+    if (t > now) continue;
     (byCamp.get(s.campaign_id) ?? byCamp.set(s.campaign_id, []).get(s.campaign_id)!).push(s);
   }
   const camps = new Map(campaigns.map((c) => [c.id, c]));
@@ -123,16 +101,22 @@ export function liveImpactRanking(campaigns: HubCampaign[], snaps: SnapLite[], n
     const c = camps.get(cid);
     if (!c) continue;
     arr.sort((a, b) => Date.parse(a.fetched_at) - Date.parse(b.fetched_at));
-    const last = asM(arr[arr.length - 1]!.metrics);
+    const idx = arr.findIndex((s) => Date.parse(s.fetched_at) >= start);
+    if (idx < 0) continue; // no snapshot inside the period
+    const inPeriod = arr.slice(idx);
+    const baseM = idx > 0 ? asM(arr[idx - 1]!.metrics) : null;
+    const last = asM(inPeriod[inPeriod.length - 1]!.metrics);
     const handle = last?.author_handle ?? xHandleFromUrl(c.tweet_url);
     const key = handle?.toLowerCase() ?? `u:${c.owner_id}`;
     const e = acc.get(key) ?? { handle, owner: c.owner_id, reach: [], eng: [], followers: [], count: 0, camps: [] };
     e.count += 1;
     e.camps.push({ slug: c.slug, title: c.title, created_at: c.created_at });
-    if (typeof last?.views === "number") e.reach.push(last.views);
+    if (typeof last?.views === "number") e.reach.push(Math.max(0, last.views - (typeof baseM?.views === "number" ? baseM.views : 0)));
     const eg = engOf(last);
-    if (eg !== null) e.eng.push(eg);
-    for (const s of arr) {
+    const eb = engOf(baseM);
+    if (eg !== null) e.eng.push(Math.max(0, eg - (eb ?? 0)));
+    if (typeof baseM?.followers === "number") e.followers.push([start - 1, baseM.followers]);
+    for (const s of inPeriod) {
       const f = asM(s.metrics)?.followers;
       if (typeof f === "number") e.followers.push([Date.parse(s.fetched_at), f]);
     }
@@ -150,7 +134,6 @@ export function liveImpactRanking(campaigns: HubCampaign[], snaps: SnapLite[], n
       growth,
       campaigns: a.count,
       campList: [...a.camps].sort((x, y) => Date.parse(y.created_at) - Date.parse(x.created_at)).map(({ slug, title }) => ({ slug, title })),
-      sample: false,
     };
   });
   return scoreRows(rows);

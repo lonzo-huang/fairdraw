@@ -3,17 +3,16 @@ import { ArrowLeft, ArrowUpRight, Trophy } from "lucide-react";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { RankMode, RankingAvatar } from "@/components/sponsor-rankings";
+import { RankingAvatar } from "@/components/sponsor-rankings";
 import { useSponsorRanking } from "@/hooks/use-sponsor-ranking";
 import { useI18n } from "@/lib/i18n";
 import type { RankPeriod } from "@/lib/campaign-hub";
 import type { ImpactMetric, ImpactRow } from "@/lib/sponsor-ranking";
 
 export const Route = createFileRoute("/rankings")({
-  validateSearch: (search: Record<string, unknown>): { period: RankPeriod; metric: ImpactMetric; mode: "sample" | "live" } => ({
+  validateSearch: (search: Record<string, unknown>): { period: RankPeriod; metric: ImpactMetric } => ({
     period: search["period"] === "week" || search["period"] === "day" ? search["period"] : "month",
     metric: search["metric"] === "reach" || search["metric"] === "engagement" || search["metric"] === "growth" ? search["metric"] : "score",
-    mode: search["mode"] === "live" ? "live" : "sample",
   }),
   head: () => ({ meta: [
     { title: "FairDraw 社区影响力榜单 — Top 50" },
@@ -27,13 +26,12 @@ export const Route = createFileRoute("/rankings")({
 function Rankings() {
   const { t } = useI18n();
   const search = Route.useSearch(), navigate = Route.useNavigate();
-  const sample = search.mode === "sample";
-  const { rows, pending, error } = useSponsorRanking(search.period, search.metric, sample);
+  const { rows, pending, error } = useSponsorRanking(search.period, search.metric);
   const [campRow, setCampRow] = useState<ImpactRow | null>(null);
   return <section className="mx-auto max-w-6xl px-5 py-8 sm:px-8">
     <Button asChild variant="link" className="mb-5 px-0"><Link to="/" hash="hub-drawn"><ArrowLeft />{t("rank.back")}</Link></Button>
-    <div className="flex flex-wrap items-end justify-between gap-5"><div><p className="font-mono text-xs text-prize">FAIRDRAW / TOP 50</p><h1 className="mt-3 flex items-center gap-3 text-3xl font-semibold"><Trophy className="size-7 text-prize" />{t("rank.title")}</h1></div><RankMode sample={sample} onChange={(value) => navigate({ search: { ...search, mode: value ? "sample" : "live" } })} /></div>
-    <p className="mt-5 border-l-2 border-prize pl-3 text-xs leading-6 text-muted-foreground">{t(sample ? "rank.testNote" : "cy.rankNote")}</p>
+    <div className="flex flex-wrap items-end justify-between gap-5"><div><p className="font-mono text-xs text-prize">FAIRDRAW / TOP 50</p><h1 className="mt-3 flex items-center gap-3 text-3xl font-semibold"><Trophy className="size-7 text-prize" />{t("rank.title")}</h1></div></div>
+    <p className="mt-5 border-l-2 border-prize pl-3 text-xs leading-6 text-muted-foreground">{t("cy.rankNote")}</p>
     <div className="mt-6 flex flex-wrap items-center justify-between gap-3 border-y border-border py-3"><div className="flex gap-1">{(["month", "week", "day"] as const).map((period) => <Button key={period} variant={search.period === period ? "glass" : "ghost"} size="sm" aria-pressed={search.period === period} onClick={() => navigate({ search: { ...search, period } })}>{t(`cy.${period}`)}</Button>)}</div><div className="flex flex-wrap items-center gap-1">{(["score", "reach", "engagement", "growth"] as const).map((m) => <Button key={m} variant={search.metric === m ? "glass" : "ghost"} size="sm" aria-pressed={search.metric === m} onClick={() => navigate({ search: { ...search, metric: m } })}>{t(`rank.m.${m}`)}</Button>)}<span className="ml-2 hidden font-mono text-[10px] text-muted-foreground sm:block">{t("rank.limit")}</span></div></div>
     <p className="mt-3 text-[10px] text-muted-foreground/70">{t("rank.weights")}</p>
     <div className="mt-4 overflow-x-auto"><table className="ranking-table w-full text-left text-sm"><thead><tr className="border-b border-border text-xs text-muted-foreground"><th>{t("rank.position")}</th><th>{t("rank.account")}</th><th className={`text-right ${search.metric === "score" ? "text-prize" : ""}`}>{t("rank.score")}</th><th className={`text-right ${search.metric === "reach" ? "text-prize" : ""}`}>{t("rank.reach")}</th><th className={`text-right ${search.metric === "engagement" ? "text-prize" : ""}`}>{t("rank.eng")}</th><th className={`text-right ${search.metric === "growth" ? "text-prize" : ""}`}>{t("rank.growth2")}</th><th className="text-right">{t("rank.campaigns")}</th><th className="text-right">{t("rank.profile")}</th></tr></thead><tbody>{rows.map((row, i) => <tr key={row.id} className="border-b border-border/50"><td className={`font-mono ${i < 3 ? "text-prize" : "text-muted-foreground"}`}>{String(i + 1).padStart(2, "0")}</td><td><div className="flex items-center gap-3"><RankingAvatar row={row} /><div className="min-w-0"><p className="font-medium">{row.name}</p><p className="text-xs text-muted-foreground">{row.handle ? `@${row.handle}` : "—"}</p></div></div></td><td className="text-right font-mono font-semibold text-prize">{row.score.toFixed(1)}</td><td className="text-right font-mono text-muted-foreground">{row.reach === null ? "—" : row.reach.toLocaleString()}</td><td className="text-right font-mono text-muted-foreground">{row.engagement === null ? "—" : row.engagement.toLocaleString()}</td><td className="text-right font-mono text-muted-foreground">{row.growth === null ? "—" : `+${row.growth.toLocaleString()}`}</td><td className="text-right"><Button variant="ghost" size="sm" className="h-7 px-2 font-mono" onClick={() => setCampRow(row)} title={t("rank.campaigns")}>{row.campaigns}</Button></td><td className="text-right">{row.handle && <Button asChild variant="ghost" size="icon" title={t("rank.profile")}><a href={`https://x.com/${row.handle}`} target="_blank" rel="noopener noreferrer" aria-label={`${t("rank.profile")} @${row.handle}`}><ArrowUpRight className="size-4" /></a></Button>}</td></tr>)}</tbody></table></div>

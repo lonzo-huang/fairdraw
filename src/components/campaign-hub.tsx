@@ -5,7 +5,7 @@ import { ArrowUpRight, Clock3, Gift, Flame, Trophy, Zap, Users, RefreshCw, Trend
 import { supabase } from "@/integrations/supabase/client";
 import { useI18n, type DictKey } from "@/lib/i18n";
 import { filterHub, hostInitial, xHandleFromUrl, winnerHandles, type HubCampaign, type HubTab } from "@/lib/campaign-hub";
-import { SponsorBoard, RankMode } from "@/components/sponsor-rankings";
+import { SponsorBoard } from "@/components/sponsor-rankings";
 import { usePublicHub } from "@/hooks/use-public-hub";
 import { Button } from "@/components/ui/button";
 import { MotionSurface, MotionReveal } from "@/components/motion-surface";
@@ -21,7 +21,6 @@ export function CampaignHub() {
   const [currency, setCurrency] = useState("ALL");
   const [now, setNow] = useState(0);
   const [expanded, setExpanded] = useState<Set<HubTab>>(new Set());
-  const [sampleRanking, setSampleRanking] = useState(true);
   useEffect(() => { setNow(Date.now()); const timer = setInterval(() => setNow(Date.now()), 1000); return () => clearInterval(timer); }, []);
   const query = usePublicHub();
   const snapshots = useQuery({ queryKey: ["public-hub-progress"], queryFn: async () => {
@@ -52,7 +51,7 @@ export function CampaignHub() {
     </nav>
     {sections.map(({ id, key, icon: Icon }) => <section key={id} id={`hub-${id}`} className="hub-section scroll-mt-36 border-b border-border py-6">
       <div className="mb-4 flex items-center gap-2"><Icon className={`size-4 ${id === "drawn" || id === "top" ? "text-prize" : "text-primary"}`} /><h3 className="text-lg font-semibold">{t(key)}</h3></div>
-      {id === "drawn" ? <><div className="mb-3"><RankMode sample={sampleRanking} onChange={setSampleRanking} /></div><div className="grid gap-3 lg:grid-cols-3">{(["month", "week", "day"] as const).map((period) => <SponsorBoard key={period} period={period} sample={sampleRanking} />)}</div><p className="mt-3 text-[10px] leading-5 text-muted-foreground">{t(sampleRanking ? "rank.testNote" : "cy.rankNote")}</p></> : query.isPending ? <div className="campaign-grid">{[0, 1, 2, 3, 4].map((n) => <div key={n} className="h-80 animate-pulse rounded-lg border border-border bg-card" />)}</div> : query.isError ? <div className="py-8 text-center text-xs">{t("cy.loadError")}<Button variant="link" onClick={() => query.refetch()}>{t("cy.retry")}</Button></div> : (() => {
+      {id === "drawn" ? <><div className="grid gap-3 lg:grid-cols-3">{(["month", "week", "day"] as const).map((period) => <SponsorBoard key={period} period={period} />)}</div><p className="mt-3 text-[10px] leading-5 text-muted-foreground">{t("cy.rankNote")}</p></> : query.isPending ? <div className="campaign-grid">{[0, 1, 2, 3, 4].map((n) => <div key={n} className="h-80 animate-pulse rounded-lg border border-border bg-card" />)}</div> : query.isError ? <div className="py-8 text-center text-xs">{t("cy.loadError")}<Button variant="link" onClick={() => query.refetch()}>{t("cy.retry")}</Button></div> : (() => {
         const campaigns = filterHub(query.data ?? [], id, now, currency);
         const open = expanded.has(id);
         const shown = open ? campaigns : campaigns.slice(0, HUB_PAGE);
