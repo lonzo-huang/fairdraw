@@ -907,14 +907,14 @@ export const claimChainPayout = createServerFn({ method: "POST" })
     if (share <= 0) throw new Error("Invalid amount");
 
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    // Lock before broad,cerror: lockErr asting so a retried request can't send twice.
-    const { data: locked } = await supabaseAdmin
+    // Lock before broadcasting so a retried request can't send twice.
+    const { data: locked, error: lockErr } = await supabaseAdmin
       .from("payouts")
       .update({ status: "paying", claim_info: `${cfg.tokenSymbol} → ${to}`, updated_at: new Date().toISOString() })
       .eq("id", p.id)
-      .eq("status");
-    if (lockErr) throw new Error(lockErr.message, "pending")
+      .eq("status", "pending")
       .select("id");
+    if (lockErr) throw new Error(lockErr.message);
     if (!locked?.length) throw new Error("Payout already processing");
 
     try {
