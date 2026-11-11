@@ -934,6 +934,8 @@ const dict = {
   "faq.a7": { zh: "组织者可选三种开奖模式：全部参与者、仅蓝V、或按权重（如蓝V 1.2、普通用户 0.4）。你的蓝V 状态在回复被导入时自动记录，无需任何操作。", en: "Organizers pick one of three draw modes: all entries, Blue-V only, or weighted (e.g. Blue-V 1.2 vs normal 0.4). Your Blue-V status is captured automatically when your reply is imported — nothing extra to do." },
   "faq.q9": { zh: "一场活动最多多少人进奖池？", en: "How many repliers can enter a pool?" },
   "faq.a9": { zh: "每个活动最多录取 X 返回顺序中前 1000 名回帖者，先到先得。广告、推广位和回复其他帖子的内容会被自动过滤，不占用名额。", en: "Up to the first 1,000 repliers in X's ordering per campaign — first come, first served. Ads, promoted slots, and replies to other tweets are filtered out automatically and never take a slot." },
+  "faq.qPay": { zh: "如何使用加密货币支付奖池？", en: "How do I pay with crypto?" },
+  "faq.aPay": { zh: "支持 USDT（BSC/BEP20 链）支付。在付款页面复制平台收款地址，从以下任意平台转账，完成后粘贴交易哈希确认到账。", en: "We accept USDT on BSC (BEP20). Copy the deposit address on the payment page, transfer from any platform below, then paste the transaction hash to confirm." },
   "faq.q10": { zh: "活动没人参与或帖子被删怎么办？", en: "What if nobody replies or the tweet is deleted?" },
   "faq.a10": { zh: "活动到期无有效参与、或活动帖发布后一小时内被删除，奖池会自动退回原充值方式。开帖 1 小时后组织者不能取消活动，奖池锁定。", en: "If a campaign ends with no valid entries, or the tweet is deleted within one hour of posting, the pool is automatically refunded to the original funding method. One hour after posting, the organizer can no longer cancel and the pool is locked." },
   "faq.q11": { zh: "会不会被 X 判定违规？", en: "Will X flag my account?" },
