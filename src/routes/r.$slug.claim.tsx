@@ -10,6 +10,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { claimChainPayout, claimStripePayout, claimWisePayout, getWiseClaimRequirements, submitPayoutInfo } from "@/lib/payment.functions";
 import { CATALOG, FX, RECIPIENT_COUNTRIES, REGIONS, SYM, fit, valueIn, type WiseReq } from "@/lib/claim-data";
 import { Skeleton } from "@/components/ui/skeleton";
+import { XAvatarDisc } from "@/components/x-avatar";
 import { AlertTriangle, Check, CheckCircle2, Clock3, Crown, Gift, Landmark, Lock, MessageCircle, Search, ShieldCheck, Wallet } from "lucide-react";
 
 const norm = (h: string) => h.trim().toLowerCase().replace(/^@/, "");
@@ -138,7 +139,7 @@ function ClaimPage() {
             <div className="cl-wav">
               <span className="crown"><Crown /></span>
               <span className="ring" />
-              <span className="face">{norm(myPayout?.winner_handle ?? boundHandle ?? "?").slice(0, 1).toUpperCase() || "?"}</span>
+              <XAvatarDisc handle={myPayout?.winner_handle ?? boundHandle} className="face" />
             </div>
             <div className="cl-hmid">
               <div className="ey">{view === "visitor" || view === "signin" || view === "wait" ? t("cl.eyResult") : t("cl.ey")}</div>

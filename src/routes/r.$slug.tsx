@@ -10,6 +10,7 @@ import { autoStripePayout, syncWisePayout } from "@/lib/payment.functions";
 import { canonicalList, listHash, makeSeed, pickWinners, type Candidate } from "@/lib/draw";
 import { computeProgress, parseConditions, type Metrics } from "@/lib/conditions";
 import { Button } from "@/components/ui/button";
+import { XAvatarDisc } from "@/components/x-avatar";
 import { BadgeCheck, Check, CheckCircle2, ChevronRight, Copy, Crown, Eye, Heart, Link2, MessageCircle, MessageSquare, Play, Repeat2, Search, ShieldCheck, Users, XCircle } from "lucide-react";
 
 const COND_LABEL = {
@@ -248,7 +249,7 @@ function ResultPageContent({ slug }: { slug: string }) {
                 <div className="w-av">
                   <span className="crown"><Crown /></span>
                   <span className="ring" />
-                  <span className="face">{(wName ?? winners[0]?.handle ?? "?")[0]?.toUpperCase()}</span>
+                  <XAvatarDisc handle={winners[0]?.handle} className="face" />
                 </div>
                 <div className={`w-name${wName === winners[0]?.handle ? "" : " rolling"}`}>{wName ?? "—"}</div>
                 <div className="w-handle">{t("rs.viewOnX")} <a href={`https://x.com/${winners[0]?.handle}`} target="_blank" rel="noopener noreferrer">@{winners[0]?.handle}</a></div>
@@ -260,7 +261,7 @@ function ResultPageContent({ slug }: { slug: string }) {
                 <div className="w-list">
                   {winners.map((w) => (
                     <div key={w.id} className="w-row">
-                      <span className="av">{w.handle[0]?.toUpperCase()}</span>
+                      <XAvatarDisc handle={w.handle} className="av" />
                       <a className="h" href={`https://x.com/${w.handle}`} target="_blank" rel="noopener noreferrer" style={{ textDecoration: "none" }}>@{w.handle}</a>
                       <span className="p">{per !== null ? `${per} ${c.currency}` : amt}</span>
                     </div>
