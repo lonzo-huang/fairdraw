@@ -5,11 +5,19 @@ import { computeProgress, parseConditions } from "@/lib/conditions";
 
 import { feeRate, feeAmount } from "@/lib/fees";
 describe("tiered fees", () => {
-  const tiers = [{ min_amount: 0, rate_percent: 8 }, { min_amount: 500, rate_percent: 6 }, { min_amount: 2000, rate_percent: 4 }];
-  it("uses the highest tier reached", () => {
-    expect(feeRate(tiers, 100)).toBe(8);
-    expect(feeRate(tiers, 500)).toBe(6);
-    expect(feeRate(tiers, 5000)).toBe(4);
+  const tiers = [
+    { min_amount: 0, rate_percent: 20 }, { min_amount: 5, rate_percent: 12 }, { min_amount: 50, rate_percent: 10 },
+    { min_amount: 100, rate_percent: 8 }, { min_amount: 500, rate_percent: 6 }, { min_amount: 1000, rate_percent: 5 },
+  ];
+  it("uses the highest tier strictly below the pool", () => {
+    expect(feeRate(tiers, 5)).toBe(20);
+    expect(feeRate(tiers, 5.01)).toBe(12);
+    expect(feeRate(tiers, 50)).toBe(12);
+    expect(feeRate(tiers, 50.01)).toBe(10);
+    expect(feeRate(tiers, 100)).toBe(10);
+    expect(feeRate(tiers, 500)).toBe(8);
+    expect(feeRate(tiers, 1000)).toBe(6);
+    expect(feeRate(tiers, 1000.01)).toBe(5);
   });
   it("computes fee on the whole pool", () => expect(feeAmount(tiers, 1000)).toBe(60));
 });

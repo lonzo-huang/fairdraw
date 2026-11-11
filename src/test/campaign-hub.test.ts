@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { campaignBadges, filterHub, hostInitial, simulateCost, periodStart, todayLeader, type HubCampaign } from "@/lib/campaign-hub";
 const now = Date.parse("2026-10-28T12:00:00Z");
-const campaign = (id: string, values: Partial<HubCampaign> = {}): HubCampaign => ({ id, slug: id, title: id, prize: "", prize_amount: 50, currency: "USDT", winners_count: 2, ends_at: "2026-10-29T12:00:00Z", created_at: "2026-10-28T10:00:00Z", status: "open", tweet_url: null, owner_id: "owner", clicks: 0, ...values });
+const campaign = (id: string, values: Partial<HubCampaign> = {}): HubCampaign => ({ id, slug: id, title: id, prize: "", prize_amount: 50, currency: "USDT", winners_count: 2, ends_at: "2026-10-29T12:00:00Z", created_at: "2026-10-28T10:00:00Z", status: "open", escrow_status: "funded", tweet_url: "https://x.com/host/status/1", owner_id: "owner", clicks: 0, ...values });
 describe("Campaign hub", () => {
   it("ending soon includes only active campaigns under eight hours", () => {
     expect(filterHub([campaign("soon", { ends_at: "2026-10-28T19:59:59Z" }), campaign("boundary", { ends_at: "2026-10-28T20:00:00Z" }), campaign("expired", { ends_at: "2026-10-28T11:59:00Z" })], "ending", now).map((c) => c.id)).toEqual(["soon"]);

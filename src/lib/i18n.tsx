@@ -108,7 +108,7 @@ const dict = {
   "tick.top": { zh: "奖池榜首", en: "Top pool" },
   "tick.ad": { zh: "广告位招租 · 联系 FairDraw", en: "Ad slot available · Contact FairDraw" },
   "admin.title": { zh: "后台设置 · 阶梯手续费", en: "Admin · Tiered fees" },
-  "admin.sub": { zh: "奖池金额达到起点后使用对应费率，修改后离开输入框即保存。", en: "Each rate applies from its starting amount. Changes save when you leave the field." },
+  "admin.sub": { zh: "奖池金额超过该档位时使用对应费率，修改后离开输入框即保存。", en: "Each rate applies to pools above that amount. Changes save when you leave the field." },
   "admin.min": { zh: "奖池起点金额", en: "Pool from" },
   "admin.rate": { zh: "费率 %", en: "Rate %" },
   "admin.add": { zh: "添加", en: "Add" },

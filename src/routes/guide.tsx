@@ -232,7 +232,7 @@ function Guide() {
   const ppl = Math.max(1, Math.round((st?.K ?? 38) * Math.pow(pool, 0.55) * winF * Math.pow(0.68, extra)));
   const view = Math.round(ppl * (st?.viewRatio ?? 60) * (conds.has("rt") ? 2 : 1) * (conds.has("quote") ? 1.3 : 1));
   const fol = Math.max(1, Math.round(ppl * (st?.folRatio ?? 0.08) * (conds.has("rt") ? 1.2 : 1)));
-  const rate = feeRate(st?.tiers?.length ? st.tiers : [{ min_amount: 0, rate_percent: 8 }], pool) / 100;
+  const rate = feeRate(st?.tiers?.length ? st.tiers : [{ min_amount: 0, rate_percent: 20 }], pool) / 100;
   const cost = pool * (1 + rate);
   const rangePct = (v: number, lo: number, hi: number) => ({ "--p": `${((v - lo) / (hi - lo)) * 100}%` }) as CSSProperties;
 
