@@ -18,7 +18,7 @@ const CONTENT_ZH = (
   <>
     <p>用欧易 OKX App 扫描付款页二维码（或手动发起链上转账）向平台收款地址支付 USDT，全程约 2 分钟。</p>
     <ol className="list-decimal space-y-3 pl-5">
-      <li>先确认账户持有 USDT 且在<b>资金账户</b>里——欧易的链上转账只能从资金账户出。如果发起转账时看到「暂无资产可发送」，到「资产 → 划转」把 USDT 从交易账户划到资金账户；没有 USDT 则先在「买币」中购买。</li>
+      <li>先确认账户持有 USDT 且在<b>资金账户</b>里——欧易的链上转账只能从资金账户出。没有 USDT：点首页「充币 / Deposit」→ 在 Cash 栏选 <b>Euro</b> 用 SEPA 或银行卡充值欧元 → 到账后在「Trade」买 USDT/EUR 或用「Convert」闪兑成 USDT（注意：Deposit 里 Crypto 栏是收币入口，不是买币）。USDT 若在交易账户，先到「资产 → 划转」划进资金账户，否则发起转账时会显示「暂无资产可发送」。</li>
       <li>打开欧易 App 的扫一扫，扫描 FairDraw 付款页的二维码，收款地址会自动填入（也可手动粘贴 0x 开头的地址）。</li>
       <li>收款账户类型选择<b>「交易所或平台」</b>。</li>
       <li>网络选择 <b>BNB Chain</b>（即 BSC / BEP20）。</li>
@@ -36,7 +36,7 @@ const CONTENT_EN = (
   <>
     <p>Scan the QR code on the payment page with the OKX app (or start an on-chain transfer manually) to send USDT to the platform deposit address — takes about 2 minutes.</p>
     <ol className="list-decimal space-y-3 pl-5">
-      <li>Make sure you hold USDT in your <b>Funding account</b> — OKX on-chain transfers can only send from it. If you see "no assets available to send", go to <b>Assets → Transfer</b> to move USDT from your Trading account to the Funding account; if you have no USDT, buy some first via Buy Crypto.</li>
+      <li>Make sure you hold USDT in your <b>Funding account</b> — OKX on-chain transfers can only send from it. No USDT yet: tap <b>Deposit</b> on the home screen → choose <b>Euro</b> under the Cash section and top up via SEPA or card → once it arrives, buy USDT/EUR on the Trade tab or use Convert (note: the Crypto section inside Deposit is for receiving crypto you already own — not for buying). If USDT sits in your Trading account, move it via <b>Assets → Transfer</b> to the Funding account first, or the send screen will show "no assets available to send".</li>
       <li>Open the OKX app's scanner and scan the QR code on the FairDraw payment page — the deposit address fills in automatically (or paste the 0x address manually).</li>
       <li>For recipient account type, choose <b>Exchange or platform</b>.</li>
       <li>Select network <b>BNB Chain</b> (i.e. BSC / BEP20).</li>
