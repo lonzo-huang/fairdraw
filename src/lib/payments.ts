@@ -53,6 +53,23 @@ export function chainConfig(): ChainConfig {
   };
 }
 
+export type FundingToken = { address: `0x${string}`; symbol: string; decimals: number };
+
+/**
+ * ERC-20 tokens accepted for pool funding. Escrow and winner payouts stay in
+ * the primary token (USDT): extra tokens (USDC — the only compliant stablecoin
+ * on EU-regulated exchanges post-MiCA) land in the treasury, and the oracle
+ * wraps its own USDT float into the escrow contract.
+ */
+export function fundingTokens(): FundingToken[] {
+  const env = typeof import.meta !== "undefined" ? import.meta.env : ({} as Record<string, string | undefined>);
+  const cfg = chainConfig();
+  const tokens: FundingToken[] = [{ address: cfg.tokenAddress, symbol: cfg.tokenSymbol, decimals: cfg.tokenDecimals }];
+  const usdc = env["VITE_USDC_TOKEN"] ?? (cfg.chainId === 56 ? "0x8AC76a51cc950d9822D68b83fE1Ad97B32Cd580d" : "");
+  if (usdc) tokens.push({ address: usdc as `0x${string}`, symbol: env["VITE_USDC_SYMBOL"] ?? "USDC", decimals: Number(env["VITE_USDC_DECIMALS"] ?? 18) || 18 });
+  return tokens;
+}
+
 /** Stripe needs minor units (cents). Returns null for zero/negative amounts. */
 export function toMinorUnits(amount: number): number | null {
   const units = Math.round(amount * 100);

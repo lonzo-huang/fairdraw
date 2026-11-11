@@ -2,7 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { CANCEL_WINDOW_MS } from "@/lib/campaign.functions";
 import { feeAmount } from "@/lib/fees";
-import { chainConfig, stripeChargeCurrency, stripeSupports, toMinorUnits } from "@/lib/payments";
+import { chainConfig, fundingTokens, stripeChargeCurrency, stripeSupports, toMinorUnits } from "@/lib/payments";
 import type { Json } from "@/integrations/supabase/types";
 
 /** Local copy — chain.server.ts must not be imported at top level here (client bundle). */
@@ -265,20 +265,23 @@ export const confirmChainPayment = createServerFn({ method: "POST" })
     // Fallback (no escrow configured): plain transfer to the platform wallet.
     let funder: string;
     let wrapTx: string | null = null;
+    let paidToken = cfg.tokenSymbol;
     if (cfg.escrowAddress) {
       try {
         const dep = await verifyEscrowDeposit(data.txHash as `0x${string}`, c.id, pool);
         funder = dep.funder;
       } catch {
         const { oracleAddress, oracleFundEscrow } = await import("@/lib/chain.server");
-        const tx = await verifyTokenTransfer(data.txHash as `0x${string}`, oracleAddress(), total);
+        const tx = await verifyTokenTransfer(data.txHash as `0x${string}`, oracleAddress(), total, fundingTokens());
         funder = tx.from;
+        paidToken = tx.token;
         const cancelAfter = Math.max(Math.floor(Date.now() / 1000), Math.floor(Date.parse(c.ends_at ?? "") / 1000) || 0);
         wrapTx = await oracleFundEscrow(c.id, pool, fee, cancelAfter);
       }
     } else {
-      const tx = await verifyTokenTransfer(data.txHash as `0x${string}`, cfg.receiverAddress!, total);
+      const tx = await verifyTokenTransfer(data.txHash as `0x${string}`, cfg.receiverAddress!, total, fundingTokens());
       funder = tx.from;
+      paidToken = tx.token;
     }
 
     await supabaseAdmin.from("payments").upsert(
@@ -289,7 +292,7 @@ export const confirmChainPayment = createServerFn({ method: "POST" })
         kind: "pool",wrap_tx: wrapTx, 
         status: "confirmed",
         amount: total,
-        currency: cfg.tokenSymbol,
+        currency: paidToken,
         external_ref: data.txHash,
         meta: { pool, fee, from: funder, chain_id: cfg.chainId, escrow: !!cfg.escrowAddress } as unknown as Json,
       },
@@ -1001,6 +1004,9 @@ export const getWiseClaimRequirements = createServerFn({ method: "GET" })
     return wiseAccountRequirements({ sourceCurrency: source, sourceAmount: 1000, targetCurrency: data.targetCurrency });
   });
 
+/** EEA countries where MiCA delisted USDT — visitors get guided to USDC. */
+const EEA_COUNTRIES = new Set("AT BE BG HR CY CZ DK EE FI FR DE GR HU IE IT LV LT LU MT NL PL PT RO SK SI ES SE IS LI NO".split(" "));
+
 /** Public config for the funding UI (no secrets). */
 export const getPaymentConfig = createServerFn({ method: "GET" }).handler(async () => {
   const cfg = chainConfig();
@@ -1009,6 +1015,11 @@ export const getPaymentConfig = createServerFn({ method: "GET" }).handler(async 
     const { oracleAddress } = await import("@/lib/chain.server");
     treasury = oracleAddress();
   } catch { /* payout key unset — fall back to env value */ }
+  let eea = false;
+  try {
+    const { getRequestHeaders } = await import("@tanstack/react-start/server");
+    eea = EEA_COUNTRIES.has((getRequestHeaders().get("cf-ipcountry") ?? "").toUpperCase());
+  } catch { /* headers unavailable (e.g. local dev) — treat as non-EEA */ }
   return {
     chain: {
       chainId: cfg.chainId,
@@ -1020,6 +1031,8 @@ export const getPaymentConfig = createServerFn({ method: "GET" }).handler(async 
       treasuryAddress: treasury,
       explorerTx: cfg.explorerTx,
     },
+    fundingTokens: fundingTokens().map((t) => ({ address: t.address, symbol: t.symbol, decimals: t.decimals })),
+    eea,
     stripeEnabled: !!process.env["STRIPE_SECRET_KEY"],
   };
 });

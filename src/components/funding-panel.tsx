@@ -107,6 +107,7 @@ export function ChainFundingBody({ getCampaign, total, busy, setBusy, onDone }: 
   const cfg = chainConfig();
   const { data: paycfg } = useQuery({ queryKey: ["paycfg"], queryFn: () => getPaymentConfig() });
   const depositTo = paycfg?.chain.treasuryAddress ?? cfg.treasuryAddress ?? cfg.receiverAddress;
+  const tokenLabel = (paycfg?.fundingTokens ?? [{ symbol: cfg.tokenSymbol }]).map((x) => x.symbol).join(" / ");
 
   useEffect(() => {
     if (!depositTo) return;
@@ -157,6 +158,12 @@ export function ChainFundingBody({ getCampaign, total, busy, setBusy, onDone }: 
           </button>
         </div>
       </div>
+      {paycfg?.eea && (
+        <div className="bep20-warn" style={{borderColor:"rgba(56,189,248,.4)",background:"rgba(56,189,248,.06)"}}>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>
+          {t("m.fundEuHint")}
+        </div>
+      )}
       <div className="bep20-warn">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/><path d="M12 9v4M12 17h.01"/></svg>
         {t("m.fundWarnNet")}
@@ -167,7 +174,7 @@ export function ChainFundingBody({ getCampaign, total, busy, setBusy, onDone }: 
       <ol className="steps-list">
         <li>
           <span className="steps-n">1</span>
-          <div><div style={{fontSize:14,fontWeight:500}}>{t("m.fundStep1T")} {total.toFixed(2)} {cfg.tokenSymbol} {t("m.fundStep1T2")}</div><div style={{fontSize:12,color:"var(--muted-foreground)"}}>{t("m.fundStep1Sub")}</div></div>
+          <div><div style={{fontSize:14,fontWeight:500}}>{t("m.fundStep1T")} {total.toFixed(2)} {tokenLabel} {t("m.fundStep1T2")}</div><div style={{fontSize:12,color:"var(--muted-foreground)"}}>{t("m.fundStep1Sub")}</div></div>
         </li>
         <li>
           <span className="steps-n">2</span>
