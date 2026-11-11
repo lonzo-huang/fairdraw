@@ -278,7 +278,13 @@ export const confirmChainPayment = createServerFn({ method: "POST" })
         paidToken = tx.token;
         paidChainId = tx.chainId;
         const cancelAfter = Math.max(Math.floor(Date.now() / 1000), Math.floor(Date.parse(c.ends_at ?? "") / 1000) || 0);
-        wrapTx = await oracleFundEscrow(c.id, pool, fee, cancelAfter);
+        try {
+          wrapTx = await oracleFundEscrow(c.id, pool, fee, cancelAfter);
+        } catch {
+          // Verified transfer landed, but the treasury's BSC USDT float can't
+          // cover the escrow wrap right now. Retry after topping it up.
+          throw new Error("Payment verified — the platform is temporarily unable to lock the pool on-chain. Please contact support or retry in a few minutes; your transfer is confirmed.");
+        }
       }
     } else {
       const tx = await verifyTokenTransfer(data.txHash as `0x${string}`, cfg.receiverAddress!, total, fundingTokens());
