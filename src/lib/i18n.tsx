@@ -22,6 +22,7 @@ const dict = {
   "cy.viewAll": { zh: "查看全部", en: "View all" },
   "cy.collapse": { zh: "收起", en: "Collapse" },
   "cy.total": { zh: "奖池总额", en: "TOTAL PRIZE POOL" },
+  "cy.onchain": { zh: "链上已锁 {amt} · 合约 {addr} ↗", en: "{amt} locked on-chain · {addr} ↗" },
   "cy.view": { zh: "查看活动", en: "View campaign" },
   "cy.review": { zh: "查看凭证", en: "View receipt" },
   "cy.details": { zh: "数据详情", en: "Data details" },

@@ -7,9 +7,10 @@ import { translate, useI18n } from "@/lib/i18n";
 import { computeProgress, parseConditions, type ConditionCheck, type Metrics } from "@/lib/conditions";
 import { useAuth } from "@/hooks/use-auth";
 import { getCampaignShare } from "@/lib/campaign-share.functions";
+import { getEscrowState } from "@/lib/payment.functions";
 import { conditionSummary, prizeSummary } from "@/lib/campaign-share";
 import { fetchAllSnaps } from "@/lib/campaign-hub";
-import { Activity, ArrowUpRight, BadgeCheck, BarChart3, Eye, Heart, Link2, MessageCircle, MessageSquare, Percent, Repeat2, Search, UserPlus, Users } from "lucide-react";
+import { Activity, ArrowUpRight, BadgeCheck, BarChart3, Eye, Heart, Link2, MessageCircle, MessageSquare, Percent, Repeat2, Search, ShieldCheck, UserPlus, Users } from "lucide-react";
 
 export const Route = createFileRoute("/c/$slug")({
   loader: ({ params }) => getCampaignShare({ data: { slug: params.slug } }),
@@ -57,11 +58,12 @@ function CampaignPage() {
       const { data: c } = await supabase.from("campaigns").select("*").eq("slug", slug).maybeSingle();
       if (!c) return null;
       const { data: count } = await supabase.rpc("entry_count", { _campaign_id: c.id });
-      const [snaps, { data: draw }] = await Promise.all([
+      const [snaps, { data: draw }, escrow] = await Promise.all([
         fetchAllSnaps((from, size) => supabase.from("condition_snapshots").select("metrics, progress, fetched_at").eq("campaign_id", c.id).order("fetched_at", { ascending: true }).range(from, from + size - 1)),
         supabase.from("draws").select("drawn_at").eq("campaign_id", c.id).maybeSingle(),
+        c.payment_method === "chain" && c.prize_amount !== null ? getEscrowState({ data: { campaignId: c.id } }) : Promise.resolve(null),
       ]);
-      return { c, count: count ?? 0, snaps, drawAt: draw?.drawn_at ?? null };
+      return { c, count: count ?? 0, snaps, drawAt: draw?.drawn_at ?? null, escrow };
     },
   });
   const cd = useCountdown(data?.c?.ends_at);
@@ -69,7 +71,7 @@ function CampaignPage() {
 
   if (isLoading) return <p className="p-10 text-center text-muted-foreground">{t("common.loading")}</p>;
   if (!data) return <p className="p-10 text-center text-muted-foreground">404</p>;
-  const { c, count, snaps, drawAt } = data;
+  const { c, count, snaps, drawAt, escrow } = data;
   const latestSnap = snaps[snaps.length - 1] ?? null;
   const latestM = asMetrics(latestSnap?.metrics);
   // Baseline = the earliest snapshot that actually captured followers; older rows never had the field.
@@ -165,6 +167,11 @@ function CampaignPage() {
               <div className="t-lab">{t("cy.total")}</div>
               <div className="t-amt">{c.prize_amount ?? c.prize}{c.prize_amount !== null && <small>{c.currency}</small>}</div>
               <div className="t-sub">{c.winners_count} {t("dash.winners")} · {t(`escrow.${c.escrow_status}` as "escrow.funded")}</div>
+              {escrow && escrow.funded && (
+                <a className="t-sub" style={{ display: "inline-flex", alignItems: "center", gap: 4, color: "#34d399", textDecoration: "none", marginTop: 2 }} href={escrow.explorerAddr} target="_blank" rel="noopener noreferrer">
+                  <ShieldCheck size={12} />{translate(lang, "cy.onchain", { amt: `${escrow.pool} USDT`, addr: `${escrow.contract.slice(0, 6)}…${escrow.contract.slice(-4)}` })}
+                </a>
+              )}
             </div>
             <div className="perf" aria-hidden="true" />
             <div className="t-bot">

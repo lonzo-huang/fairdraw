@@ -1018,6 +1018,31 @@ export const getWiseClaimRequirements = createServerFn({ method: "GET" })
     return wiseAccountRequirements({ sourceCurrency: source, sourceAmount: 1000, targetCurrency: data.targetCurrency });
   });
 
+/** Public on-chain escrow proof — anyone can verify the pool is locked. */
+export const getEscrowState = createServerFn({ method: "GET" })
+  .inputValidator((input: { campaignId: string }) => input)
+  .handler(async ({ data }) => {
+    const cfg = chainConfig();
+    if (!cfg.escrowAddress) return { funded: false as const };
+    const base = { funded: false as const, contract: cfg.escrowAddress };
+    try {
+      const { escrowCampaign } = await import("@/lib/chain.server");
+      const st = await escrowCampaign(data.campaignId);
+      if (!st) return base;
+      return {
+        funded: true as const,
+        pool: Number(st.pool) / 10 ** cfg.tokenDecimals,
+        funder: st.funder,
+        resolved: st.resolved,
+        contract: cfg.escrowAddress,
+        explorerAddr: cfg.explorerTx.replace("/tx/", "/address/") + cfg.escrowAddress,
+        chainName: cfg.chainName,
+      };
+    } catch {
+      return base;
+    }
+  });
+
 /** EEA countries where MiCA delisted USDT — visitors get guided to USDC. */
 const EEA_COUNTRIES = new Set("AT BE BG HR CY CZ DK EE FI FR DE GR HU IE IT LV LT LU MT NL PL PT RO SK SI ES SE IS LI NO".split(" "));
 
