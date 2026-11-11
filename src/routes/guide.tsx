@@ -262,7 +262,7 @@ function Guide() {
         </div>
 
         <div className="paths">
-          <a className="panel path" href="#tips">
+          <a className="panel path" href="#payment-guides">
             <span className="ic" style={{ background: "rgba(245,184,61,.12)", color: "#f5b83d" }}><TrendingUp /></span>
             <div><b>{t("gd.path1t")}</b><span>{t("gd.path1s")}</span></div>
             <span className="arr">→</span>
@@ -280,6 +280,26 @@ function Guide() {
             <div className="panel step"><span className="n">01</span><span className="ic"><ShieldCheck /></span><h3>{t("gd.s1t")}</h3><p>{t("gd.s1d")}</p></div>
             <div className="panel step"><span className="n">02</span><span className="ic"><MessageCircle /></span><h3>{t("gd.s2t")}</h3><p>{t("gd.s2d")}</p></div>
             <div className="panel step"><span className="n">03</span><span className="ic"><Check /></span><h3>{t("gd.s3t")}</h3><p>{t("gd.s3d")}</p></div>
+          </div>
+        </section>
+
+        <section className="blk" id="payment-guides">
+          <div className="sh"><div className="ey">{t("gd.payEy")}</div><h2>{t("gd.payH2")}</h2><p>{t("gd.payP")}</p></div>
+          <div style={{display:"flex",flexDirection:"column",gap:10}}>
+            {([
+              { href:"/faq/payment/metamask", label:"MetaMask", sub: lang==="zh"?"加密钱包，浏览器插件 / 手机 App":"Self-custody wallet · extension or mobile app", color:"#e88100" },
+              { href:"/faq/payment/binance",  label:"Binance 币安", sub: lang==="zh"?"交易所提币，手续费约 1 USDT":"Exchange withdrawal · ~1 USDT fee", color:"#f0b90b" },
+              { href:"/faq/payment/okx",      label:"OKX 欧易",    sub: lang==="zh"?"交易所提币，操作与币安相同":"Exchange withdrawal · same flow as Binance", color:"#8ab4ff" },
+            ] as const).map(({ href, label, sub, color }) => (
+              <a key={href} href={href} className="panel" style={{display:"flex",alignItems:"center",gap:14,padding:"14px 18px",textDecoration:"none",borderRadius:14,border:"1px solid var(--border)",background:"var(--card)",transition:"border-color .15s"}}>
+                <span style={{width:8,height:8,borderRadius:"50%",background:color,flexShrink:0}} />
+                <span style={{flex:1}}>
+                  <span style={{fontWeight:600,fontSize:15}}>{label}</span>
+                  <span style={{display:"block",fontSize:12,color:"var(--muted-foreground)",marginTop:2}}>{sub}</span>
+                </span>
+                <span style={{fontSize:14,color:"var(--muted-foreground)"}}>→</span>
+              </a>
+            ))}
           </div>
         </section>
 

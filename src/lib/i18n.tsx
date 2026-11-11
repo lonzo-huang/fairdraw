@@ -1270,6 +1270,9 @@ const dict = {
   "faq.okx.s5d": { zh: "在提币记录中找到该笔，复制 TXID（0x 开头），回到 FairDraw 付款页粘贴并确认。", en: "Find the transaction in Withdrawal history, copy the TXID (0x…), return to FairDraw and paste it to confirm payment." },
 
   "faq.pay.seeGuide": { zh: "查看完整支付教程 →", en: "Full payment guide →" },
+  "gd.payEy": { zh: "PAYMENT GUIDES", en: "PAYMENT GUIDES" },
+  "gd.payH2": { zh: "如何支付奖池？", en: "How to fund the prize pool?" },
+  "gd.payP": { zh: "选择你使用的平台，查看完整操作步骤：", en: "Choose your platform for step-by-step instructions:" },
 
   "aff.title": { zh: "联盟推广计划", en: "Affiliate Program" },
   "aff.sub": { zh: "分享 FairDraw，每成功活动赚取平台手续费的 30%", en: "Share FairDraw and earn 30% of the platform fee on every successful campaign" },
