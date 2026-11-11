@@ -188,6 +188,8 @@ async function closeWithRefund(c: { id: string; escrow_status: string; payment_m
   if (escrow !== "none") patch["escrow_status"] = escrow;
   const { error } = await supabaseAdmin.from("campaigns").update(patch).eq("id", c.id);
   if (error) throw new Error(error.message);
+  const { voidAffiliate } = await import("@/lib/affiliate.functions");
+  await voidAffiliate(c.id);
 }
 
 async function fetchOembed(url: string, platform: string) {

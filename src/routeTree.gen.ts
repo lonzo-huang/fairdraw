@@ -26,6 +26,7 @@ import { Route as CSlugRouteImport } from './routes/c.$slug'
 import { Route as FaqPaymentRouteImport } from './routes/faq.payment'
 import { Route as GoSlugRouteImport } from './routes/go.$slug'
 import { Route as RSlugRouteImport } from './routes/r.$slug'
+import { Route as AuthenticatedAffiliateDashboardRouteImport } from './routes/_authenticated/affiliate.dashboard'
 import { Route as AuthenticatedManageIdRouteImport } from './routes/_authenticated/manage.$id'
 import { Route as ApiCronConditionsRouteImport } from './routes/api/cron/conditions'
 import { Route as ApiStripeWebhookRouteImport } from './routes/api/stripe/webhook'
@@ -120,6 +121,12 @@ const RSlugRoute = RSlugRouteImport.update({
   path: '/r/$slug',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AuthenticatedAffiliateDashboardRoute =
+  AuthenticatedAffiliateDashboardRouteImport.update({
+    id: '/affiliate/dashboard',
+    path: '/affiliate/dashboard',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 const AuthenticatedManageIdRoute = AuthenticatedManageIdRouteImport.update({
   id: '/manage/$id',
   path: '/manage/$id',
@@ -184,6 +191,7 @@ export interface FileRoutesByFullPath {
   '/faq/payment': typeof FaqPaymentRouteWithChildren
   '/go/$slug': typeof GoSlugRoute
   '/r/$slug': typeof RSlugRouteWithChildren
+  '/affiliate/dashboard': typeof AuthenticatedAffiliateDashboardRoute
   '/manage/$id': typeof AuthenticatedManageIdRoute
   '/api/cron/conditions': typeof ApiCronConditionsRoute
   '/api/stripe/webhook': typeof ApiStripeWebhookRoute
@@ -210,6 +218,7 @@ export interface FileRoutesByTo {
   '/c/$slug': typeof CSlugRoute
   '/go/$slug': typeof GoSlugRoute
   '/r/$slug': typeof RSlugRouteWithChildren
+  '/affiliate/dashboard': typeof AuthenticatedAffiliateDashboardRoute
   '/manage/$id': typeof AuthenticatedManageIdRoute
   '/api/cron/conditions': typeof ApiCronConditionsRoute
   '/api/stripe/webhook': typeof ApiStripeWebhookRoute
@@ -239,6 +248,7 @@ export interface FileRoutesById {
   '/faq/payment': typeof FaqPaymentRouteWithChildren
   '/go/$slug': typeof GoSlugRoute
   '/r/$slug': typeof RSlugRouteWithChildren
+  '/_authenticated/affiliate/dashboard': typeof AuthenticatedAffiliateDashboardRoute
   '/_authenticated/manage/$id': typeof AuthenticatedManageIdRoute
   '/api/cron/conditions': typeof ApiCronConditionsRoute
   '/api/stripe/webhook': typeof ApiStripeWebhookRoute
@@ -268,6 +278,7 @@ export interface FileRouteTypes {
     | '/faq/payment'
     | '/go/$slug'
     | '/r/$slug'
+    | '/affiliate/dashboard'
     | '/manage/$id'
     | '/api/cron/conditions'
     | '/api/stripe/webhook'
@@ -294,6 +305,7 @@ export interface FileRouteTypes {
     | '/c/$slug'
     | '/go/$slug'
     | '/r/$slug'
+    | '/affiliate/dashboard'
     | '/manage/$id'
     | '/api/cron/conditions'
     | '/api/stripe/webhook'
@@ -322,6 +334,7 @@ export interface FileRouteTypes {
     | '/faq/payment'
     | '/go/$slug'
     | '/r/$slug'
+    | '/_authenticated/affiliate/dashboard'
     | '/_authenticated/manage/$id'
     | '/api/cron/conditions'
     | '/api/stripe/webhook'
@@ -473,6 +486,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof RSlugRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/_authenticated/affiliate/dashboard': {
+      id: '/_authenticated/affiliate/dashboard'
+      path: '/affiliate/dashboard'
+      fullPath: '/affiliate/dashboard'
+      preLoaderRoute: typeof AuthenticatedAffiliateDashboardRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/manage/$id': {
       id: '/_authenticated/manage/$id'
       path: '/manage/$id'
@@ -544,6 +564,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedDashboardRoute: typeof AuthenticatedDashboardRoute
   AuthenticatedMyEntriesRoute: typeof AuthenticatedMyEntriesRoute
   AuthenticatedNewRoute: typeof AuthenticatedNewRoute
+  AuthenticatedAffiliateDashboardRoute: typeof AuthenticatedAffiliateDashboardRoute
   AuthenticatedManageIdRoute: typeof AuthenticatedManageIdRoute
 }
 
@@ -552,6 +573,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedDashboardRoute: AuthenticatedDashboardRoute,
   AuthenticatedMyEntriesRoute: AuthenticatedMyEntriesRoute,
   AuthenticatedNewRoute: AuthenticatedNewRoute,
+  AuthenticatedAffiliateDashboardRoute: AuthenticatedAffiliateDashboardRoute,
   AuthenticatedManageIdRoute: AuthenticatedManageIdRoute,
 }
 

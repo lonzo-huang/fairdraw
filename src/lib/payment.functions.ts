@@ -2,6 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { CANCEL_WINDOW_MS } from "@/lib/campaign.functions";
 import { feeAmount } from "@/lib/fees";
+import { creditAffiliate } from "@/lib/affiliate.functions";
 import { chainConfig, fundingTokens, stripeChargeCurrency, stripeSupports, toMinorUnits } from "@/lib/payments";
 import type { Json } from "@/integrations/supabase/types";
 
@@ -318,6 +319,7 @@ export const confirmChainPayment = createServerFn({ method: "POST" })
       .eq("id", c.id)
       .eq("escrow_status", "awaiting");
     if (error) throw new Error(error.message);
+    void creditAffiliate(c.id);
     return { ok: true, from: funder, amount: total };
   });
 

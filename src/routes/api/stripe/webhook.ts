@@ -44,6 +44,8 @@ export const Route = createFileRoute("/api/stripe/webhook")({
               .update({ escrow_status: "funded" })
               .eq("id", campaignId)
               .eq("escrow_status", "awaiting");
+            const { creditAffiliate } = await import("@/lib/affiliate.functions");
+            void creditAffiliate(campaignId);
           }
         }
 

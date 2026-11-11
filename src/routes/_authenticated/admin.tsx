@@ -5,6 +5,8 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useI18n } from "@/lib/i18n";
 import { useFeeTiers } from "@/hooks/use-fee-tiers";
+import { adminAffiliatePayouts, markCommissionsPaid } from "@/lib/affiliate.functions";
+import { AFF } from "@/lib/affiliate";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
@@ -29,8 +31,23 @@ function Admin() {
     return !!data;
   } });
   const { data: tiers = [] } = useFeeTiers();
+  const payouts = useQuery({ queryKey: ["admin-aff-payouts"], queryFn: () => adminAffiliatePayouts({}), enabled: !!isAdmin });
   const [min, setMin] = useState(""); const [rate, setRate] = useState("");
+  const [txMap, setTxMap] = useState<Record<string, string>>({});
+  const [payingId, setPayingId] = useState<string | null>(null);
   const refresh = () => qc.invalidateQueries({ queryKey: ["fee-tiers"] });
+
+  async function markPaid(referrerId: string, ids: string[]) {
+    const tx = (txMap[referrerId] ?? "").trim();
+    if (!tx) { toast.error("Missing tx hash"); return; }
+    setPayingId(referrerId);
+    try {
+      await markCommissionsPaid({ data: { ids, tx } });
+      toast.success("Marked paid");
+      qc.invalidateQueries({ queryKey: ["admin-aff-payouts"] });
+    } catch (e) { toast.error((e as Error).message); }
+    setPayingId(null);
+  }
 
   if (isLoading) return <p className="p-10 text-center text-muted-foreground">{t("common.loading")}</p>;
   if (!isAdmin) return <p className="p-10 text-center text-muted-foreground">{t("admin.denied")}</p>;
@@ -67,6 +84,25 @@ function Admin() {
           <Input type="number" min={0} max={100} step="0.1" placeholder="5" value={rate} onChange={(e) => setRate(e.target.value)} />
           <Button onClick={add}>{t("admin.add")}</Button>
         </div>
+      </div>
+
+      <h2 className="mt-10 text-xl font-semibold">{t("admin.aff.title")}</h2>
+      <p className="mt-1 text-sm text-muted-foreground">{t("admin.aff.sub", { min: AFF.minPayout })}</p>
+      <div className="mt-4 space-y-3">
+        {(payouts.data?.payouts ?? []).length === 0 && !payouts.isPending && <p className="text-sm text-muted-foreground">{t("admin.aff.none")}</p>}
+        {(payouts.data?.payouts ?? []).map((p) => (
+          <div key={p.referrerId} className="rounded-xl border border-border bg-card p-4">
+            <div className="flex flex-wrap items-baseline justify-between gap-2">
+              <div className="font-mono text-sm">{p.code}{p.handle ? ` · @${p.handle}` : ""}</div>
+              <div className="font-mono text-lg font-bold text-prize">{p.amount.toFixed(2)} USDT</div>
+            </div>
+            <div className="mt-1 truncate font-mono text-xs text-muted-foreground">{p.address || t("admin.aff.noAddr")}</div>
+            <div className="mt-3 flex gap-2">
+              <Input className="font-mono text-xs" placeholder="0x… tx hash" value={txMap[p.referrerId] ?? ""} onChange={(e) => setTxMap((m) => ({ ...m, [p.referrerId]: e.target.value }))} />
+              <Button variant="neon" disabled={!p.address || payingId === p.referrerId} onClick={() => markPaid(p.referrerId, p.ids)}>{t("admin.aff.markPaid")}</Button>
+            </div>
+          </div>
+        ))}
       </div>
     </div>
   );

@@ -414,6 +414,123 @@ export type Database = {
         }
         Relationships: []
       }
+      referrers: {
+        Row: {
+          user_id: string
+          code: string
+          x_handle: string | null
+          payout_address: string | null
+          verified_at: string | null
+          disabled: boolean
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          user_id: string
+          code: string
+          x_handle?: string | null
+          payout_address?: string | null
+          verified_at?: string | null
+          disabled?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          user_id?: string
+          code?: string
+          x_handle?: string | null
+          payout_address?: string | null
+          verified_at?: string | null
+          disabled?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      referral_clicks: {
+        Row: {
+          id: number
+          referrer_id: string
+          code: string
+          ua: string | null
+          created_at: string
+        }
+        Insert: {
+          referrer_id: string
+          code: string
+          ua?: string | null
+        }
+        Update: {
+          referrer_id?: string
+          code?: string
+          ua?: string | null
+        }
+        Relationships: []
+      }
+      referrals: {
+        Row: {
+          id: string
+          referrer_id: string
+          referred_id: string
+          code: string
+          bound_at: string
+        }
+        Insert: {
+          id?: string
+          referrer_id: string
+          referred_id: string
+          code: string
+          bound_at?: string
+        }
+        Update: {
+          id?: string
+          referrer_id?: string
+          referred_id?: string
+          code?: string
+          bound_at?: string
+        }
+        Relationships: []
+      }
+      commissions: {
+        Row: {
+          id: string
+          referral_id: string
+          referrer_id: string
+          campaign_id: string
+          fee: number
+          cost: number
+          net: number
+          amount: number
+          currency: string
+          status: string
+          settle_after: string
+          paid_at: string | null
+          paid_tx: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          referral_id: string
+          referrer_id: string
+          campaign_id: string
+          fee: number
+          cost: number
+          net: number
+          amount: number
+          currency?: string
+          status?: string
+          settle_after: string
+          paid_at?: string | null
+          paid_tx?: string | null
+          created_at?: string
+        }
+        Update: {
+          status?: string
+          paid_at?: string | null
+          paid_tx?: string | null
+        }
+        Relationships: []
+      }
       user_roles: {
         Row: {
           id: string
