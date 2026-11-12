@@ -189,9 +189,28 @@ function Dashboard() {
     fol: dailySeries(snaps, "fol", 90),
   };
   const sum = (a: number[], from: number, to: number) => a.slice(from, to).reduce((x, y) => x + y, 0);
-  const vCur = sum(S.view, 90 - range, 90), vPrev = sum(S.view, Math.max(0, 90 - 2 * range), 90 - range);
-  const eCur = sum(S.eng, 90 - range, 90), ePrev = sum(S.eng, Math.max(0, 90 - 2 * range), 90 - range);
-  const fCur = Math.round(sum(S.fol, 90 - range, 90));
+  const vCur = sum(S.view, 90 - range, 90), eCur = sum(S.eng, 90 - range, 90);
+  // Headline cards are CUMULATIVE: latest reading per campaign post, and
+  // per-account follower growth since tracking began (handles deduped so
+  // parallel campaigns on one account never double-count its growth).
+  const lastM = (arr: SnapRow[]) => asM(arr[arr.length - 1]?.metrics);
+  let vTotal = 0, eTotal = 0;
+  const byHandle = new Map<string, SnapRow[]>();
+  for (const c of campaigns) {
+    const arr = snapsByCamp.get(c.id) ?? [];
+    const lm = lastM(arr);
+    if (typeof lm?.views === "number") vTotal += lm.views;
+    eTotal += eng(lm) ?? 0;
+    const h = lm?.author_handle?.toLowerCase() ?? `c:${c.id}`;
+    (byHandle.get(h) ?? byHandle.set(h, []).get(h)!).push(...arr);
+  }
+  let fCur = 0;
+  for (const arr of byHandle.values()) {
+    arr.sort((a, b) => Date.parse(a.fetched_at) - Date.parse(b.fetched_at));
+    const first = asM(arr.find((s) => typeof asM(s.metrics)?.followers === "number")?.metrics);
+    const last = lastM(arr);
+    if (typeof first?.followers === "number" && typeof last?.followers === "number") fCur += Math.max(0, last.followers - first.followers);
+  }
   const folCamps = campaigns.filter((c) => {
     const arr = snapsByCamp.get(c.id) ?? [];
     const first = asM(arr.find((s) => typeof asM(s.metrics)?.followers === "number")?.metrics);
@@ -254,13 +273,13 @@ function Dashboard() {
       <div className="stats">
         <div className="panel stat">
           <div className="stat-h">{t("kpi.impressions")}<span className="stat-ic" style={{ background: "rgba(56,189,248,.12)", color: "#38bdf8" }}><Eye /></span></div>
-          <div className="stat-v">{short(vCur)}</div>
-          <div className="stat-f"><Delta prev={vPrev} cur={vCur} /><Spark arr={S.view} color="#38bdf8" /></div>
+          <div className="stat-v">{short(vTotal)}</div>
+          <div className="stat-f"><span className="delta">{t(`range.${range}` as "range.30")} +{short(vCur)}</span><Spark arr={S.view} color="#38bdf8" /></div>
         </div>
         <div className="panel stat">
           <div className="stat-h">{t("kpi.engagements")}<span className="stat-ic" style={{ background: "rgba(124,92,255,.14)", color: "#a99bff" }}><Activity /></span></div>
-          <div className="stat-v">{short(eCur)}</div>
-          <div className="stat-f"><Delta prev={ePrev} cur={eCur} /><Spark arr={S.eng} color="#a99bff" /></div>
+          <div className="stat-v">{short(eTotal)}</div>
+          <div className="stat-f"><span className="delta">{t(`range.${range}` as "range.30")} +{short(eCur)}</span><Spark arr={S.eng} color="#a99bff" /></div>
         </div>
         <div className="panel stat">
           <div className="stat-h">{t("kpi.growth")}<span className="stat-ic" style={{ background: "rgba(52,211,153,.12)", color: "#34d399" }}><UserPlus /></span></div>
@@ -383,16 +402,6 @@ function Dashboard() {
         </section>
       )}
     </div>
-  );
-}
-
-function Delta({ prev, cur }: { prev: number; cur: number }) {
-  const { t } = useI18n();
-  const p = prev > 0 ? Math.round(((cur - prev) / prev) * 100) : null;
-  return (
-    <span className="delta">
-      {p === null ? t("kpi.noData") : <>{t("dash.vsPrev")} <b className="up">{p >= 0 ? "↑" : "↓"} {Math.abs(p)}%</b></>}
-    </span>
   );
 }
 
