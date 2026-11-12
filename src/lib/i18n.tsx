@@ -15,7 +15,7 @@ const dict = {
     zh: "透明抽奖机制 · 可验证参与记录 · 公开中奖结果 · 最快速健康涨粉",
     en: "Transparent draw mechanics · Verifiable entry records · Public winner results · The fastest healthy follower growth",
   },
-  "cy.start": { zh: "发起第一次涨粉", en: "Launch your first growth campaign" },
+  "cy.start": { zh: "发起快速涨粉", en: "Launch a quick growth campaign" },
   "cy.how": { zh: "查看涨粉流程", en: "See the follower-growth flow" },
   "cy.box": { zh: "公开算法 · 随机开奖", en: "OPEN ALGORITHM · RANDOM DRAW" },
   "cy.boxSub": { zh: "每一个结果，都有据可查", en: "Every result leaves a receipt" },
@@ -872,7 +872,7 @@ const dict = {
     en: "You can cancel within 1 hour on the manage page; after that it locks. Unmet conditions auto-refund.",
   },
   "new.previewNow": { zh: "刚刚", en: "now" },
-  "f.keyword": { zh: "推文需包含关键词", en: "Tweet must contain keyword" },
+  "f.keyword": { zh: "推文需包含关键词（可选）", en: "Tweet must contain keyword (optional)" },
   "f.minLikes": { zh: "最少点赞", en: "Min likes" },
   "f.minReplies": { zh: "最少回复", en: "Min replies" },
   "f.minReposts": { zh: "最少转贴", en: "Min reposts" },
@@ -1326,6 +1326,15 @@ const dict = {
   "m.fundTrust": {
     zh: "发布后 1 小时内可撤销 · 未达标 100% 自动退回",
     en: "Cancel within 1 h of publish · 100% refund if goal not met",
+  },
+  "m.saveDraft": { zh: "保存并稍后继续", en: "Save & finish later" },
+  "m.draftSaved": {
+    zh: "已保存，可在「我的活动」中继续操作",
+    en: "Saved — continue anytime from My campaigns",
+  },
+  "pay.currencyUnsupported": {
+    zh: "暂时不支持使用其他币种支付",
+    en: "Other currencies aren't supported for payment yet",
   },
   "m.fundOtherBtn": { zh: "钱包或交易所转账支付", en: "Pay by wallet/exchange transfer" },
   "m.fundOther": {

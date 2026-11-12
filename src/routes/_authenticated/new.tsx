@@ -67,8 +67,8 @@ type Created = ShareCampaign & { id: string; ends_at: string; payment_method: st
 
 /** Selectable metric conditions: checkbox + ≥ threshold input, replies locked, max 4 picked. */
 const METRIC_KEYS = [
-  "min_likes",
   "min_replies",
+  "min_likes",
   "min_reposts",
   "min_quotes",
   "min_views",
@@ -149,11 +149,18 @@ function NewCampaign() {
   });
   const [sel, setSel] = useState<Partial<Record<MetricKey, boolean>>>({ min_replies: true });
   const [vals, setVals] = useState<Record<MetricKey, string>>(
-    () => Object.fromEntries(METRIC_KEYS.map((k) => [k, "100"])) as Record<MetricKey, string>,
+    () =>
+      Object.fromEntries(
+        METRIC_KEYS.map((k) => [
+          k,
+          k === "min_views" ? "10000" : k === "min_reposts" || k === "min_quotes" ? "10" : "100",
+        ]),
+      ) as Record<MetricKey, string>,
   );
   const [condErr, setCondErr] = useState("");
   const [payMethod, setPayMethod] = useState<"stripe" | "chain">("chain");
   const [editing, setEditing] = useState(false);
+  const navigate = useNavigate();
   const [showStripeNote, setShowStripeNote] = useState(false);
   const { data: fees = [] } = useFeeTiers();
   const checkout = useServerFn(startStripeCheckout);
@@ -250,10 +257,10 @@ function NewCampaign() {
   const autoTitle = condParts.length
     ? lang === "zh"
       ? prizeLabel
-        ? `达到 ${condParts.join(" + ")}，赢 ${prizeLabel}`
+        ? `达到 ${condParts.join(" + ")}，有机会获得 ${prizeLabel}`
         : `达到 ${condParts.join(" + ")} 即抽奖`
       : prizeLabel
-        ? `${condParts.join(" & ")} to win ${prizeLabel}`
+        ? `${condParts.join(" & ")} for a chance to win ${prizeLabel}`
         : `${condParts.join(" & ")} giveaway`
     : prizeLabel
       ? lang === "zh"
@@ -439,6 +446,21 @@ function NewCampaign() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [formReady, !!row]);
 
+  /** Save the draft without paying — the user resumes from My campaigns. */
+  async function saveDraft() {
+    setBusy(true);
+    try {
+      const c = await ensureCreated();
+      if (!c) return;
+      toast.success(t("m.draftSaved"));
+      void navigate({ to: "/dashboard" });
+    } catch (e) {
+      toast.error((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
   /** Single CTA: save the campaign then start the chosen payment flow. */
   async function payNow() {
     if (!canPay) return;
@@ -547,19 +569,20 @@ function NewCampaign() {
                     <select
                       className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm"
                       value={f.currency}
-                      onChange={set("currency")}
+                      onChange={(e) => {
+                        const v = e.target.value;
+                        if (v === "USDT" || v === "USDC") setF({ ...f, currency: v });
+                        else toast.error(t("pay.currencyUnsupported"));
+                      }}
                     >
-                      {CURRENCIES.map((c) => (
+                      {/* USDT and USDC are one on-chain option — the treasury accepts both. */}
+                      <option value="USDT">USDT / USDC</option>
+                      {CURRENCIES.filter((c) => c !== "USDT" && c !== "USDC").map((c) => (
                         <option key={c} value={c}>
                           {c}
                         </option>
                       ))}
                     </select>
-                    {!chainOk && (
-                      <p style={{ fontSize: 12, color: "var(--muted-foreground)", marginTop: 4 }}>
-                        {t("pay.nonUsdtHint")}
-                      </p>
-                    )}
                   </Field>
                   <Field label={t("f.ends")}>
                     <select
@@ -863,6 +886,7 @@ function NewCampaign() {
               busy={busy}
               setBusy={setBusy}
               onPay={payNow}
+              onSave={saveDraft}
               getCampaign={ensureChainCampaign}
               onFunded={() => setFunded(true)}
               showStripeNote={showStripeNote}
@@ -1285,6 +1309,7 @@ function PayTicket({
   busy,
   setBusy,
   onPay,
+  onSave,
   getCampaign,
   onFunded,
   showStripeNote,
@@ -1303,6 +1328,7 @@ function PayTicket({
   busy: boolean;
   setBusy: (b: boolean) => void;
   onPay: () => void;
+  onSave: () => void;
   getCampaign: () => Promise<FundingCampaign | null>;
   onFunded: () => void;
   showStripeNote: boolean;
@@ -1343,14 +1369,9 @@ function PayTicket({
                 type="button"
                 role="tab"
                 aria-selected={method === "stripe"}
+                aria-disabled="true"
                 style={{ width: "100%" }}
-                disabled={!stripeOk}
-                onClick={() => {
-                  if (stripeOk) {
-                    setMethod("stripe");
-                    setShowStripeNote(false);
-                  } else setShowStripeNote(!showStripeNote);
-                }}
+                onClick={() => setShowStripeNote(!showStripeNote)}
               >
                 {t("pay.stripeTab")}
               </button>
@@ -1365,7 +1386,7 @@ function PayTicket({
               {t("pay.chainTab")}
             </button>
           </div>
-          {showStripeNote && !stripeOk && (
+          {showStripeNote && (
             <p
               style={{
                 fontSize: 12,
@@ -1447,6 +1468,15 @@ function PayTicket({
               onDone={onFunded}
             />
           )}
+          <Button
+            type="button"
+            variant="outline"
+            className="mt-3 w-full"
+            disabled={busy}
+            onClick={onSave}
+          >
+            {t("m.saveDraft")}
+          </Button>
         </div>
         <div className="trust-line">
           <svg
