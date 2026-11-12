@@ -1,7 +1,7 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { translate, useI18n, type Lang } from "@/lib/i18n";
@@ -72,6 +72,7 @@ function Manage() {
   const [entryTab, setEntryTab] = useState<"all" | "valid" | "invalid">("all");
   const [amountOpen, setAmountOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
   const [paySel, setPaySel] = useState<"stripe" | "chain" | null>(null);
   const [, forceTick] = useState(0);
 
@@ -91,8 +92,12 @@ function Manage() {
   const refresh = () => qc.invalidateQueries({ queryKey: ["manage", id] });
 
   // Close the "more" menu on outside click; 1 s tick drives the live countdown.
+  // contains-check: React delegates listeners on document, so stopPropagation
+  // on the toggle cannot stop a sibling document listener in the same dispatch.
   useEffect(() => {
-    const close = () => setMenuOpen(false);
+    const close = (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) setMenuOpen(false);
+    };
     document.addEventListener("click", close);
     const iv = setInterval(() => forceTick((v) => v + 1), 1000);
     return () => { document.removeEventListener("click", close); clearInterval(iv); };
@@ -300,19 +305,21 @@ function Manage() {
         <div className="head-r">
           {phase === 3 && <button type="button" className="ghost" onClick={copyShare}><Link2 />{t("m.copyLink")}</button>}
           {drawn && <Link to="/r/$slug" params={{ slug: c.slug }} className="ghost"><ArrowUpRight />{t("c.result")}</Link>}
-          <button type="button" className="ghost" aria-haspopup="true" aria-expanded={menuOpen}
-            onClick={(e) => { e.stopPropagation(); setMenuOpen((v) => !v); }}>
-            <MoreHorizontal />{t("m.more")}
-          </button>
-          {menuOpen && (
-            <div className="menu">
-              <button type="button" onClick={copyShare}>{t("m.copyLink")}</button>
-              {open && c.tweet_url && <button type="button" onClick={() => setLinkEdit(true)}>{t("m.postChange")}</button>}
-              {open && <button type="button" onClick={() => setEditConds((v) => !v)}>{t("m.editConds")}</button>}
-              {canCancel && <button type="button" className="danger" onClick={doCancel}>{t("m.menuCancel")}</button>}
-              <button type="button" className="danger" onClick={del}>{t("m.delete")}</button>
-            </div>
-          )}
+          <div className="menu-anchor" ref={menuRef}>
+            <button type="button" className="ghost" aria-haspopup="true" aria-expanded={menuOpen}
+              onClick={() => setMenuOpen((v) => !v)}>
+              <MoreHorizontal />{t("m.more")}
+            </button>
+            {menuOpen && (
+              <div className="menu">
+                <button type="button" onClick={copyShare}>{t("m.copyLink")}</button>
+                {open && c.tweet_url && <button type="button" onClick={() => setLinkEdit(true)}>{t("m.postChange")}</button>}
+                {open && <button type="button" onClick={() => setEditConds((v) => !v)}>{t("m.editConds")}</button>}
+                {canCancel && <button type="button" className="danger" onClick={doCancel}>{t("m.menuCancel")}</button>}
+                <button type="button" className="danger" onClick={del}>{t("m.delete")}</button>
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
