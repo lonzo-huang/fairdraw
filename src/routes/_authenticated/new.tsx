@@ -1022,7 +1022,7 @@ function TweetComposer({
       const b = await pngBlob();
       // Upload card to Supabase storage so server fn receives a small URL
       // instead of a large base64 payload (avoids CSRF body-size issues).
-      const imgPath = `x-cards/${campaignId}/${Date.now()}.png`;
+      const imgPath = `${campaignId}/tweet-card-${Date.now()}.png`;
       const { error: upErr } = await supabase.storage
         .from("campaign-share")
         .upload(imgPath, b, { contentType: "image/png", upsert: true });
