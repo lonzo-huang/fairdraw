@@ -5,7 +5,7 @@ import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { translate, useI18n, type Lang } from "@/lib/i18n";
-import { CANCEL_WINDOW_MS, cancelCampaign, checkCampaignConditions, drawCampaign, refundEscrow, updateCampaignConditions } from "@/lib/campaign.functions";
+import { CANCEL_WINDOW_MS, cancelCampaign, checkCampaignConditions, deleteCampaign, drawCampaign, refundEscrow, updateCampaignConditions } from "@/lib/campaign.functions";
 import { payoutViaStripe, recordChainPayout, refundChainEscrow, startStripeCheckout, updateCampaignAmount } from "@/lib/payment.functions";
 import { computeProgress, parseConditions, type ConditionCheck, type Conditions, type Metrics } from "@/lib/conditions";
 import { campaignTweet } from "@/lib/campaign-share";
@@ -54,6 +54,7 @@ function Manage() {
   const refund = useServerFn(refundEscrow);
   const cancel = useServerFn(cancelCampaign);
   const draw = useServerFn(drawCampaign);
+  const delCamp = useServerFn(deleteCampaign);
   const updateAmount = useServerFn(updateCampaignAmount);
   const checkout = useServerFn(startStripeCheckout);
   const { data: fees = [] } = useFeeTiers();
@@ -280,8 +281,14 @@ function Manage() {
   }
   async function del() {
     if (!confirm(t("m.delete") + "?")) return;
-    await supabase.from("campaigns").delete().eq("id", c!.id);
-    navigate({ to: "/dashboard" });
+    setBusy(true);
+    try {
+      await delCamp({ data: { campaignId: c!.id } });
+      navigate({ to: "/dashboard" });
+    } catch (err) {
+      setBusy(false);
+      toast.error(err instanceof Error ? err.message : String(err));
+    }
   }
 
   return (

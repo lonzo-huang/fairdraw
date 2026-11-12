@@ -529,3 +529,33 @@ export const refundEscrow = createServerFn({ method: "POST" })
     await closeWithRefund(c, userId);
     return { ok: true };
   });
+
+/** Owner deletes their own campaign, any status. Runs with admin rights because
+ * the browser-side delete policy only covers open rows; child rows cascade. */
+export const deleteCampaign = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: { campaignId: string }) => input)
+  .handler(async ({ data, context }) => {
+    const { supabase, userId } = context;
+    const { data: c, error } = await supabase
+      .from("campaigns")
+      .select("id, owner_id")
+      .eq("id", data.campaignId)
+      .single();
+    if (error || !c) throw new Error("Campaign not found");
+    if (c.owner_id !== userId) throw new Error("Forbidden");
+
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    // Share bitmaps are stored per campaign folder — drop them with the row.
+    try {
+      const { data: files } = await supabaseAdmin.storage.from("campaign-share").list(c.id);
+      if (files?.length) {
+        await supabaseAdmin.storage.from("campaign-share").remove(files.map((f) => `${c.id}/${f.name}`));
+      }
+    } catch {
+      /* orphan objects are cosmetic; never block the delete */
+    }
+    const { error: dErr } = await supabaseAdmin.from("campaigns").delete().eq("id", c.id);
+    if (dErr) throw new Error(dErr.message);
+    return { ok: true };
+  });
