@@ -1942,6 +1942,10 @@
   color: var(--muted-foreground);
 }
 .hash-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
   height: 42px;
   padding: 0 16px;
   border: none;

@@ -1372,6 +1372,11 @@ const dict = {
     en: "Sent from another wallet? Paste the tx hash to confirm",
   },
   "m.confirmTx": { zh: "确认交易", en: "Confirm tx" },
+  "m.confirmingTx": { zh: "正在链上确认中…", en: "Verifying on-chain…" },
+  "m.confirmTxWait": {
+    zh: "正在链上验证交易并锁定奖池，通常需要 10–60 秒，请勿关闭页面",
+    en: "Verifying the transaction on-chain and locking the pool — usually 10–60s, keep this page open",
+  },
   "m.noMetaMask": {
     zh: "未检测到浏览器钱包，请安装任意 EVM 钱包后重试。",
     en: "No browser wallet detected — install any EVM wallet and retry.",

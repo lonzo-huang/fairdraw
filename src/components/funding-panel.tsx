@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
-import { Check, Copy } from "lucide-react";
+import { Check, Copy, RefreshCw } from "lucide-react";
 import { useServerFn } from "@tanstack/react-start";
 import { useI18n } from "@/lib/i18n";
 import { useQuery } from "@tanstack/react-query";
@@ -362,15 +362,23 @@ export function ChainFundingBody({
                 placeholder="0x…"
                 value={txHash}
                 spellCheck={false}
+                disabled={busy}
                 onChange={(e) => {
                   setTxHash(e.target.value);
                   setHashError("");
                 }}
               />
               <button type="button" className="hash-btn" disabled={busy} onClick={confirmManual}>
-                {t("m.confirmTx")}
+                {busy && <RefreshCw className="animate-spin" style={{ width: 14, height: 14 }} />}
+                {busy ? t("m.confirmingTx") : t("m.confirmTx")}
               </button>
             </div>
+            {busy && (
+              <p style={{ fontSize: 12, color: "var(--muted-foreground)", marginTop: 6, display: "flex", alignItems: "center", gap: 6 }}>
+                <RefreshCw className="animate-spin" style={{ width: 12, height: 12, flexShrink: 0 }} />
+                {t("m.confirmTxWait")}
+              </p>
+            )}
             {hashError && (
               <p style={{ fontSize: 12, color: "var(--destructive)", marginTop: 6 }}>{hashError}</p>
             )}
