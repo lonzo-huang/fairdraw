@@ -119,7 +119,23 @@ function useGuideStats() {
 }
 
 type FaqLink = { label: string; href: string; subZh: string; subEn: string; color: string };
-type FaqQ = { id: string; q: string; a: string; k?: string; act?: { l: string; to?: string; href?: string; result?: boolean }; links?: FaqLink[] };
+type FaqQ = { id: string; q: string; a: string; k?: string; act?: { l: string; to?: string; href?: string; result?: boolean }; links?: FaqLink[]; code?: boolean };
+
+/** Pseudocode mirroring src/lib/draw.ts — keep in sync with the implementation. */
+const DRAW_CODE = `candidates 按 id 排序 → 每行 "id:handle" → canonicalList
+listHash = SHA-256(canonicalList)
+seed     = SHA-256(listHash + "|" + 开奖时间)
+
+等概率抽取 —— 部分 Fisher–Yates：
+  for i in 0..k-1:
+    h = SHA-256(seed + ":" + i)
+    r = int(h前48位, 16) % (N - i)
+    swap(pool[i], pool[i + r])  →  第 i 名中奖者
+
+加权抽取 —— Efraimidis–Spirakis：
+  u_i   = int(SHA-256(seed + ":" + id + ":" + i)前48位, 16) / 2^48
+  s_i   = ln(u_i) / w_i
+  winners = s_i 最高的前 k 名`;
 type FaqG = { id: string; name: string; who: string; color: string; bg: string; I: typeof Gift; q: FaqQ[] };
 
 const GROUPS: FaqG[] = [
@@ -151,6 +167,7 @@ const GROUPS: FaqG[] = [
     id: "g-trust", name: "gd.g3", who: "gd.who3", color: "#a99bff", bg: "rgba(124,92,255,.14)", I: ShieldCheck,
     q: [
       { id: "fair", q: "faq.q5", a: "faq.a5", k: "gd.qFairK", act: { l: "gd.actVerify", result: true } },
+      { id: "algo", q: "faq.qAlgo", a: "faq.aAlgo", k: "faq.qAlgoK", code: true, act: { l: "gd.actVerify", result: true } },
       { id: "escrow", q: "gd.qEscrow", a: "gd.aEscrow" },
       { id: "xrule", q: "faq.q11", a: "faq.a11", k: "gd.qXruleK", act: { l: "gd.actXrules", href: "https://help.x.com/en/rules-and-policies" } },
     ],
@@ -461,6 +478,9 @@ function Guide() {
                         <div>
                           <div className="qa">
                             {hl(t(item.a))}
+                            {item.code && (
+                              <pre style={{ marginTop: 12, padding: "14px 16px", borderRadius: 10, border: "1px solid var(--border)", background: "var(--background)", fontSize: 12, lineHeight: 1.75, overflowX: "auto", fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace", color: "var(--muted-foreground)", whiteSpace: "pre" }}>{DRAW_CODE}</pre>
+                            )}
                             {item.links && (
                               <div style={{display:"flex",flexDirection:"column",gap:8,marginTop:12}}>
                                 {item.links.map((lk) => (

@@ -1733,6 +1733,12 @@ const dict = {
     zh: "公平且可复核：开奖时对锁定的候选名单计算 SHA-256 指纹，混合锁定时间生成种子，用确定性算法抽选。同样的名单和时间，任何人复算都会得到同样的中奖者。开奖后名单永久锁定，组织者无法再增删改，但组织者可以调整蓝V和非蓝V的中奖概率系数。",
     en: "Yes — and verifiable. At draw time we SHA-256 the locked candidate list, mix in the lock timestamp as the seed, and select deterministically: the same list and timestamp always yield the same winners. After the draw the list is permanently locked — the organizer cannot add, remove, or edit entries, though they can adjust the win-probability coefficients for Blue-V vs non-Blue-V entries.",
   },
+  "faq.qAlgo": { zh: "抽奖算法长什么样？", en: "What does the draw algorithm look like?" },
+  "faq.aAlgo": {
+    zh: "完整实现在 src/lib/draw.ts，服务器执行与结果页复核用的是同一份代码。流程：先对锁定名单算 SHA-256 指纹，再混合开奖时间派生种子，最后确定性抽选；加权模式里的 w 就是组织者设定的蓝V/普通中奖系数。",
+    en: "The full implementation lives in src/lib/draw.ts — the same code runs the draw and recomputes it on result pages. The pipeline: SHA-256 the locked list, derive a seed from the draw timestamp, then pick deterministically; in weighted mode w is the organiser's Blue-V/normal coefficient.",
+  },
+  "faq.qAlgoK": { zh: "算法 抽奖 SHA-256 种子", en: "algorithm draw SHA-256 seed" },
   "faq.q6": { zh: "中奖后怎么领奖？", en: "How do winners claim prizes?" },
   "faq.a6": {
     zh: "每个活动开奖后都有公开结果页。中奖者通过领取链接经 Stripe 收取对应币种奖金，或由组织者用链上钱包直发；结果页同时公示交易哈希或人工派奖凭证。",
