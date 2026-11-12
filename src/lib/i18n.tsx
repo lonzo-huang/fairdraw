@@ -925,12 +925,12 @@ const dict = {
   "pay.stripeTab": { zh: "线上支付", en: "Online payment" },
   "pay.chainTab": { zh: "USDT / USDC 加密支付", en: "USDT / USDC crypto" },
   "pay.stripeDisabled": {
-    zh: "该币种暂不支持线上支付，请使用加密支付",
-    en: "Online payment isn't available for this currency — please use crypto",
+    zh: "线上支付功能暂时不可用",
+    en: "Online payment is temporarily unavailable",
   },
   "pay.nonUsdtHint": {
-    zh: "链上仅支持 USDT / USDC，其他币种请选线上支付",
-    en: "On-chain funding accepts USDT / USDC only — pick online payment for other currencies",
+    zh: "链上充值仅支持 USDT / USDC",
+    en: "On-chain funding accepts USDT / USDC only",
   },
   "pay.chain": { zh: "⚡ Web3 链上钱包支付 (USDT)", en: "⚡ Web3 on-chain wallet payment (USDT)" },
   "pay.poolBase": { zh: "基础奖池金额", en: "Base prize pool" },

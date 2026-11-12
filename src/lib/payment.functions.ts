@@ -315,7 +315,7 @@ export const confirmChainPayment = createServerFn({ method: "POST" })
     if (payError) throw new Error(payError.message);
     const { error } = await supabaseAdmin
       .from("campaigns")
-      .update({ escrow_status: "funded" })
+      .update({ escrow_status: "funded", payment_method: "chain" })
       .eq("id", c.id)
       .eq("escrow_status", "awaiting");
     if (error) throw new Error(error.message);

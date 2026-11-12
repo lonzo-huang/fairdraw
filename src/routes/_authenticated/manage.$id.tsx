@@ -6,7 +6,7 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { translate, useI18n, type Lang } from "@/lib/i18n";
 import { CANCEL_WINDOW_MS, cancelCampaign, checkCampaignConditions, deleteCampaign, drawCampaign, refundEscrow, updateCampaignConditions } from "@/lib/campaign.functions";
-import { payoutViaStripe, recordChainPayout, refundChainEscrow, startStripeCheckout, updateCampaignAmount } from "@/lib/payment.functions";
+import { payoutViaStripe, recordChainPayout, refundChainEscrow, updateCampaignAmount } from "@/lib/payment.functions";
 import { computeProgress, parseConditions, type ConditionCheck, type Conditions, type Metrics } from "@/lib/conditions";
 import { campaignTweet } from "@/lib/campaign-share";
 import { hasEthereum, refundEscrowTx, sendTokenTransfer } from "@/lib/wallet";
@@ -56,7 +56,6 @@ function Manage() {
   const draw = useServerFn(drawCampaign);
   const delCamp = useServerFn(deleteCampaign);
   const updateAmount = useServerFn(updateCampaignAmount);
-  const checkout = useServerFn(startStripeCheckout);
   const { data: fees = [] } = useFeeTiers();
   const [busy, setBusy] = useState(false);
   const [checking, setChecking] = useState(false);
@@ -75,7 +74,7 @@ function Manage() {
   const [amountOpen, setAmountOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
-  const [paySel, setPaySel] = useState<"stripe" | "chain" | null>(null);
+  const [showStripeNote, setShowStripeNote] = useState(false);
   const [, forceTick] = useState(0);
 
   const { data, isLoading } = useQuery({
@@ -134,7 +133,7 @@ function Manage() {
     : phase === 1 ? ["b-wait", t("m.badgeFund")]
     : phase === 2 ? ["b-wait", t("m.badgeLink")]
     : ["b-live", t("status.open")];
-  const payMethod: "stripe" | "chain" = paySel ?? (c.payment_method === "chain" ? "chain" : "stripe");
+  const chainOk = c.currency === "USDT" || c.currency === "USDC";
   const tw = campaignTweet(c, origin);
   const durH = Math.max(1, Math.round((Date.parse(c.ends_at) - Date.parse(c.created_at)) / 3600e3));
   const cdS = Math.floor(leftMs / 1000);
@@ -222,29 +221,6 @@ function Manage() {
     setLinkBusy(false);
     if (error) toast.error(error.message);
     else { toast.success(t("m.linked")); setLink(""); setLinkEdit(false); refresh(); }
-  }
-  async function setPay(m: "stripe" | "chain") {
-    if (m === c!.payment_method) return;
-    setPaySel(m);
-    const { error } = await supabase.from("campaigns").update({ payment_method: m }).eq("id", c!.id);
-    if (error) { setPaySel(null); toast.error(error.message); }
-  }
-  async function payStripe() {
-    setBusy(true);
-    try {
-      // The UI defaults the tab to Stripe for unset/"manual" methods — persist
-      // the choice first or the server rejects checkout as a non-Stripe campaign.
-      if (c!.payment_method !== "stripe") {
-        const { error } = await supabase.from("campaigns").update({ payment_method: "stripe" }).eq("id", c!.id);
-        if (error) throw new Error(error.message);
-        setPaySel("stripe");
-      }
-      const r = await checkout({ data: { campaignId: c!.id, origin: window.location.origin } });
-      if (r.url) window.location.href = r.url;
-    } catch (e) {
-      toast.error((e as Error).message);
-      setBusy(false);
-    }
   }
   async function doUpdateAmount() {
     const n = Number(editAmount ?? c!.prize_amount);
@@ -396,22 +372,20 @@ function Manage() {
                 </div>
                 <div>
                   <div className="seg" role="tablist">
-                    <button type="button" role="tab" aria-selected={payMethod === "stripe"} onClick={() => setPay("stripe")}>{t("pay.stripeTab")}</button>
-                    <button type="button" role="tab" aria-selected={payMethod === "chain"} onClick={() => setPay("chain")}>{t("pay.chainTab")}</button>
+                    {/* Online payment isn't live yet — clicking shows the same note as on the create page. */}
+                    <button type="button" role="tab" aria-selected="false" aria-disabled="true" onClick={() => setShowStripeNote((v) => !v)}>{t("pay.stripeTab")}</button>
+                    <button type="button" role="tab" aria-selected={chainOk} disabled={!chainOk}>{t("pay.chainTab")}</button>
                   </div>
-                  {payMethod === "stripe" ? (
-                    <div style={{ marginTop: 14 }}>
-                      <button type="button" className="mbtn" disabled={busy} onClick={payStripe}>
-                        <Lock />{t("m.fundStripeBtn")} {total.toFixed(2)} {c.currency}
-                      </button>
-                      <div className="methods"><span>Visa</span><span>Mastercard</span><span>Apple Pay</span><span>支付宝</span></div>
-                      <p className="fine">{t("m.fundStripeNote")}</p>
-                    </div>
-                  ) : (
-                    <div style={{ marginTop: 14 }}>
-                      <ChainFundingBody getCampaign={() => Promise.resolve(c)} total={total} busy={busy} setBusy={setBusy} onDone={refresh} />
-                    </div>
+                  {showStripeNote && (
+                    <p style={{ fontSize: 12, color: "var(--muted-foreground)", marginTop: 10, textAlign: "center", padding: "6px 10px", background: "rgba(255,255,255,.04)", borderRadius: 8 }}>{t("pay.stripeDisabled")}</p>
                   )}
+                  <div style={{ marginTop: 14 }}>
+                    {chainOk ? (
+                      <ChainFundingBody getCampaign={() => Promise.resolve(c)} total={total} busy={busy} setBusy={setBusy} onDone={refresh} />
+                    ) : (
+                      <p className="fine">{t("pay.nonUsdtHint")}</p>
+                    )}
+                  </div>
                 </div>
               </div>
             </section>
