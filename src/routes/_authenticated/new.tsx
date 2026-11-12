@@ -998,12 +998,13 @@ function TweetComposer({
       toast.error(t("pub.empty"));
       return;
     }
-    const { configured } = await getXStatus();
-    if (!configured) {
+    const status = await getXStatus();
+    if (!status.configured) {
       setModal("off");
       return;
     }
-    setModal("auth");
+    // Direct access token: skip auth step, go straight to confirm.
+    setModal("confirm");
   }
   async function runPublish() {
     if (!campaignId) {
