@@ -158,7 +158,7 @@ function NewCampaign() {
       ) as Record<MetricKey, string>,
   );
   const [condErr, setCondErr] = useState("");
-  const [payMethod, setPayMethod] = useState<"stripe" | "chain">("chain");
+  const [payMethod, setPayMethod] = useState<"stripe" | "chain">("stripe");
   const [editing, setEditing] = useState(false);
   const navigate = useNavigate();
   const [showStripeNote, setShowStripeNote] = useState(false);
@@ -196,7 +196,9 @@ function NewCampaign() {
   const stripeOk = stripeSupports(f.currency);
   const chainOk = f.currency === "USDT" || f.currency === "USDC";
   const effMethod: "stripe" | "chain" =
-    payMethod === "stripe" && !stripeOk && chainOk ? "chain" : payMethod;
+    payMethod === "stripe" && !stripeOk && chainOk ? "chain"
+    : payMethod === "chain" && !chainOk && stripeOk ? "stripe"
+    : payMethod;
   const canPay = (effMethod === "stripe" && stripeOk) || (effMethod === "chain" && chainOk);
   /** Online payment → the prize is delivered as a gift card; texts/card switch wording. */
   const crypto = effMethod === "chain";
@@ -1369,9 +1371,9 @@ function PayTicket({
                 type="button"
                 role="tab"
                 aria-selected={method === "stripe"}
-                aria-disabled="true"
+                aria-disabled={!stripeOk}
                 style={{ width: "100%" }}
-                onClick={() => setShowStripeNote(!showStripeNote)}
+                onClick={() => (stripeOk ? setMethod("stripe") : setShowStripeNote(!showStripeNote))}
               >
                 {t("pay.stripeTab")}
               </button>

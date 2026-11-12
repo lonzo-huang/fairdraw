@@ -925,8 +925,8 @@ const dict = {
   "pay.stripeTab": { zh: "线上支付", en: "Online payment" },
   "pay.chainTab": { zh: "USDT / USDC 加密支付", en: "USDT / USDC crypto" },
   "pay.stripeDisabled": {
-    zh: "线上支付功能暂时不可用",
-    en: "Online payment is temporarily unavailable",
+    zh: "该币种暂不支持线上支付，请使用加密支付",
+    en: "Online payment isn't available for this currency — please use crypto",
   },
   "pay.nonUsdtHint": {
     zh: "链上仅支持 USDT / USDC，其他币种请选线上支付",

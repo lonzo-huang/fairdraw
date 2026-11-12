@@ -224,7 +224,7 @@ function Manage() {
     else { toast.success(t("m.linked")); setLink(""); setLinkEdit(false); refresh(); }
   }
   async function setPay(m: "stripe" | "chain") {
-    if (m === payMethod) return;
+    if (m === c!.payment_method) return;
     setPaySel(m);
     const { error } = await supabase.from("campaigns").update({ payment_method: m }).eq("id", c!.id);
     if (error) { setPaySel(null); toast.error(error.message); }
@@ -232,6 +232,13 @@ function Manage() {
   async function payStripe() {
     setBusy(true);
     try {
+      // The UI defaults the tab to Stripe for unset/"manual" methods — persist
+      // the choice first or the server rejects checkout as a non-Stripe campaign.
+      if (c!.payment_method !== "stripe") {
+        const { error } = await supabase.from("campaigns").update({ payment_method: "stripe" }).eq("id", c!.id);
+        if (error) throw new Error(error.message);
+        setPaySel("stripe");
+      }
       const r = await checkout({ data: { campaignId: c!.id, origin: window.location.origin } });
       if (r.url) window.location.href = r.url;
     } catch (e) {
