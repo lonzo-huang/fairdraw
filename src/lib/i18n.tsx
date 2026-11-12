@@ -272,6 +272,7 @@ const dict = {
   "auth.password": { zh: "密码", en: "Password" },
   "auth.google": { zh: "使用 Google 继续", en: "Continue with Google" },
   "auth.x": { zh: "使用 X 继续", en: "Continue with X" },
+  "auth.oauthFail": { zh: "登录失败", en: "Sign-in failed" },
   "auth.or": { zh: "或", en: "or" },
   "auth.check": { zh: "请查收邮箱中的确认链接。", en: "Check your email for a confirmation link." },
   "auth.toSignup": { zh: "还没有账号？注册", en: "No account? Sign up" },

@@ -55,6 +55,20 @@ function AuthPage() {
     }
   }, [user, navigate, target]);
 
+  // Supabase bounces OAuth failures back here as ?error=… / #error=… params —
+  // show the description once and strip it so a refresh doesn't re-toast.
+  useEffect(() => {
+    const params = (s: string) => new URLSearchParams(s.replace(/^[?#]/, ""));
+    const q = params(window.location.search);
+    const h = params(window.location.hash);
+    const desc = q.get("error_description") ?? h.get("error_description") ?? q.get("error") ?? h.get("error");
+    if (!desc) return;
+    toast.error(`${t("auth.oauthFail")}：${decodeURIComponent(desc)}`, { duration: 8000 });
+    const redirect = q.get("redirect");
+    window.history.replaceState({}, "", window.location.pathname + (redirect ? `?redirect=${encodeURIComponent(redirect)}` : ""));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     setBusy(true);
