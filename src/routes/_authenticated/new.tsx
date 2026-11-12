@@ -1020,18 +1020,27 @@ function TweetComposer({
     tick(1);
     try {
       const b = await pngBlob();
-      // Upload card to Supabase storage so server fn receives a small URL
-      // instead of a large base64 payload (avoids CSRF body-size issues).
-      const imgPath = `${campaignId}/tweet-card-${Date.now()}.png`;
-      const { error: upErr } = await supabase.storage
-        .from("campaign-share")
-        .upload(imgPath, b, { contentType: "image/png", upsert: true });
-      if (upErr) throw upErr;
-      const { data: signed } = await supabase.storage
-        .from("campaign-share")
-        .createSignedUrl(imgPath, 300);
-      const imageUrl = signed?.signedUrl ?? "";
-      const out = (await publishX({ data: { campaignId, body, reply, alt, imageUrl } })) as {
+      // Resize to ≤600 px wide JPEG (~20-40 KB) so the server-fn POST body
+      // stays well under Cloudflare WAF's body-size firewall limit.
+      const bmp = await createImageBitmap(b);
+      const scale = Math.min(1, 600 / bmp.width);
+      const tw = Math.round(bmp.width * scale);
+      const th = Math.round(bmp.height * scale);
+      const cv = document.createElement("canvas");
+      cv.width = tw;
+      cv.height = th;
+      cv.getContext("2d")!.drawImage(bmp, 0, 0, tw, th);
+      bmp.close();
+      const small = await new Promise<Blob>((res) =>
+        cv.toBlob((x) => res(x!), "image/jpeg", 0.9),
+      );
+      const imageBase64 = await new Promise<string>((res, rej) => {
+        const r = new FileReader();
+        r.onload = () => res((r.result as string).split(",")[1] ?? "");
+        r.onerror = () => rej(new Error("read failed"));
+        r.readAsDataURL(small);
+      });
+      const out = (await publishX({ data: { campaignId, body, reply, alt, imageBase64 } })) as {
         tweetUrl?: string;
       };
       setRunStep(4);
