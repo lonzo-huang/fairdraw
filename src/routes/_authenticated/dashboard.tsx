@@ -88,20 +88,25 @@ function dailySeries(snaps: SnapRow[], key: "view" | "eng" | "fol", days: number
   for (const arr of groups.values()) {
     arr.sort((a, b) => Date.parse(a.fetched_at) - Date.parse(b.fetched_at));
     const daily = new Map<number, number>();
+    const firstDaily = new Map<number, number>();
     for (const s of arr) {
       const m = asM(s.metrics);
       const v = key === "view" ? m?.views : key === "fol" ? m?.followers : eng(m);
       if (typeof v !== "number") continue;
-      daily.set(Math.floor(Date.parse(s.fetched_at) / DAY), v);
+      const d = Math.floor(Date.parse(s.fetched_at) / DAY);
+      if (!firstDaily.has(d)) firstDaily.set(d, v);
+      daily.set(d, v);
     }
     const keys = [...daily.keys()].sort((a, b) => a - b);
     keys.forEach((d, i) => {
       const idx = d - start;
       if (idx < 0 || idx >= days) return;
       const pk = keys[i - 1];
-      // First observed day is the baseline — without it a pre-existing
-      // follower/view count would be booked as "new" on day one.
-      const prev = i > 0 && pk !== undefined ? (daily.get(pk) ?? 0) : daily.get(d)!;
+      // Baseline is the first reading, not zero — a post may predate tracking,
+      // so its stock count is never booked as "new". But growth AFTER the
+      // first reading of a day does count, so day one must not use the
+      // end-of-day value as its own baseline.
+      const prev = i > 0 && pk !== undefined ? (daily.get(pk) ?? firstDaily.get(d)!) : firstDaily.get(d)!;
       out[idx] += Math.max(0, daily.get(d)! - prev);
     });
   }
