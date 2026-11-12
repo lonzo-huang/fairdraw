@@ -50,7 +50,9 @@ async function postTweet(
  * with tweet.write + users.read scopes) set as a server secret.
  * Full per-user PKCE flow can be added later; this uses the app-owner token.
  */
-export const xPublishStatus = createServerFn({ method: "GET" }).handler(async () => ({
+// POST on purpose: a GET status check would be HTTP-cacheable and could keep
+// returning a stale configured:false after the secret is added.
+export const xPublishStatus = createServerFn({ method: "POST" }).handler(async () => ({
   configured: Boolean(process.env["X_ACCESS_TOKEN"]),
 }));
 

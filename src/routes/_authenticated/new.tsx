@@ -930,7 +930,7 @@ function TweetComposer({
   setCardTheme: (s: CardTheme) => void;
   getXStatus: () => Promise<{ configured: boolean }>;
   publishX: (o: {
-    data: { campaignId: string; body: string; reply: string; alt: string; imagePngBase64: string };
+    data: { campaignId: string; body: string; reply: string; alt: string; imageBase64: string };
   }) => Promise<unknown>;
   campaignId: string | null;
   onPublished: (tweetUrl: string) => void;
