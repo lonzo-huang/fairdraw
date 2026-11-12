@@ -28,6 +28,7 @@ export default defineConfig({
         // Serve on the existing fairdraw.win zone instead of workers.dev.
         workers_dev: false,
         routes: [
+          { pattern: "fairdraw.win", custom_domain: true },
           { pattern: "dev.fairdraw.win", custom_domain: true },
           { pattern: "www.fairdraw.win", custom_domain: true },
         ],
