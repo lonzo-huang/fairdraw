@@ -12,8 +12,14 @@ export function usdValue(amount: number | null, currency: string): number {
 /** A campaign is only really running once the pool is funded and the post is
  * bound. Drafts still awaiting payment or a tweet never enter public boards. */
 const FUNDED_ESCROW = new Set(["funded", "preauthorized"]);
+/** A declared pool is only real money once escrow confirms funding. Campaigns
+ * with no declared amount never need funding; payment_method may still be
+ * unset (draft) so it cannot gate this check. */
+export function poolFunded(c: Pick<HubCampaign, "prize_amount" | "escrow_status">) {
+  return !c.prize_amount || FUNDED_ESCROW.has(c.escrow_status);
+}
 export function isLive(c: HubCampaign, now: number) {
-  return c.status === "open" && Date.parse(c.ends_at) > now && FUNDED_ESCROW.has(c.escrow_status) && !!c.tweet_url;
+  return c.status === "open" && Date.parse(c.ends_at) > now && poolFunded(c) && !!c.tweet_url;
 }
 export function filterHub(campaigns: HubCampaign[], tab: HubTab, now: number, currency = "ALL") {
   const active = campaigns.filter((c) => isLive(c, now));
@@ -74,7 +80,7 @@ export async function fetchAllSnaps<T>(page: (from: number, size: number) => Pro
   return out;
 }
 export function todayLeader(campaigns: HubCampaign[], now: number) {
-  return campaigns.filter((c) => c.prize_amount !== null && Date.parse(c.created_at) >= periodStart(now, "day") && Date.parse(c.created_at) <= now && ["open", "drawn"].includes(c.status)).sort((a, b) => usdValue(b.prize_amount, b.currency) - usdValue(a.prize_amount, a.currency))[0];
+  return campaigns.filter((c) => c.prize_amount !== null && Date.parse(c.created_at) >= periodStart(now, "day") && Date.parse(c.created_at) <= now && (c.status === "drawn" || (c.status === "open" && poolFunded(c)))).sort((a, b) => usdValue(b.prize_amount, b.currency) - usdValue(a.prize_amount, a.currency))[0];
 }
 export function winnerHandles(raw: unknown): string[] {
   if (!Array.isArray(raw)) return [];

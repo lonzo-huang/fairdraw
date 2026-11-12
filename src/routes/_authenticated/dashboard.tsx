@@ -10,7 +10,7 @@ import {
   MessageCircle, MessageSquare, MoreHorizontal, Plus, Repeat2, Search, UserPlus, Users, Zap,
 } from "lucide-react";
 import type { Conditions, Metrics } from "@/lib/conditions";
-import { fetchAllSnaps } from "@/lib/campaign-hub";
+import { fetchAllSnaps, poolFunded } from "@/lib/campaign-hub";
 
 export const Route = createFileRoute("/_authenticated/dashboard")({
   head: () => ({ meta: [
@@ -58,7 +58,7 @@ const md = (d: Date) => `${d.getMonth() + 1}/${d.getDate()}`;
 function stOf(c: Camp, now: number): St {
   if (c.status === "drawn") return "done";
   if (c.status === "cancelled" || Date.parse(c.ends_at) <= now) return "end";
-  const unpaid = !!c.prize_amount && (c.payment_method === "stripe" || c.payment_method === "chain") && c.escrow_status === "awaiting";
+  const unpaid = !poolFunded(c);
   if (unpaid) return "pay";
   return c.tweet_url ? "live" : "draft";
 }

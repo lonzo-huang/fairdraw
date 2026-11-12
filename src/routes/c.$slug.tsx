@@ -9,7 +9,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { getCampaignShare } from "@/lib/campaign-share.functions";
 import { getEscrowState } from "@/lib/payment.functions";
 import { conditionSummary, prizeSummary } from "@/lib/campaign-share";
-import { fetchAllSnaps, isLive, xHandleFromUrl, type HubCampaign } from "@/lib/campaign-hub";
+import { fetchAllSnaps, isLive, poolFunded, xHandleFromUrl, type HubCampaign } from "@/lib/campaign-hub";
 import { Activity, ArrowUpRight, BadgeCheck, Ban, BarChart3, Clock, Eye, Heart, Info, Link2, ListOrdered, Lock, MessageCircle, MessageSquare, Percent, Repeat2, Search, Share2, ShieldCheck, UserPlus, Users } from "lucide-react";
 
 export const Route = createFileRoute("/c/$slug")({
@@ -63,7 +63,7 @@ function CampaignPage() {
         supabase.from("draws").select("drawn_at").eq("campaign_id", c.id).maybeSingle(),
         c.payment_method === "chain" && c.prize_amount !== null ? getEscrowState({ data: { campaignId: c.id } }) : Promise.resolve(null),
         supabase.from("entries").select("handle, eligibility_status, fetched_meta, created_at").eq("campaign_id", c.id).order("created_at", { ascending: false }).limit(120),
-        supabase.from("campaigns").select("id,slug,title,prize,prize_amount,currency,winners_count,ends_at,created_at,status,escrow_status,tweet_url,owner_id,clicks,conditions").eq("status", "open").not("tweet_url", "is", null).neq("id", c.id).order("created_at", { ascending: false }).limit(40),
+        supabase.from("campaigns").select("id,slug,title,prize,prize_amount,currency,winners_count,ends_at,created_at,status,escrow_status,tweet_url,owner_id,clicks,conditions").eq("status", "open").not("tweet_url", "is", null).or("escrow_status.in.(funded,preauthorized),prize_amount.is.null").neq("id", c.id).order("created_at", { ascending: false }).limit(40),
       ]);
       return { c, count: count ?? 0, snaps, drawAt: draw?.drawn_at ?? null, escrow, entries: entries ?? [], hubs: hubs ?? [] };
     },
@@ -82,6 +82,7 @@ function CampaignPage() {
   const drawn = c.status === "drawn";
   const closed = !open || (cd ? cd.ms === 0 : false);
   const linked = !!c.tweet_url;
+  const funded = poolFunded(c);
   const isOwner = !!user && user.id === c.owner_id;
   const origin = typeof window !== "undefined" ? window.location.origin : "";
   const shareUrl = `${origin}/c/${c.slug}`;
@@ -96,6 +97,7 @@ function CampaignPage() {
   const durH = Math.max(1, Math.round((Date.parse(c.ends_at) - Date.parse(c.created_at)) / 3600e3));
   const badge: [string, string] = c.status === "cancelled" ? ["b-end", t("status.cancelled")]
     : drawn ? ["b-done", t("status.drawn")]
+    : open && !funded ? ["b-wait", t("m.badgeFund")]
     : open && !linked ? ["b-wait", t("m.badgeLink")]
     : closed ? ["b-end", t("m.ended")]
     : ["b-live", t("status.open")];
@@ -111,7 +113,7 @@ function CampaignPage() {
   ];
   if (snaps.length) tlItems.push({ st: "done", t: t("ev.synced"), s: new Date(snaps[0]?.fetched_at ?? "").toLocaleString() });
   if (firstMetSnap) tlItems.push({ st: "done", t: t("ev.firstMet"), s: new Date(firstMetSnap.fetched_at).toLocaleString() });
-  if (open && linked && !pastDeadline) tlItems.push({ st: "now", t: allMet ? t("ev.ready") : t("ev.wait"), s: t("ev.running") });
+  if (open && funded && linked && !pastDeadline) tlItems.push({ st: "now", t: allMet ? t("ev.ready") : t("ev.wait"), s: t("ev.running") });
   tlItems.push({ st: pastDeadline || drawn ? "done" : "", t: t("ev.deadline"), s: new Date(c.ends_at).toLocaleString() });
   if (drawn && drawAt) tlItems.push({ st: "done", t: t("ev.drawn"), s: new Date(drawAt).toLocaleString() });
   else if (c.status === "cancelled") tlItems.push({ st: "", t: t("status.cancelled"), s: "" });
@@ -119,7 +121,8 @@ function CampaignPage() {
   const copyShare = () => { navigator.clipboard.writeText(shareUrl).catch(() => {}); toast.success(t("c.copied")); };
 
   // ── role-aware layout (visitor vs organiser) ──
-  const running = open && linked && !closed;
+  // Unfunded declared pools never look live to visitors.
+  const running = open && funded && linked && !closed;
   const tid = c.tweet_url?.match(/status(?:es)?\/(\d+)/)?.[1] ?? null;
   const joinUrl = tid ? `https://x.com/intent/tweet?in_reply_to=${tid}` : (c.tweet_url ?? "#");
   // Linked while open and not past deadline ⇒ the pool is already locked,
@@ -241,7 +244,7 @@ function CampaignPage() {
             </div>
             <div className="perf" aria-hidden="true" />
             <div className="t-bot">
-              {open && linked && !closed && cd ? (
+              {open && funded && linked && !closed && cd ? (
                 <div>
                   <div className="t-lab" style={{ marginBottom: 6 }}>{t("m.timeLeft")}</div>
                   <div className="cd">
@@ -252,8 +255,8 @@ function CampaignPage() {
                 </div>
               ) : (
                 <div className="cd-wait">
-                  <b>{!linked ? translate(lang, "m.hours", { h: durH }) : drawn ? t("status.drawn") : t("m.ended")}</b>
-                  {!linked ? t("ana.timerWait") : new Date(c.ends_at).toLocaleDateString()}
+                  <b>{!linked ? translate(lang, "m.hours", { h: durH }) : drawn ? t("status.drawn") : !funded ? t("m.badgeFund") : t("m.ended")}</b>
+                  {!linked ? t("ana.timerWait") : !funded ? t("escrow.awaiting") : new Date(c.ends_at).toLocaleDateString()}
                 </div>
               )}
               {running ? (

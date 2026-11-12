@@ -12,6 +12,7 @@ import { campaignTweet } from "@/lib/campaign-share";
 import { hasEthereum, refundEscrowTx, sendTokenTransfer } from "@/lib/wallet";
 import { chainConfig } from "@/lib/payments";
 import { feeAmount, feeRate } from "@/lib/fees";
+import { poolFunded } from "@/lib/campaign-hub";
 import { useFeeTiers } from "@/hooks/use-fee-tiers";
 import { ChainFundingBody } from "@/components/funding-panel";
 import { Button } from "@/components/ui/button";
@@ -119,7 +120,7 @@ function Manage() {
   const now = Date.now();
   const pastDeadline = Date.parse(c.ends_at) < now;
   const leftMs = Math.max(0, Date.parse(c.ends_at) - now);
-  const unfunded = !!c.prize_amount && (c.payment_method === "stripe" || c.payment_method === "chain") && c.escrow_status === "awaiting";
+  const unfunded = !poolFunded(c);
   const canCancel = open && Date.parse(c.created_at) + CANCEL_WINDOW_MS > now;
   const pool = c.prize_amount ?? 0;
   const fee = feeAmount(fees, pool);
