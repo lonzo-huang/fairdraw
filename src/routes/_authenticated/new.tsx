@@ -1020,13 +1020,18 @@ function TweetComposer({
     tick(1);
     try {
       const b = await pngBlob();
-      const imagePngBase64 = await new Promise<string>((res, rej) => {
-        const r = new FileReader();
-        r.onload = () => res((r.result as string).split(",")[1] ?? "");
-        r.onerror = () => rej(new Error("read failed"));
-        r.readAsDataURL(b);
-      });
-      const out = (await publishX({ data: { campaignId, body, reply, alt, imagePngBase64 } })) as {
+      // Upload card to Supabase storage so server fn receives a small URL
+      // instead of a large base64 payload (avoids CSRF body-size issues).
+      const imgPath = `x-cards/${campaignId}/${Date.now()}.png`;
+      const { error: upErr } = await supabase.storage
+        .from("campaign-share")
+        .upload(imgPath, b, { contentType: "image/png", upsert: true });
+      if (upErr) throw upErr;
+      const { data: signed } = await supabase.storage
+        .from("campaign-share")
+        .createSignedUrl(imgPath, 300);
+      const imageUrl = signed?.signedUrl ?? "";
+      const out = (await publishX({ data: { campaignId, body, reply, alt, imageUrl } })) as {
         tweetUrl?: string;
       };
       setRunStep(4);

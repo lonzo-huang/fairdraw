@@ -4,9 +4,11 @@ const X_UPLOAD = "https://upload.twitter.com/1.1/media/upload.json";
 const X_TWEET = "https://api.twitter.com/2/tweets";
 const X_ME = "https://api.twitter.com/2/users/me";
 
-/** Upload PNG blob; set ALT text; return media_id_string. */
-async function uploadMedia(token: string, b64: string, alt: string): Promise<string> {
-  const bytes = Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
+/** Fetch image from URL, upload to X, set ALT text; return media_id_string. */
+async function uploadMedia(token: string, imageUrl: string, alt: string): Promise<string> {
+  const imgRes = await fetch(imageUrl);
+  if (!imgRes.ok) throw new Error(`Failed to fetch card image: ${imgRes.status}`);
+  const bytes = new Uint8Array(await imgRes.arrayBuffer());
   const form = new FormData();
   form.append("media", new Blob([bytes], { type: "image/png" }), "fairdraw.png");
   const r = await fetch(X_UPLOAD, {
@@ -62,7 +64,7 @@ export const publishCampaignTweet = createServerFn({ method: "POST" })
       body: string;
       reply: string;
       alt: string;
-      imagePngBase64: string;
+      imageUrl: string;
     }) => {
       if (!d?.campaignId || !d.body?.trim()) throw new Error("Missing campaign or tweet body");
       return {
@@ -70,7 +72,7 @@ export const publishCampaignTweet = createServerFn({ method: "POST" })
         body: d.body,
         reply: d.reply ?? "",
         alt: d.alt ?? "",
-        imagePngBase64: d.imagePngBase64 ?? "",
+        imageUrl: d.imageUrl ?? "",
       };
     },
   )
@@ -78,8 +80,8 @@ export const publishCampaignTweet = createServerFn({ method: "POST" })
     const token = process.env["X_ACCESS_TOKEN"];
     if (!token) throw new Error("X_PUBLISH_NOT_CONFIGURED");
 
-    const mediaId = d.imagePngBase64
-      ? await uploadMedia(token, d.imagePngBase64, d.alt)
+    const mediaId = d.imageUrl
+      ? await uploadMedia(token, d.imageUrl, d.alt)
       : undefined;
 
     const tweetId = await postTweet(token, d.body, mediaId ? { mediaId } : {});
