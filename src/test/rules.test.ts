@@ -80,7 +80,7 @@ describe("campaign duration & currency", () => {
     expect(Date.parse(endsAtFromDays(1, now))).toBe(864e5);
     expect(Date.parse(endsAtFromDays(7, now))).toBe(3 * 864e5);
   });
-  it("supports five currencies", () => {
-    expect([...CURRENCIES]).toEqual(["CNY", "USD", "USDT", "EUR", "GBP"]);
+  it("supports six currencies", () => {
+    expect([...CURRENCIES]).toEqual(["USDT", "USDC", "CNY", "USD", "EUR", "GBP"]);
   });
 });

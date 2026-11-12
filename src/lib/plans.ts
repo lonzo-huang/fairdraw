@@ -33,10 +33,9 @@ export function detectPlatform(url: string): string {
   }
 }
 
-export const CURRENCIES = ["CNY", "USD", "USDT", "EUR", "GBP"] as const;
+export const CURRENCIES = ["USDT", "USDC", "CNY", "USD", "EUR", "GBP"] as const;
 export const DURATIONS = [1, 2, 3] as const;
 export function endsAtFromDays(days: number, now = Date.now()) {
   const d = Math.min(3, Math.max(1, Math.round(days)));
   return new Date(now + d * 864e5).toISOString();
 }
-
