@@ -18,12 +18,10 @@ import {
 } from "@/lib/campaign-texts";
 import {
   renderCampaignCard,
-  campaignCardBlob,
   CARD_SIZES,
   type CardSize,
   type CardTheme,
 } from "@/lib/campaign-card";
-import { xPublishStatus, publishCampaignTweet } from "@/lib/xpublish.functions";
 import {
   BadgeCheck,
   BarChart3,
@@ -37,7 +35,6 @@ import {
   MessageCircle,
   MessageSquare,
   Repeat2,
-  Send,
   Share,
   Users,
 } from "lucide-react";
@@ -117,11 +114,6 @@ const METRIC_ICON: Record<MetricKey, React.ElementType> = {
   min_participants: Users,
   min_verified: BadgeCheck,
 };
-const X_LOGO = (
-  <svg viewBox="0 0 24 24" fill="currentColor">
-    <path d="M18.2 2.3h3.4l-7.4 8.4 8.7 11.5h-6.8l-5.3-7-6.1 7H1.3l7.9-9L.9 2.3h7l4.8 6.4 5.5-6.4Zm-1.2 17.9h1.9L7.1 4.2H5.1l11.9 16Z" />
-  </svg>
-);
 const TONES = ["f.tone0", "f.tone1", "f.tone2", "f.tone3"] as const;
 const THEME_SWATCH: Record<CardTheme, string> = {
   gold: "linear-gradient(135deg,#0b1020,#f5b83d)",
@@ -165,8 +157,6 @@ function NewCampaign() {
   const [showStripeNote, setShowStripeNote] = useState(false);
   const { data: fees = [] } = useFeeTiers();
   const checkout = useServerFn(startStripeCheckout);
-  const getXStatus = useServerFn(xPublishStatus);
-  const publishX = useServerFn(publishCampaignTweet);
   const set =
     (k: keyof typeof f) =>
     (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) =>
@@ -828,10 +818,6 @@ function NewCampaign() {
                     setCardSize={setCardSize}
                     cardTheme={cardTheme}
                     setCardTheme={setCardTheme}
-                    getXStatus={getXStatus}
-                    publishX={publishX}
-                    campaignId={row?.id ?? null}
-                    onPublished={(url) => setF((prev) => ({ ...prev, tweet_url: url }))}
                   />
                 )}
               </StepSection>
@@ -907,10 +893,6 @@ function TweetComposer({
   setCardSize,
   cardTheme,
   setCardTheme,
-  getXStatus,
-  publishX,
-  campaignId,
-  onPublished,
 }: {
   t: (k: DictKey, p?: Record<string, string | number>) => string;
   d: CardData;
@@ -928,19 +910,7 @@ function TweetComposer({
   setCardSize: (s: CardSize) => void;
   cardTheme: CardTheme;
   setCardTheme: (s: CardTheme) => void;
-  getXStatus: () => Promise<{ configured: boolean }>;
-  publishX: (o: {
-    data: { campaignId: string; body: string; reply: string; alt: string; imageBase64: string };
-  }) => Promise<unknown>;
-  campaignId: string | null;
-  onPublished: (tweetUrl: string) => void;
 }) {
-  const [modal, setModal] = useState<
-    "closed" | "off" | "auth" | "confirm" | "run" | "done" | "error"
-  >("closed");
-  const [runStep, setRunStep] = useState(0);
-  const [pubUrl, setPubUrl] = useState("");
-  const [canShare, setCanShare] = useState(false);
   const cardRef = useRef<HTMLCanvasElement | null>(null);
 
   const pngBlob = () =>
@@ -954,106 +924,22 @@ function TweetComposer({
     });
   const intentUrl = () => `https://x.com/intent/post?text=${encodeURIComponent(body)}`;
 
-  // Show the Web Share button only on devices that can share files.
-  useEffect(() => {
-    (async () => {
-      try {
-        const cv = document.createElement("canvas");
-        await renderCampaignCard(cv, d, cardSize, cardTheme, { avatarUrl: poster?.avatar ?? null });
-        const blob = await campaignCardBlob(cv);
-        const file = new File([blob], "fairdraw.png", { type: "image/png" });
-        if (navigator.canShare?.({ files: [file] })) setCanShare(true);
-      } catch {
-        /* share button stays hidden */
-      }
-    })();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
   async function copyOpen() {
-    const w = window.open("about:blank", "_blank"); // open synchronously so pop-up blockers allow it
+    // ClipboardItem accepts a Promise<Blob>: the write starts inside the user
+    // gesture while the document is still focused, then resolves after the card
+    // renders. Opening X afterwards keeps clipboard access allowed (window.open
+    // first would steal focus and make the write fail silently).
     try {
-      const b = await pngBlob();
-      await navigator.clipboard.write([new ClipboardItem({ "image/png": b })]);
+      await navigator.clipboard.write([new ClipboardItem({ "image/png": pngBlob() })]);
       toast.success(t("pub.imgCopied"));
     } catch {
       toast.error(t("pub.noClipboard"));
     }
     const url = intentUrl();
-    if (w) w.location.href = url;
-    else window.location.href = url;
-  }
-  async function shareApp() {
-    try {
-      const b = await pngBlob();
-      const file = new File([b], "fairdraw.png", { type: "image/png" });
-      await navigator.share({ files: [file], text: body });
-    } catch (e) {
-      if ((e as Error).name !== "AbortError") toast.error(t("pub.shareFail"));
-    }
+    const w = window.open(url, "_blank", "noopener");
+    if (!w) window.location.href = url;
   }
 
-  async function oneClick() {
-    if (!body.trim()) {
-      toast.error(t("pub.empty"));
-      return;
-    }
-    const status = await getXStatus();
-    if (!status.configured) {
-      setModal("off");
-      return;
-    }
-    // Direct access token: skip auth step, go straight to confirm.
-    setModal("confirm");
-  }
-  async function runPublish() {
-    if (!campaignId) {
-      setModal("error");
-      return;
-    }
-    setModal("run");
-    setRunStep(0);
-    const tick = (i: number) => {
-      setRunStep(i);
-      if (i < 3) setTimeout(() => tick(i + 1), 600);
-    };
-    tick(1);
-    try {
-      const b = await pngBlob();
-      // Resize to ≤600 px wide JPEG (~20-40 KB) so the server-fn POST body
-      // stays well under Cloudflare WAF's body-size firewall limit.
-      const bmp = await createImageBitmap(b);
-      const scale = Math.min(1, 600 / bmp.width);
-      const tw = Math.round(bmp.width * scale);
-      const th = Math.round(bmp.height * scale);
-      const cv = document.createElement("canvas");
-      cv.width = tw;
-      cv.height = th;
-      cv.getContext("2d")!.drawImage(bmp, 0, 0, tw, th);
-      bmp.close();
-      const small = await new Promise<Blob>((res) =>
-        cv.toBlob((x) => res(x!), "image/jpeg", 0.9),
-      );
-      const imageBase64 = await new Promise<string>((res, rej) => {
-        const r = new FileReader();
-        r.onload = () => res((r.result as string).split(",")[1] ?? "");
-        r.onerror = () => rej(new Error("read failed"));
-        r.readAsDataURL(small);
-      });
-      const out = (await publishX({ data: { campaignId, body, reply, alt, imageBase64 } })) as {
-        tweetUrl?: string;
-      };
-      setRunStep(4);
-      const url = out?.tweetUrl ?? "";
-      setPubUrl(url);
-      if (url) onPublished(url);
-      setModal("done");
-    } catch {
-      setModal("error");
-    }
-  }
-
-  const runLabels = [t("xpub.s1"), t("xpub.s2"), t("xpub.s3"), t("xpub.s4")];
   return (
     <>
       <div className="opt-row">
@@ -1145,24 +1031,12 @@ function TweetComposer({
           <span>{t("pub.sub")}</span>
         </div>
         <div className="pub-row">
-          <button type="button" className="xb white" onClick={() => void oneClick()}>
-            {X_LOGO}
-            {t("pub.one")}
-          </button>
-          <button type="button" className="xb line" onClick={() => void copyOpen()}>
+          <button type="button" className="xb main" onClick={() => void copyOpen()}>
             <Copy />
             {t("pub.copyOpen")}
           </button>
-          {canShare && (
-            <button type="button" className="xb line" onClick={() => void shareApp()}>
-              <Send />
-              {t("pub.shareApp")}
-            </button>
-          )}
         </div>
         <p className="pub-tip">
-          <b>{t("pub.one")}</b>：{t("pub.tip1")}
-          <br />
           <b>{t("pub.copyOpen")}</b>：{t("pub.tip2")}
         </p>
       </div>
@@ -1216,184 +1090,6 @@ function TweetComposer({
         theme={cardTheme}
         avatarUrl={poster?.avatar ?? null}
       />
-
-      {modal !== "closed" && (
-        <div
-          className="xmodal"
-          role="dialog"
-          aria-modal="true"
-          onClick={(e) => {
-            if (e.target === e.currentTarget) setModal("closed");
-          }}
-          onKeyDown={(e) => {
-            if (e.key === "Escape") setModal("closed");
-          }}
-          tabIndex={-1}
-        >
-          <div className="xmbox">
-            <div className="xmh">
-              <span className="xic">{X_LOGO}</span>
-              <b>
-                {modal === "off"
-                  ? t("xpub.offTitle")
-                  : modal === "auth"
-                    ? t("xpub.authTitle")
-                    : modal === "confirm"
-                      ? t("xpub.confirmTitle")
-                      : modal === "run"
-                        ? t("xpub.running")
-                        : modal === "done"
-                          ? t("xpub.doneTitle")
-                          : t("xpub.offTitle")}
-              </b>
-              <button type="button" aria-label={t("xpub.close")} onClick={() => setModal("closed")}>
-                ✕
-              </button>
-            </div>
-            <div className="xmb">
-              {modal === "off" && (
-                <p style={{ fontSize: 14, color: "var(--muted-foreground)" }}>{t("pub.off")}</p>
-              )}
-              {modal === "auth" && (
-                <>
-                  <p style={{ fontSize: 14, color: "var(--muted-foreground)" }}>
-                    {t("xpub.authDesc", { handle: d.host })}
-                  </p>
-                  <ul className="xperm">
-                    <li>
-                      <i>✓</i>
-                      {t("xpub.p1")}
-                    </li>
-                    <li>
-                      <i>✓</i>
-                      {t("xpub.p2")}
-                    </li>
-                    <li>
-                      <i>✓</i>
-                      {t("xpub.p3")}
-                    </li>
-                    <li className="no">
-                      <i>✕</i>
-                      {t("xpub.n1")}
-                    </li>
-                    <li className="no">
-                      <i>✕</i>
-                      {t("xpub.n2")}
-                    </li>
-                  </ul>
-                  <p style={{ fontSize: 12, color: "var(--muted-foreground)", marginTop: 12 }}>
-                    {t("xpub.revoke")}
-                  </p>
-                </>
-              )}
-              {modal === "confirm" && (
-                <>
-                  <p style={{ fontSize: 14, color: "var(--muted-foreground)" }}>
-                    {t("xpub.willPost", { handle: d.host })}
-                  </p>
-                  <div className="xmprev">
-                    <div className="pt">{body}</div>
-                    <CardThumb
-                      d={d}
-                      size={cardSize}
-                      theme={cardTheme}
-                      avatarUrl={poster?.avatar ?? null}
-                      alt={alt}
-                    />
-                  </div>
-                  <p style={{ fontSize: 13, color: "var(--muted-foreground)", marginTop: 12 }}>
-                    {t("xpub.thenReply", { reply })}
-                  </p>
-                  <p style={{ fontSize: 12, color: "var(--muted-foreground)", marginTop: 4 }}>
-                    {t("xpub.altNote")}
-                  </p>
-                </>
-              )}
-              {modal === "run" && (
-                <ul className="xprog">
-                  {runLabels.map((lb, i) => (
-                    <li key={lb} className={runStep > i ? "ok" : runStep === i + 1 ? "run" : ""}>
-                      <i>{runStep > i ? "✓" : i + 1}</i>
-                      {lb}
-                    </li>
-                  ))}
-                </ul>
-              )}
-              {modal === "done" && (
-                <>
-                  <p style={{ fontSize: 14, color: "var(--muted-foreground)" }}>
-                    {t("xpub.doneDesc")}
-                  </p>
-                  {pubUrl && (
-                    <div className="xdone">
-                      <code>{pubUrl.replace("https://", "")}</code>
-                      <a
-                        className="mini-btn"
-                        href={pubUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        style={{ textDecoration: "none" }}
-                      >
-                        {t("xpub.view")}
-                      </a>
-                    </div>
-                  )}
-                  <p style={{ fontSize: 12, color: "var(--muted-foreground)", marginTop: 12 }}>
-                    {t("xpub.paidNote")}
-                  </p>
-                </>
-              )}
-              {modal === "error" && (
-                <p style={{ fontSize: 14, color: "var(--muted-foreground)" }}>{t("pub.off")}</p>
-              )}
-            </div>
-            <div className="xmf">
-              {modal === "off" && (
-                <button type="button" className="xb main" onClick={() => setModal("closed")}>
-                  {t("xpub.close")}
-                </button>
-              )}
-              {modal === "auth" && (
-                <>
-                  <button type="button" className="xb line" onClick={() => setModal("closed")}>
-                    {t("xpub.cancel")}
-                  </button>
-                  <button type="button" className="xb white" onClick={() => setModal("confirm")}>
-                    {X_LOGO}
-                    {t("xpub.goAuth")}
-                  </button>
-                </>
-              )}
-              {modal === "confirm" && (
-                <>
-                  <button type="button" className="xb line" onClick={() => setModal("closed")}>
-                    {t("xpub.back")}
-                  </button>
-                  <button type="button" className="xb main" onClick={() => void runPublish()}>
-                    {X_LOGO}
-                    {t("xpub.go")}
-                  </button>
-                </>
-              )}
-              {modal === "done" && (
-                <button type="button" className="xb main" onClick={() => setModal("closed")}>
-                  {t("xpub.goPay")}
-                </button>
-              )}
-              {modal === "error" && (
-                <>
-                  <button type="button" className="xb line" onClick={() => setModal("closed")}>
-                    {t("xpub.cancel")}
-                  </button>
-                  <button type="button" className="xb main" onClick={() => void runPublish()}>
-                    {t("xpub.go")}
-                  </button>
-                </>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
     </>
   );
 }
@@ -1421,31 +1117,6 @@ const HiddenCard = forwardRef<
     />
   );
 });
-
-/** Small thumbnail of the card for the confirm modal. */
-function CardThumb({
-  d,
-  size,
-  theme,
-  avatarUrl,
-  alt,
-}: {
-  d: CardData;
-  size: CardSize;
-  theme: CardTheme;
-  avatarUrl: string | null;
-  alt: string;
-}) {
-  const ref = useRef<HTMLCanvasElement | null>(null);
-  const [src, setSrc] = useState("");
-  useEffect(() => {
-    const cv = ref.current ?? document.createElement("canvas");
-    void renderCampaignCard(cv, d, size, theme, { avatarUrl })
-      .then(() => setSrc(cv.toDataURL("image/png")))
-      .catch(() => {});
-  }, [d, size, theme, avatarUrl]);
-  return src ? <img src={src} alt={alt} /> : <canvas ref={ref} style={{ display: "none" }} />;
-}
 
 /** Right rail: X-realistic preview (main tweet + card image + first reply) + copy/download. */
 function PreviewPanel({
