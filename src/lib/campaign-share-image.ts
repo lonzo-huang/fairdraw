@@ -18,7 +18,12 @@ export async function renderShareImage(c: ShareCampaign): Promise<Blob> {
   image.src = banner;
   try { await image.decode(); ctx.drawImage(image, 0, 0, image.width, image.height, 0, 0, 1200, 220); } catch { /* Text remains complete without background art. */ }
   ctx.fillStyle = color("primary"); ctx.fillRect(0, 0, 12, 630);
-  ctx.font = `600 26px ${font}`; ctx.fillText(translate(m.language, "share.brand"), 52, 60);
+  // Brand row: gold ticket mark + wordmark (PNG mark — guaranteed canvas decode).
+  const mark = new Image();
+  mark.src = "/fairdraw-mark-512.png";
+  let textX = 52;
+  try { await mark.decode(); ctx.drawImage(mark, 52, 30, 36, 36); textX = 100; } catch { /* Mark is decorative; brand text still renders. */ }
+  ctx.font = `600 26px ${font}`; ctx.fillText(translate(m.language, "share.brand"), textX, 60);
   const wrap = (text: string, x: number, y: number, width: number, size: number, maxLines: number) => {
     ctx.font = `600 ${size}px ${font}`;
     const lines: string[] = []; let line = "";

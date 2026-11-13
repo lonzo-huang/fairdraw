@@ -6,12 +6,12 @@ import { useAuth } from "@/hooks/use-auth";
 import { useI18n } from "@/lib/i18n";
 import { Button } from "@/components/ui/button";
 import { ArrowUpRight, Menu, X } from "lucide-react";
-import logoImg from "@/assets/fairdraw-logo.png";
+const logoSrc = "/fairdraw-logo-dark-bg.svg";
 
 export function Logo() {
   return (
     <Link to="/" className="flex shrink-0 items-center" aria-label="FairDraw">
-      <img src={logoImg} alt="FairDraw" className="h-9 w-auto object-contain" />
+      <img src={logoSrc} alt="FairDraw" className="h-9 w-auto object-contain" />
     </Link>
   );
 }

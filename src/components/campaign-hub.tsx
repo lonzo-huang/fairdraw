@@ -11,7 +11,6 @@ import { Button } from "@/components/ui/button";
 import { MotionSurface, MotionReveal } from "@/components/motion-surface";
 import { parseConditions, type Metrics } from "@/lib/conditions";
 import { AnimatedNumber, AnimatedProgress } from "@/components/animated-value";
-import logoAsset from "@/assets/fairdraw-logo.png.asset.json";
 
 const sections = [{ id: "drawn", key: "cy.drawn", icon: Trophy }, { id: "top", key: "cy.top", icon: Flame }, { id: "latest", key: "cy.latest", icon: Zap }, { id: "ending", key: "cy.ending", icon: Clock3 }] as const;
 const HUB_PAGE = 5;
@@ -98,7 +97,7 @@ function CampaignCard({ c, now, index, hostName, metrics, progress, winners }: {
       <div className="mt-2 grid grid-cols-2 gap-1 text-center"><div><p className="font-mono text-[10px] text-muted-foreground">{t("cy.total")}</p><p className="truncate font-mono text-base font-semibold text-prize" title={`${c.prize_amount ?? c.prize} ${c.currency}`}>{c.prize_amount !== null ? <><AnimatedNumber value={c.prize_amount} decimals={c.prize_amount % 1 ? 2 : 0} /><span className="ml-1 text-[10px]">{c.currency}</span></> : <span className="text-[10px]">{c.prize}</span>}</p></div><div><p className="font-mono text-[10px] text-muted-foreground">{t("cy.places")}</p><p className="flex items-center justify-center gap-1 font-mono text-base"><Users className="size-3 text-muted-foreground" />{c.winners_count}</p></div></div>
     </div>
     <div className="relative isolate flex flex-1 flex-col px-3 pb-3">
-      <CardBg src={winners[0] ? avatarUrl(winners[0]) : logoAsset.url} contain={!winners[0]} />
+      <CardBg src={winners[0] ? avatarUrl(winners[0]) : "/fairdraw-mark.svg"} contain={!winners[0]} />
       <ul className="condition-slot rounded-md border border-border bg-muted/40 px-2 py-1.5 text-[10px]">{conds.keyword && <li className="flex justify-between gap-1"><span className="text-muted-foreground">{t("cond.keyword")}</span><span className="truncate" title={conds.keyword}>{conds.keyword}</span></li>}{rows.length ? rows.map((r) => <li key={r.key} className="flex justify-between gap-1"><span className="text-muted-foreground">{t(r.key)}</span><span className={`font-mono ${r.cur !== null && r.cur >= r.target ? "text-success" : ""}`}>{r.cur ?? "—"}/{r.target}</span></li>) : !conds.keyword && <li className="text-muted-foreground">{t("cy.noConditions")}</li>}</ul>
       <div className="metric-duo mt-2 grid grid-cols-2 gap-1.5"><div className="exposure-box" title={t("cy.exposureNote")}><TrendingUp className="metric-signal" /><p className="text-[10px] text-muted-foreground">{t("cy.exposure")}</p><p className="font-mono text-xl font-bold text-prize">{typeof metrics?.views === "number" ? <AnimatedNumber value={metrics.views} compact /> : "—"}</p></div><div className="exposure-box" title={t("cy.popularityNote")}><span className="metric-signal live-dot" /><p className="text-[10px] text-muted-foreground">{t("cy.popularity")}</p><p className="font-mono text-xl font-bold text-success">{popularity === null ? "—" : <AnimatedNumber value={popularity} compact />}</p></div></div>
       <div className="mt-2 flex justify-between text-[10px] text-muted-foreground"><span>{t("cy.drawProgress")}</span><span className="font-mono">{progress === undefined ? "—" : `${progress}%`}</span></div><AnimatedProgress label={t("cy.drawProgress")} value={progress} tone="heat" />
