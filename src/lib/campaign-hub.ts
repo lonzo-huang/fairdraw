@@ -83,8 +83,12 @@ export async function fetchAllSnaps<T>(page: (from: number, size: number) => Pro
   return out;
 }
 export function todayLeader(campaigns: HubCampaign[], now: number) {
+  // Largest live real-money pool; a pool drawn today still counts for its day.
   // Simulated pools are declared but never paid — they must never top money boards.
-  return campaigns.filter((c) => c.prize_amount !== null && !c.is_simulated && Date.parse(c.created_at) >= periodStart(now, "day") && Date.parse(c.created_at) <= now && (c.status === "drawn" || (c.status === "open" && poolFunded(c)))).sort((a, b) => usdValue(b.prize_amount, b.currency) - usdValue(a.prize_amount, a.currency))[0];
+  const createdToday = (c: HubCampaign) => Date.parse(c.created_at) >= periodStart(now, "day") && Date.parse(c.created_at) <= now;
+  return campaigns
+    .filter((c) => c.prize_amount !== null && !c.is_simulated && (isLive(c, now) || (c.status === "drawn" && createdToday(c))))
+    .sort((a, b) => usdValue(b.prize_amount, b.currency) - usdValue(a.prize_amount, a.currency))[0];
 }
 export function winnerHandles(raw: unknown): string[] {
   if (!Array.isArray(raw)) return [];

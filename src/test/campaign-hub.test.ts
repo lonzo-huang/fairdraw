@@ -47,9 +47,17 @@ describe("Sponsor boards", () => {
     expect(periodStart(at, "week")).toBe(Date.parse("2026-10-26T00:00:00Z"));
     expect(periodStart(at, "day")).toBe(Date.parse("2026-10-29T00:00:00Z"));
   });
-  it("today's leader is the largest pool published today, priced in USD", () => {
-    // 500 CNY ≈ 70 USD < 100 USDT, but a 2000 CNY pool ≈ 280 USD would lead.
-    expect(todayLeader([campaign("yesterday", { prize_amount: 9999 }), campaign("today", { created_at: "2026-10-29T01:00:00Z", prize_amount: 100 }), campaign("cny", { created_at: "2026-10-29T02:00:00Z", prize_amount: 500, currency: "CNY" })], at)?.id).toBe("today");
-    expect(todayLeader([campaign("cny", { created_at: "2026-10-29T02:00:00Z", prize_amount: 2000, currency: "CNY" }), campaign("today", { created_at: "2026-10-29T01:00:00Z", prize_amount: 100 })], at)?.id).toBe("cny");
+  it("today's leader is the largest live real pool, priced in USD", () => {
+    const live = { ends_at: "2026-10-30T12:00:00Z" };
+    // MVP is the biggest live pool — creation date doesn't matter while it's running.
+    expect(todayLeader([campaign("old-big", { prize_amount: 9999, ...live }), campaign("small", { created_at: "2026-10-29T01:00:00Z", prize_amount: 100, ...live })], at)?.id).toBe("old-big");
+    // 2000 CNY ≈ 280 USD leads a 100 USDT pool.
+    expect(todayLeader([campaign("cny", { prize_amount: 2000, currency: "CNY", ...live }), campaign("usdt", { prize_amount: 100, ...live })], at)?.id).toBe("cny");
+    // Simulated, unfunded, and expired pools never top the board.
+    expect(todayLeader([campaign("sim", { prize_amount: 50000, is_simulated: true, ...live }), campaign("unfunded", { prize_amount: 40000, escrow_status: "awaiting", ...live }), campaign("expired", { prize_amount: 90000 }), campaign("real", { prize_amount: 100, ...live })], at)?.id).toBe("real");
+    // A pool drawn today still counts for its day; older draws don't.
+    expect(todayLeader([campaign("drawn-today", { status: "drawn", created_at: "2026-10-29T09:00:00Z", prize_amount: 300 }), campaign("real", { prize_amount: 100, ...live })], at)?.id).toBe("drawn-today");
+    expect(todayLeader([campaign("drawn-old", { status: "drawn", prize_amount: 300 }), campaign("real", { prize_amount: 100, ...live })], at)?.id).toBe("real");
+    expect(todayLeader([], at)).toBeUndefined();
   });
 });
