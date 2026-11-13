@@ -21,6 +21,7 @@ export type Database = {
           ends_at: string;
           escrow_status: string;
           id: string;
+          is_simulated: boolean;
           owner_id: string;
           payment_method: string;
           prize: string;
@@ -50,6 +51,7 @@ export type Database = {
           ends_at: string;
           escrow_status?: string;
           id?: string;
+          is_simulated?: boolean;
           owner_id: string;
           payment_method?: string;
           prize: string;
@@ -79,6 +81,7 @@ export type Database = {
           ends_at?: string;
           escrow_status?: string;
           id?: string;
+          is_simulated?: boolean;
           owner_id?: string;
           payment_method?: string;
           prize?: string;

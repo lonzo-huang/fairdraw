@@ -31,7 +31,7 @@ export const drawCampaign = createServerFn({ method: "POST" })
     // Real-money campaigns must be funded before the pool can be drawn.
     const { data: camp } = await supabaseAdmin
       .from("campaigns")
-      .select("prize_amount, escrow_status, payment_method")
+      .select("prize_amount, escrow_status, payment_method, is_simulated")
       .eq("id", c.id)
       .single();
     if (
@@ -111,7 +111,8 @@ export const drawCampaign = createServerFn({ method: "POST" })
       .from("campaigns")
       .update({
         status: "drawn",
-        escrow_status: "charged",
+        // Simulated pools never hold funds, so there's nothing to capture.
+        ...(camp?.is_simulated ? {} : { escrow_status: "charged" }),
         draw_mode: mode,
         draw_weights: mode === "weighted" ? weights : null,
       })

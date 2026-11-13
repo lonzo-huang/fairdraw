@@ -159,6 +159,8 @@ function NewCampaign() {
   );
   const [condErr, setCondErr] = useState("");
   const [payMethod, setPayMethod] = useState<"stripe" | "chain">("chain");
+  /** Demo campaigns skip the funding step and never pay winners. */
+  const [simulated, setSimulated] = useState(false);
   const [editing, setEditing] = useState(false);
   const navigate = useNavigate();
   const [showStripeNote, setShowStripeNote] = useState(false);
@@ -197,7 +199,7 @@ function NewCampaign() {
   const chainOk = f.currency === "USDT" || f.currency === "USDC";
   const effMethod: "stripe" | "chain" =
     payMethod === "stripe" && !stripeOk && chainOk ? "chain" : payMethod;
-  const canPay = (effMethod === "stripe" && stripeOk) || (effMethod === "chain" && chainOk);
+  const canPay = simulated || (effMethod === "stripe" && stripeOk) || (effMethod === "chain" && chainOk);
   /** Online payment → the prize is delivered as a gift card; texts/card switch wording. */
   const crypto = effMethod === "chain";
 
@@ -332,7 +334,7 @@ function NewCampaign() {
     funded,
   ];
   const nowIdx = pDone.findIndex((done) => !done);
-  const pLabels = [t("f.psPool"), t("f.psCond"), t("f.psContent"), t("f.psTweet"), t("f.psPay")];
+  const pLabels = [t("f.psPool"), t("f.psCond"), t("f.psContent"), t("f.psTweet"), simulated ? t("sim.publish") : t("f.psPay")];
 
   // Show the organiser's own X identity in the preview and card.
   useEffect(() => {
@@ -395,6 +397,9 @@ function NewCampaign() {
       currency: f.currency.trim() || "USDT",
       // Declared pools await real funding (Stripe checkout or on-chain transfer) before the draw.
       escrow_status: "awaiting",
+      is_simulated: simulated,
+      // Demo pools run on the manual rail — there is nothing to pay.
+      payment_method: simulated ? "manual" : undefined,
       winners_count: winners,
       share_language: lang,
       share_duration: f.days === "1h" ? 1 : Number(f.days),
@@ -409,13 +414,13 @@ function NewCampaign() {
       share_meta,
     };
     const cols =
-      "id, slug, title, prize, ends_at, prize_amount, currency, winners_count, share_language, share_duration, conditions, requirement, payment_method";
-    // share_meta may not exist until migration 0015 runs — retry without it on schema errors.
-    const { share_meta: _meta, ...rest } = payload;
+      "id, slug, title, prize, ends_at, prize_amount, currency, winners_count, share_language, share_duration, conditions, requirement, payment_method, is_simulated";
+    // share_meta/is_simulated may not exist until migrations 0015/0016 run — retry without them on schema errors.
+    const { share_meta: _meta, is_simulated: _sim, ...rest } = payload;
     let { data, error } = row
       ? await supabase.from("campaigns").update(payload).eq("id", row.id).select(cols).single()
       : await supabase.from("campaigns").insert(payload).select(cols).single();
-    if (error && /share_meta/i.test(error.message)) {
+    if (error && /share_meta|is_simulated/i.test(error.message)) {
       ({ data, error } = row
         ? await supabase.from("campaigns").update(rest).eq("id", row.id).select(cols).single()
         : await supabase.from("campaigns").insert(rest).select(cols).single());
@@ -470,6 +475,11 @@ function NewCampaign() {
       if (!c) return;
       setEditing(false);
       setConfirmed(true);
+      if (simulated) {
+        // Demo publish: no pool to fund — go straight to the post-to-X screen.
+        setFunded(true);
+        return;
+      }
       const { error: pErr } = await supabase
         .from("campaigns")
         .update({ payment_method: effMethod })
@@ -564,6 +574,19 @@ function NewCampaign() {
           >
             <fieldset disabled={confirmed && !editing} className="contents">
               <StepSection n={1} ok={pDone[0]!} title={t("f.step1")} desc={t("f.step1D")} first>
+                <Field label={t("sim.label")}>
+                  <div className="seg-tabs" role="tablist">
+                    <button type="button" role="tab" aria-selected={!simulated} onClick={() => setSimulated(false)}>
+                      {t("sim.real")}
+                    </button>
+                    <button type="button" role="tab" aria-selected={simulated} onClick={() => setSimulated(true)}>
+                      {t("sim.opt")}
+                    </button>
+                  </div>
+                  {simulated && (
+                    <p style={{ fontSize: 12, color: "var(--muted-foreground)", marginTop: 8 }}>{t("sim.hint")}</p>
+                  )}
+                </Field>
                 <div className="grid gap-5 sm:grid-cols-2">
                   <Field label={t("f.currency")}>
                     <select
@@ -876,6 +899,7 @@ function NewCampaign() {
               pool={pool}
               fee={fee}
               total={total}
+              simulated={simulated}
               currency={crypto ? f.currency : "USD"}
               crypto={crypto}
               method={effMethod}
@@ -1314,12 +1338,14 @@ function PayTicket({
   onFunded,
   showStripeNote,
   setShowStripeNote,
+  simulated,
 }: {
   pool: number;
   fee: number;
   total: number;
   currency: string;
   crypto: boolean;
+  simulated?: boolean;
   method: "stripe" | "chain";
   setMethod: (m: "stripe" | "chain") => void;
   stripeOk: boolean;
@@ -1363,6 +1389,21 @@ function PayTicket({
         </div>
         <div className="perf-notch" aria-hidden="true" />
         <div className="t-bot">
+          {simulated ? (
+            <>
+              <p style={{ fontSize: 12, color: "var(--muted-foreground)", marginTop: 4 }}>{t("sim.hint")}</p>
+              <button
+                type="button"
+                className="btn-gradient"
+                style={{ marginTop: 14 }}
+                disabled={busy || !canPay}
+                onClick={onPay}
+              >
+                {t("sim.publish")}
+              </button>
+            </>
+          ) : (
+            <>
           <div className="seg-tabs" role="tablist">
             <span style={{ display: "inline-block", flex: 1 }}>
               <button
@@ -1467,6 +1508,8 @@ function PayTicket({
               setBusy={setBusy}
               onDone={onFunded}
             />
+          )}
+            </>
           )}
           <Button
             type="button"

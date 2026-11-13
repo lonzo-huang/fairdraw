@@ -8,6 +8,8 @@ export type ShareCampaign = {
   escrow_status?: string | null;
   /** Campaign length in hours (e.g. 24/48/72 or 1 for test campaigns). */
   share_hours?: number; created_at?: string; ends_at?: string;
+  /** Demo campaigns declare a pool that is never paid out. */
+  is_simulated?: boolean;
 };
 
 export function shareModel(c: ShareCampaign) {
@@ -63,7 +65,8 @@ export function campaignTweet(c: ShareCampaign, origin: string) {
     translate(lang, "share.howto"),
     ...(goalParts.length ? [translate(lang, "share.goal", { conditions: goalParts.join(" + ") })] : []),
     translate(lang, "share.deadline", { hours }),
-    translate(lang, "share.prepaid2"),
+    // Demo pools are never escrowed — say so instead of claiming they're prepaid.
+    c.is_simulated ? translate(lang, "share.simNote") : translate(lang, "share.prepaid2"),
     translate(lang, "share.luck"),
     `👉 ${origin.replace(/\/$/, "")}/c/${encodeURIComponent(c.slug)}`,
   ].join("\n");

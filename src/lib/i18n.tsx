@@ -916,6 +916,24 @@ const dict = {
   "escrow.charged": { zh: "奖池已扣款派奖", en: "Pool captured for payouts" },
   "escrow.refunded": { zh: "奖池已退款", en: "Pool refunded" },
   "escrow.refund_pending": { zh: "退款处理中", en: "Refund pending" },
+  "sim.label": { zh: "活动类型", en: "Campaign type" },
+  "sim.real": { zh: "真实", en: "Real" },
+  "sim.opt": { zh: "模拟", en: "Demo" },
+  "sim.tag": { zh: "模拟盘", en: "Demo" },
+  "sim.hint": {
+    zh: "模拟盘无需充值奖池，中奖后不发放金额，仅用于体验抽奖流程",
+    en: "Demo campaigns skip pool funding — winners are never paid. For trying the draw flow.",
+  },
+  "sim.banner": {
+    zh: "本活动为模拟盘，中奖后不会发放任何金额",
+    en: "This is a demo campaign — winners receive no payout",
+  },
+  "sim.noPayout": { zh: "模拟盘不发放金额", en: "Demo pool — nothing is paid out" },
+  "sim.publish": { zh: "直接发布（免充值）", en: "Publish now (no funding)" },
+  "share.simNote": {
+    zh: "📢 模拟盘：奖金仅作演示，不实际发放",
+    en: "📢 Demo giveaway: the prize is for demonstration only — nothing is paid out",
+  },
   "m.cancel": { zh: "撤销活动", en: "Cancel campaign" },
   "m.cancelConfirm": {
     zh: "确认撤销活动？已托管的奖池将自动退回，此操作不可撤销。",

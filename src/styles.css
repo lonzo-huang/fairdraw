@@ -9326,3 +9326,33 @@
     animation: none;
   }
 }
+
+/* Real/Demo corner tag on campaign tiles (real = green, sim = amber) */
+.mode-tag {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  z-index: 5;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  padding: 2px 8px;
+  border-radius: 999px;
+  color: #34d399;
+  border: 1px solid rgba(52, 211, 153, 0.45);
+  background: rgba(10, 14, 24, 0.78);
+  backdrop-filter: blur(4px);
+}
+.mode-tag.sim {
+  color: #f5b83d;
+  border-color: rgba(245, 184, 61, 0.45);
+}
+/* Demo badge variant  works under each page's scoped .badge base */
+.page-ana .b-sim,
+.page-mg .b-sim,
+.page-rs .b-sim {
+  color: #f5b83d;
+  background: rgba(245, 184, 61, 0.1);
+  border-color: rgba(245, 184, 61, 0.3);
+  margin-left: 6px;
+}

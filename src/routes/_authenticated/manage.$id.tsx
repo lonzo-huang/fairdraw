@@ -286,6 +286,7 @@ function Manage() {
             {c.title}
             {c.prize_amount !== null && <span className="amt">· {c.prize_amount} {c.currency}</span>}
             <span className={`badge ${badge[0]}`}>{badge[1]}</span>
+            {c.is_simulated && <span className="badge b-sim">{t("sim.tag")}</span>}
           </h1>
           <div className="meta">
             <span>{t("m.idLbl")} <code>{c.id.slice(0, 10)}</code></span>
@@ -595,7 +596,7 @@ function Manage() {
               <dt>{open && !c.tweet_url ? t("m.ovStart") : t("m.ovEnds")}</dt>
               <dd>{open && !c.tweet_url ? t("m.afterLink") : new Date(c.ends_at).toLocaleString()}</dd>
               <dt>{t("m.fundTitle")}</dt>
-              <dd>{t(`escrow.${c.escrow_status}` as "escrow.funded")}</dd>
+              <dd>{c.is_simulated ? t("sim.noPayout") : t(`escrow.${c.escrow_status}` as "escrow.funded")}</dd>
             </dl>
             {open && (
               <div className="edit">
@@ -623,6 +624,7 @@ function Manage() {
       {payouts.length > 0 && (
         <section className="panel card" style={{ marginTop: 24 }}>
           <div className="card-h"><div><h2>{t("m.payouts")}</h2></div></div>
+          {c.is_simulated && <p className="fine" style={{ marginTop: 8 }}>{t("sim.banner")}</p>}
           <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
             {payouts.map((p) => (
               <PayoutRow key={p.id} p={p} share={c.prize_amount && c.winners_count > 0 ? Number(c.prize_amount) / c.winners_count : null} currency={c.currency} paymentMethod={c.payment_method} onDone={refresh} />

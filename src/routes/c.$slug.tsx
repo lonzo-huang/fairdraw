@@ -63,7 +63,7 @@ function CampaignPage() {
         supabase.from("draws").select("drawn_at").eq("campaign_id", c.id).maybeSingle(),
         c.payment_method === "chain" && c.prize_amount !== null ? getEscrowState({ data: { campaignId: c.id } }) : Promise.resolve(null),
         supabase.from("entries").select("handle, eligibility_status, fetched_meta, created_at").eq("campaign_id", c.id).order("created_at", { ascending: false }).limit(120),
-        supabase.from("campaigns").select("id,slug,title,prize,prize_amount,currency,winners_count,ends_at,created_at,status,escrow_status,tweet_url,owner_id,clicks,conditions").eq("status", "open").not("tweet_url", "is", null).or("escrow_status.in.(funded,preauthorized),prize_amount.is.null").neq("id", c.id).order("created_at", { ascending: false }).limit(40),
+        supabase.from("campaigns").select("id,slug,title,prize,prize_amount,currency,winners_count,ends_at,created_at,status,escrow_status,tweet_url,owner_id,clicks,conditions,is_simulated").eq("status", "open").not("tweet_url", "is", null).or("escrow_status.in.(funded,preauthorized),prize_amount.is.null,is_simulated.eq.true").neq("id", c.id).order("created_at", { ascending: false }).limit(40),
       ]);
       return { c, count: count ?? 0, snaps, drawAt: draw?.drawn_at ?? null, escrow, entries: entries ?? [], hubs: hubs ?? [] };
     },
@@ -187,6 +187,7 @@ function CampaignPage() {
       <div className="top">
         <div>
           <span className={`badge ${badge[0]}`}>{badge[1]}</span>
+          {c.is_simulated && <span className="badge b-sim">{t("sim.tag")}</span>}
           <h1 className="title">{translate(lang, titleKey, { n: met, amt: "" })}<span className="amt">{amt}</span></h1>
           <div className="conds">
             {COND_CHIPS.filter(({ k }) => conditions[k] !== undefined).map(({ k, I }) => (
@@ -194,6 +195,12 @@ function CampaignPage() {
             ))}
           </div>
           {c.description && <p className="desc">{c.description}</p>}
+          {c.is_simulated && (
+            <div className="hint" style={{ marginTop: 12 }}>
+              <Info />
+              <div>{t("sim.banner")}</div>
+            </div>
+          )}
           {linked ? (
             <a className="tweet" href={c.tweet_url ?? undefined} target="_blank" rel="noopener noreferrer">
               <span className="av">{(latestM?.author_name ?? latestM?.author_handle ?? "𝕏").slice(0, 3).toUpperCase()}</span>
@@ -235,7 +242,7 @@ function CampaignPage() {
             <div className="t-top">
               <div className="t-lab">{t("cy.total")}</div>
               <div className="t-amt">{c.prize_amount ?? c.prize}{c.prize_amount !== null && <small>{c.currency}</small>}</div>
-              <div className="t-sub">{c.winners_count} {t("dash.winners")} · {t(`escrow.${c.escrow_status}` as "escrow.funded")}</div>
+              <div className="t-sub">{c.winners_count} {t("dash.winners")} · {c.is_simulated ? t("sim.noPayout") : t(`escrow.${c.escrow_status}` as "escrow.funded")}</div>
               {escrow && escrow.funded && (
                 <a className="t-sub" style={{ display: "inline-flex", alignItems: "center", gap: 4, color: "#34d399", textDecoration: "none", marginTop: 2 }} href={escrow.explorerAddr} target="_blank" rel="noopener noreferrer">
                   <ShieldCheck size={12} />{translate(lang, "cy.onchain", { amt: `${escrow.pool} USDT`, addr: `${escrow.contract.slice(0, 6)}…${escrow.contract.slice(-4)}` })}

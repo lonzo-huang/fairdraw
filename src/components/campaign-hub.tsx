@@ -89,6 +89,7 @@ function CampaignCard({ c, now, index, hostName, metrics, progress, winners }: {
   if (conds.min_participants) rows.push({ key: "cond.participants", cur: metrics?.participants ?? null, target: conds.min_participants });
   if (conds.min_verified) rows.push({ key: "cond.verified", cur: metrics?.verified ?? null, target: conds.min_verified });
   return <MotionSurface delay={Math.min(index, 4) * 0.05}><article className={`campaign-tile cyber-panel compact-tile flex min-w-0 flex-col overflow-hidden rounded-lg border border-border ${ending ? "ending-soon" : ""}`}>
+    <span className={`mode-tag${c.is_simulated ? " sim" : ""}`}>{c.is_simulated ? t("sim.tag") : t("sim.real")}</span>
     <div className="relative isolate px-3 pt-3 pb-2">
       {handle && <CardBg src={avatarUrl(handle)} />}
       <p className="sponsor-title">{t("cy.sponsor")}</p>

@@ -288,8 +288,11 @@ function ResultPageContent({ slug }: { slug: string }) {
           <div className="payout">
             <div className="po-h">
               <h3>{t("rs.payoutTitle")}</h3>
-              <span className={`badge ${allPaid ? "b-ok" : "b-wait"}`}>{allPaid ? t("r.paid") : t("r.pending")}</span>
+              {c.is_simulated
+                ? <span className="badge b-sim">{t("sim.tag")}</span>
+                : <span className={`badge ${allPaid ? "b-ok" : "b-wait"}`}>{allPaid ? t("r.paid") : t("r.pending")}</span>}
             </div>
+            {c.is_simulated && <p className="note" style={{ marginTop: 6 }}>{t("sim.banner")}</p>}
             <div className="po-steps">
               {poSteps.map((s, i) => (
                 <div key={i} className={`po-s ${s.st}`}>
@@ -307,7 +310,7 @@ function ResultPageContent({ slug }: { slug: string }) {
                   <><span className="mono">{p.proof}</span><a href={p.proof ?? "#"} target="_blank" rel="noopener noreferrer">{t("rs.viewProof")}</a></>
                 ) : (
                   <span className="mono">{p.proof}</span>
-                )}
+                )}!c.is_simulated && 
               </div>
             ))}
             {myPayout && (
