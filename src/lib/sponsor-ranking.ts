@@ -10,7 +10,7 @@ export type ImpactRow = {
   reach: number | null;
   /** Summed latest likes+replies+reposts+quotes+bookmarks in the period. */
   engagement: number | null;
-  /** Account-level follower delta within the period (never summed across campaigns). */
+  /** Account's latest follower count in the period (never summed across campaigns). */
   growth: number | null;
   campaigns: number;
   /** In-period campaigns behind this handle, newest first — links to their detail pages. */
@@ -66,14 +66,12 @@ export function scoreRows(rows: Base[]): ImpactRow[] {
 
 /**
  * Community-impact ranking: aggregate per X handle over snapshots inside the UTC period.
- * Reach/engagement are IN-PERIOD DELTAS — the last in-period value minus the last
- * reading before the period, or minus the FIRST in-period reading when nothing
- * older exists. The first snapshot is always a baseline, never counted itself:
- * the post may predate tracking by months, so its cumulative total is unknowable
- * period growth. Numbers can only undercount (the gap between campaign creation
- * and the first check), never inflate. Growth is the same delta over the
- * handle's combined follower series, so parallel campaigns never double-count
- * the same account. Campaigns silent all period don't rank.
+ * Reach/engagement are CUMULATIVE — the latest in-period reading per campaign,
+ * summed across the handle's campaigns. These are the same numbers visitors see
+ * on the campaign pages, so a board never contradicts a detail view. Followers
+ * are the account's latest in-period reading — a lifetime value that is never
+ * summed across campaigns (parallel campaigns of one handle never double-count).
+ * Campaigns silent all period don't rank.
  */
 export function liveImpactRanking(campaigns: HubCampaign[], snaps: SnapLite[], now: number, period: RankPeriod, names: Map<string, string | null>): ImpactRow[] {
   const start = periodStart(now, period);
@@ -93,10 +91,6 @@ export function liveImpactRanking(campaigns: HubCampaign[], snaps: SnapLite[], n
     const idx = arr.findIndex((s) => Date.parse(s.fetched_at) >= start);
     if (idx < 0) continue; // no snapshot inside the period
     const inPeriod = arr.slice(idx);
-    // Baseline: last reading before the period, else the first in-period reading.
-    // Counting from zero would credit the post's whole lifetime total to this
-    // period — posts often predate tracking, so first readings are always a base.
-    const baseM = asM(arr[Math.max(0, idx - 1)]!.metrics);
     const last = asM(inPeriod[inPeriod.length - 1]!.metrics);
     const handle = last?.author_handle ?? xHandleFromUrl(c.tweet_url);
     const key = handle?.toLowerCase() ?? `u:${c.owner_id}`;
@@ -104,11 +98,9 @@ export function liveImpactRanking(campaigns: HubCampaign[], snaps: SnapLite[], n
     if (!e.authorName && last?.author_name) e.authorName = last.author_name;
     e.count += 1;
     e.camps.push({ slug: c.slug, title: c.title, created_at: c.created_at });
-    if (typeof last?.views === "number") e.reach.push(Math.max(0, last.views - (typeof baseM?.views === "number" ? baseM.views : 0)));
+    if (typeof last?.views === "number") e.reach.push(last.views);
     const eg = engOf(last);
-    const eb = engOf(baseM);
-    if (eg !== null) e.eng.push(Math.max(0, eg - (eb ?? 0)));
-    if (typeof baseM?.followers === "number") e.followers.push([start - 1, baseM.followers]);
+    if (eg !== null) e.eng.push(eg);
     for (const s of inPeriod) {
       const f = asM(s.metrics)?.followers;
       if (typeof f === "number") e.followers.push([Date.parse(s.fetched_at), f]);
@@ -117,7 +109,7 @@ export function liveImpactRanking(campaigns: HubCampaign[], snaps: SnapLite[], n
   }
   const rows: Base[] = [...acc.entries()].map(([key, a]) => {
     const fs = a.followers.sort((x, y) => x[0] - y[0]);
-    const growth = fs.length >= 2 ? Math.max(0, fs[fs.length - 1]![1] - fs[0]![1]) : null;
+    const growth = fs.length >= 1 ? fs[fs.length - 1]![1] : null;
     return {
       id: key,
       handle: a.handle,

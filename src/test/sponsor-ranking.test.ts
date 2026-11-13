@@ -25,16 +25,16 @@ describe("Impact leaderboard", () => {
     ];
     const rows = liveImpactRanking(campaigns, snaps, at, "day", new Map());
     expect(rows).toHaveLength(1);
-    // a: delta 2000-1000=1000; b single reading = baseline, adds 0
-    expect(rows[0]?.reach).toBe(1000);
-    // a: (20+8+4+1+2)-(10+5+2+0+1)=17, b: single reading = baseline, adds 0
-    expect(rows[0]?.engagement).toBe(17);
-    // growth = last followers (130) - first followers (100), counted once, not per campaign
-    expect(rows[0]?.growth).toBe(30);
+    // Cumulative: a latest views 2000 + b latest views 500 = 2500
+    expect(rows[0]?.reach).toBe(2500);
+    // a latest eng 20+8+4+1+2=35 + b latest 5+3+1+0+0=9 = 44
+    expect(rows[0]?.engagement).toBe(44);
+    // followers = latest account reading (b's 130), counted once, not per campaign
+    expect(rows[0]?.growth).toBe(130);
     expect(rows[0]?.campaigns).toBe(2);
     expect(rows[0]?.campList.map((cmp) => cmp.slug)).toEqual(["b", "a"]);
   });
-  it("counts only the delta above the pre-period baseline", () => {
+  it("pre-period snapshots are ignored — the board shows the latest in-period total", () => {
     const campaigns = [campaign("a", { tweet_url: "https://x.com/alice/status/1" })];
     const snaps = [
       snap("a", "2026-10-28T23:00:00Z", { views: 800, likes: 40, followers: 100, author_handle: "alice" }),
@@ -42,28 +42,28 @@ describe("Impact leaderboard", () => {
     ];
     const rows = liveImpactRanking(campaigns, snaps, at, "day", new Map());
     expect(rows).toHaveLength(1);
-    expect(rows[0]?.reach).toBe(1200);
-    expect(rows[0]?.engagement).toBe(50);
-    expect(rows[0]?.growth).toBe(30);
+    expect(rows[0]?.reach).toBe(2000);
+    expect(rows[0]?.engagement).toBe(90);
+    expect(rows[0]?.growth).toBe(130);
   });
-  it("a single in-period snapshot reports zero delta, never the lifetime total", () => {
-    const campaigns = [campaign("a", { tweet_url: "https://x.com/alice/status/1" })]; // created 2026-10-28
+  it("a single in-period snapshot reports its cumulative total, matching the campaign page", () => {
+    const campaigns = [campaign("a", { tweet_url: "https://x.com/alice/status/1" })];
     const snaps = [snap("a", "2026-10-29T12:00:00Z", { views: 5000, likes: 90, followers: 200, author_handle: "alice" })];
     const rows = liveImpactRanking(campaigns, snaps, at, "day", new Map());
-    expect(rows[0]?.reach).toBe(0);
-    expect(rows[0]?.engagement).toBe(0);
-    expect(rows[0]?.growth).toBe(0); // first reading becomes the baseline — delta is zero
+    expect(rows[0]?.reach).toBe(5000);
+    expect(rows[0]?.engagement).toBe(90);
+    expect(rows[0]?.growth).toBe(200);
   });
-  it("the first reading is a baseline even for brand-new campaigns — a viral old post can't inflate the board", () => {
+  it("the board uses the latest in-period reading — same number the campaign page shows", () => {
     const campaigns = [campaign("a", { tweet_url: "https://x.com/alice/status/1", created_at: "2026-10-29T09:00:00Z" })];
     const snaps = [
       snap("a", "2026-10-29T12:00:00Z", { views: 23_500_000, likes: 9000, followers: 200, author_handle: "alice" }),
       snap("a", "2026-10-29T13:00:00Z", { views: 23_510_000, likes: 9100, followers: 260, author_handle: "alice" }),
     ];
     const rows = liveImpactRanking(campaigns, snaps, at, "day", new Map());
-    expect(rows[0]?.reach).toBe(10_000);
-    expect(rows[0]?.engagement).toBe(100);
-    expect(rows[0]?.growth).toBe(60);
+    expect(rows[0]?.reach).toBe(23_510_000);
+    expect(rows[0]?.engagement).toBe(9100);
+    expect(rows[0]?.growth).toBe(260);
   });
   it("excludes campaigns with no snapshot inside the period", () => {
     const campaigns = [campaign("a", { tweet_url: "https://x.com/alice/status/1" })];
