@@ -25,6 +25,9 @@ export default defineConfig({
     cloudflare: {
       wrangler: {
         name: "fairdraw",
+        // Pinned compat date — nitro's default (the build date) is rejected as a
+        // "future" date when local time runs ahead of Cloudflare's UTC clock.
+        compatibility_date: "2026-11-13",
         // Serve on the existing fairdraw.win zone instead of workers.dev.
         workers_dev: false,
         routes: [

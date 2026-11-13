@@ -25,8 +25,8 @@ export const Route = createFileRoute("/rankings")({
     meta: [
       { title: "FairDraw 社区影响力榜单 — Top 50" },
       { name: "description", content: "按触达、互动与关注增长加权的影响力评分排名，月榜、周榜、日榜可切换指标。" },
-      { property: "og:title", content: "FairDraw Community Impact Leaderboard" },
-      { property: "og:description", content: "Reach 40% · Engagement 35% · Growth 25% — percentile-scored community impact." },
+      { property: "og:title", content: "FairDraw 社区影响力榜单 — Top 50" },
+      { property: "og:description", content: "触达 40% · 互动 35% · 增长 25% — 分位数加权的影响力评分。" },
       { property: "og:type", content: "website" }, { name: "twitter:card", content: "summary_large_image" },
     ],
     links: i18nLinks("/rankings"),
@@ -36,7 +36,7 @@ export const Route = createFileRoute("/rankings")({
 export function Rankings() {
   const { t, lp } = useI18n();
   const search = useSearch({ strict: false }) as { period?: "day" | "week" | "month"; metric?: "reach" | "engagement" | "growth" | "score" }, navigate = useNavigate();
-  const { rows, pending, error } = useSponsorRanking(search.period, search.metric);
+  const { rows, pending, error } = useSponsorRanking(search.period ?? "month", search.metric ?? "score");
   const [campRow, setCampRow] = useState<ImpactRow | null>(null);
   return <section className="mx-auto max-w-6xl px-5 py-8 sm:px-8">
     <Button asChild variant="link" className="mb-5 px-0"><Link to={lp("/") as never} hash="hub-drawn"><ArrowLeft />{t("rank.back")}</Link></Button>

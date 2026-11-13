@@ -96,17 +96,6 @@ export const Route = createFileRoute("/r/$slug")({
         ...(image?.startsWith("https://") ? [{ property: "og:image", content: image }, { name: "twitter:image", content: image }, { property: "og:image:width", content: "1200" }, { property: "og:image:height", content: "630" }] : []),
       ],
       links: i18nLinks(`/r/${loaderData?.c?.slug ?? ""}`),
-      ...(c?.ends_at ? { scripts: [{ type: "application/ld+json", children: JSON.stringify({
-        "@context": "https://schema.org",
-        "@type": "Event",
-        name: `${c.title} — 开奖结果`,
-        startDate: c.ends_at,
-        eventStatus: "https://schema.org/EventCompleted",
-        eventAttendanceMode: "https://schema.org/OnlineEventAttendanceMode",
-        location: { "@type": "VirtualLocation", url: `https://www.fairdraw.win/r/${c.slug}` },
-        organizer: { "@type": "Organization", name: "FairDraw", url: "https://www.fairdraw.win/" },
-        description,
-      }) }] } : {}),
     };
   },
   component: ResultPage,

@@ -10,10 +10,15 @@ import { xHandleFromUrl, type HubCampaign } from "@/lib/campaign-hub";
 
 export const Route = createFileRoute("/archive")({
   loader: ({ context }) => context.queryClient.ensureQueryData(publicArchiveQuery),
-  head: () => ({
+  head: ({ loaderData }) => ({
     meta: [
       { title: "活动档案 — FairDraw" },
       { name: "description", content: "FairDraw 历史活动档案：全部已开奖、已取消与到期结束的公开记录。" },
+      // An archive with zero historical rows is thin content — keep it
+      // unindexed until real campaigns finish and fill the page.
+      ...(((loaderData ?? []) as { status: string; ends_at: string }[]).some(
+        (c) => c.status === "drawn" || c.status === "cancelled" || Date.parse(c.ends_at) <= Date.now(),
+      ) ? [] : [{ name: "robots", content: "noindex" }]),
       { property: "og:title", content: "活动档案 — FairDraw" },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
