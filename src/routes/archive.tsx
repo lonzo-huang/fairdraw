@@ -3,21 +3,21 @@ import { useSuspenseQuery } from "@tanstack/react-query";
 import { Archive, ArrowLeft, ArrowUpRight } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
-import { publicArchiveQuery } from "@/lib/hub-queries";
+import { publicHubQuery } from "@/lib/hub-queries";
 import { i18nLinks } from "@/lib/seo";
 import { useI18n } from "@/lib/i18n";
 import { xHandleFromUrl, type HubCampaign } from "@/lib/campaign-hub";
 
 export const Route = createFileRoute("/archive")({
-  loader: ({ context }) => context.queryClient.ensureQueryData(publicArchiveQuery),
+  loader: ({ context }) => context.queryClient.ensureQueryData(publicHubQuery),
   head: ({ loaderData }) => ({
     meta: [
       { title: "活动档案 — FairDraw" },
       { name: "description", content: "FairDraw 历史活动档案：全部已开奖、已取消与到期结束的公开记录。" },
-      // An archive with zero historical rows is thin content — keep it
-      // unindexed until real campaigns finish and fill the page.
-      ...(((loaderData ?? []) as { status: string; ends_at: string }[]).some(
-        (c) => c.status === "drawn" || c.status === "cancelled" || Date.parse(c.ends_at) <= Date.now(),
+      // Simulated rows are demos — only real past campaigns count as
+      // substantive content and lift the noindex.
+      ...(((loaderData ?? []) as { status: string; ends_at: string; is_simulated?: boolean }[]).some(
+        (c) => !c.is_simulated && (c.status === "drawn" || c.status === "cancelled" || Date.parse(c.ends_at) <= Date.now()),
       ) ? [] : [{ name: "robots", content: "noindex" }]),
       { property: "og:title", content: "活动档案 — FairDraw" },
       { property: "og:type", content: "website" },
@@ -37,7 +37,7 @@ const badgeCls: Record<State, string> = {
 
 export function ArchivePage() {
   const { t, lp } = useI18n();
-  const campaigns = useSuspenseQuery(publicArchiveQuery);
+  const campaigns = useSuspenseQuery(publicHubQuery);
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => { setNow(Date.now()); }, []);
   const rows = (campaigns.data ?? [])
@@ -59,7 +59,7 @@ export function ArchivePage() {
     <p className="mt-5 border-l-2 border-prize pl-3 text-xs leading-6 text-muted-foreground">{t("archive.sub")}</p>
     {rows.length > 0 && <div className="mt-6 overflow-x-auto"><table className="ranking-table w-full text-left text-sm"><thead><tr className="border-b border-border text-xs text-muted-foreground"><th>{t("archive.col.date")}</th><th>{t("archive.col.campaign")}</th><th>{t("archive.col.host")}</th><th className="text-right">{t("archive.col.prize")}</th><th className="text-right">{t("archive.col.status")}</th><th className="text-right">{t("archive.col.result")}</th></tr></thead><tbody>{rows.map(({ c, state }) => <tr key={c.id} className="border-b border-border/50">
       <td className="whitespace-nowrap font-mono text-xs text-muted-foreground">{c.ends_at.slice(0, 10)}</td>
-      <td><Link to={lp(state === "drawn" ? `/r/${c.slug}` : `/c/${c.slug}`) as never} className="group flex items-center gap-2"><span className="max-w-70 truncate font-medium group-hover:text-primary">{c.title}</span></Link></td>
+      <td><Link to={lp(state === "drawn" ? `/r/${c.slug}` : `/c/${c.slug}`) as never} className="group flex items-center gap-2"><span className="max-w-70 truncate font-medium group-hover:text-primary">{c.title}</span>{c.is_simulated && <span className="shrink-0 rounded border border-border px-1 py-0.5 font-mono text-[10px] text-muted-foreground/60">{t("sim.tag")}</span>}</Link></td>
       <td className="font-mono text-xs text-muted-foreground">{xHandleFromUrl(c.tweet_url) ? `@${xHandleFromUrl(c.tweet_url)}` : "—"}</td>
       <td className="text-right font-mono text-muted-foreground">{c.prize_amount !== null ? `${c.prize_amount} ${c.currency}` : c.prize || "—"}</td>
       <td className="text-right"><span className={`inline-block rounded border px-1.5 py-0.5 font-mono text-[10px] ${badgeCls[state]}`}>{t(`archive.st.${state}`)}</span></td>

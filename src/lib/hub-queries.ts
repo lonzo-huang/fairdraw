@@ -20,18 +20,6 @@ export const publicHubQuery = {
   },
 };
 
-/**
- * Archive-only query: simulated campaigns are demos, not public history.
- * Filtering inside queryFn keeps them out of the dehydrated payload entirely —
- * the public hub query deliberately keeps them for the sim/real badge.
- */
-export const publicArchiveQuery = {
-  queryKey: ["public-campaign-archive"],
-  queryFn: async () => {
-    const data = await publicHubQuery.queryFn();
-    return data.filter((c) => !c.is_simulated);
-  },
-};
 
 export const hubProgressQuery = {
   queryKey: ["public-hub-progress"],
