@@ -916,6 +916,7 @@ const dict = {
   "escrow.charged": { zh: "奖池已扣款派奖", en: "Pool captured for payouts" },
   "escrow.refunded": { zh: "奖池已退款", en: "Pool refunded" },
   "escrow.refund_pending": { zh: "退款处理中", en: "Refund pending" },
+  "c.loadMore": { zh: "加载更多（还有 {n} 位）", en: "Load more ({n} remaining)" },
   "sim.label": { zh: "活动类型", en: "Campaign type" },
   "sim.real": { zh: "真实", en: "Real" },
   "sim.opt": { zh: "模拟", en: "Demo" },

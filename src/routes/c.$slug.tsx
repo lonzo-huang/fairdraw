@@ -58,13 +58,14 @@ function CampaignPage() {
       const { data: c } = await supabase.from("campaigns").select("*").eq("slug", slug).maybeSingle();
       if (!c) return null;
       const { data: count } = await supabase.rpc("entry_count", { _campaign_id: c.id });
-      const [snaps, { data: draw }, escrow, { data: entries }, { count: validCount }, { data: hubs }] = await Promise.all([
+      const [snaps, { data: draw }, escrow, entries, { count: validCount }, { data: hubs }] = await Promise.all([
         fetchAllSnaps((from, size) => supabase.from("condition_snapshots").select("metrics, progress, fetched_at").eq("campaign_id", c.id).order("fetched_at", { ascending: true }).range(from, from + size - 1)),
         supabase.from("draws").select("drawn_at").eq("campaign_id", c.id).maybeSingle(),
         c.payment_method === "chain" && c.prize_amount !== null ? getEscrowState({ data: { campaignId: c.id } }) : Promise.resolve(null),
-        supabase.from("entries").select("handle, eligibility_status, fetched_meta, created_at").eq("campaign_id", c.id).order("created_at", { ascending: false }).limit(120),
-        // Head-count matches isValidEntry (verified or owner-eligible); the
-        // feed query is capped at 120 rows so it can't be counted client-side.
+        // The organiser audits every imported reply — page through the full
+        // entry list instead of truncating at a display cap.
+        fetchAllSnaps((from, size) => supabase.from("entries").select("handle, eligibility_status, fetched_meta, created_at").eq("campaign_id", c.id).order("created_at", { ascending: false }).range(from, from + size - 1)),
+        // Head-count matches isValidEntry (verified or owner-eligible).
         supabase.from("entries").select("id", { count: "exact", head: true }).eq("campaign_id", c.id).in("eligibility_status", ["verified", "eligible"]),
         supabase.from("campaigns").select("id,slug,title,prize,prize_amount,currency,winners_count,ends_at,created_at,status,escrow_status,tweet_url,owner_id,clicks,conditions,is_simulated").eq("status", "open").not("tweet_url", "is", null).or("escrow_status.in.(funded,preauthorized),prize_amount.is.null,is_simulated.eq.true").neq("id", c.id).order("created_at", { ascending: false }).limit(40),
       ]);
@@ -868,6 +869,7 @@ function CheckCard({ campaignId }: { campaignId: string }) {
 function PeopleFeed({ entries, isOwner }: { entries: EntryRow[]; isOwner: boolean }) {
   const { t, lang } = useI18n();
   const [f, setF] = useState<"all" | "ok" | "no">("all");
+  const [shown, setShown] = useState(100);
   const ok = entries.filter((e) => isValidEntry(e.eligibility_status));
   const no = entries.filter((e) => !isValidEntry(e.eligibility_status));
   const rows = (!isOwner || f === "ok") ? ok : f === "no" ? no : entries;
@@ -882,7 +884,7 @@ function PeopleFeed({ entries, isOwner }: { entries: EntryRow[]; isOwner: boolea
           ))}
         </div>
       )}
-      <div className="feed">
+      <div className="fshownd">
         {rows.slice(0, 60).map((e, i) => {
           const m = metaOf(e.fetched_meta);
           const name = m.author_name?.trim() || e.handle;
@@ -899,6 +901,11 @@ function PeopleFeed({ entries, isOwner }: { entries: EntryRow[]; isOwner: boolea
           );
         })}
       </div>
+      {rows.length > shown && (
+        <button type="button" className="ghost" style={{ marginTop: 10, width: "100%" }} onClick={() => setShown((s) => s + 200)}>
+          {translate(lang, "c.loadMore", { n: String(rows.length - shown) })}
+        </button>
+      )}
     </>
   );
 }
