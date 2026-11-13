@@ -1,6 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { runDraw } from "@/lib/draw";
+import { poolFunded } from "@/lib/campaign-hub";
 import { computeProgress, parseConditions, type ConditionCheck, type Metrics } from "@/lib/conditions";
 import type { Json } from "@/integrations/supabase/types";
 
@@ -28,24 +29,39 @@ export const drawCampaign = createServerFn({ method: "POST" })
     if (c.status !== "open") throw new Error(c.status === "drawn" ? "Already drawn" : "Campaign is cancelled");
 
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    // Real-money campaigns must be funded before the pool can be drawn.
+    return runDrawCore(supabaseAdmin, c.id, mode as "all" | "verified" | "weighted", weights);
+  });
+
+/**
+ * Shared draw body — the owner's manual draw and the deadline auto-draw both
+ * run this with admin rights so results can never be forged client-side.
+ * The status='open' conditional update is the idempotency gate: a concurrent
+ * call that loses the flip deletes its orphaned draw row instead of leaving
+ * two receipts (draws has no unique constraint on campaign_id).
+ */
+async function runDrawCore(
+  supabaseAdmin: any,
+  campaignId: string,
+  mode: "all" | "verified" | "weighted",
+  weights: { blue: number; normal: number },
+) {
+    // Re-read the row: status guards stale callers, the rest drives funding
+    // checks, winner slots and the escrow capture below.
     const { data: camp } = await supabaseAdmin
       .from("campaigns")
-      .select("prize_amount, escrow_status, payment_method, is_simulated")
-      .eq("id", c.id)
+      .select("status, winners_count, prize_amount, escrow_status, payment_method, is_simulated")
+      .eq("id", campaignId)
       .single();
-    if (
-      camp?.prize_amount &&
-      (camp.payment_method === "stripe" || camp.payment_method === "chain") &&
-      camp.escrow_status === "awaiting"
-    ) {
-      throw new Error("Prize pool is not funded yet");
-    }
+    if (!camp) throw new Error("Campaign not found");
+    if (camp.status !== "open") throw new Error(camp.status === "drawn" ? "Already drawn" : "Campaign is cancelled");
+    // The pool must be funded before it can be drawn — same gate the public
+    // hub uses, so an unpaid declared pool can never auto-draw into "charged".
+    if (!poolFunded(camp)) throw new Error("Prize pool is not funded yet");
     // A resized pool draws short unless its top-up payment already confirmed.
     const { data: pendingTopup } = await supabaseAdmin
       .from("payments")
       .select("id")
-      .eq("campaign_id", c.id)
+      .eq("campaign_id", campaignId)
       .eq("kind", "topup")
       .eq("status", "pending")
       .limit(1);
@@ -54,7 +70,7 @@ export const drawCampaign = createServerFn({ method: "POST" })
     const { data: entries, error: eErr } = await supabaseAdmin
       .from("entries")
       .select("id, handle, eligibility_status, payout_address, post_url, fetched_meta")
-      .eq("campaign_id", c.id)
+      .eq("campaign_id", campaignId)
       .neq("eligibility_status", "ineligible");
     if (eErr) throw new Error(eErr.message);
     // Same rule as the condition checker's verified count: owner-marked
@@ -76,14 +92,14 @@ export const drawCampaign = createServerFn({ method: "POST" })
     const result = await runDraw(
       candidates,
       drawnAt,
-      c.winners_count + 3,
+      camp.winners_count + 3,
       mode === "weighted" ? (w) => (verById.get(w.id) ? weights.blue : weights.normal) : undefined,
     );
     const urlById = new Map((entries ?? []).map((e) => [e.id, e.post_url]));
     const { tweetDeleted } = await import("@/lib/x-stats.server");
     const winners: typeof result.winners = [];
     for (const w of result.winners) {
-      if (winners.length >= c.winners_count) break;
+      if (winners.length >= camp.winners_count) break;
       const u = urlById.get(w.id);
       let gone = false;
       if (u) {
@@ -98,7 +114,7 @@ export const drawCampaign = createServerFn({ method: "POST" })
     if (!winners.length) throw new Error("Every drawn reply has been deleted");
 
     const { error: dErr } = await supabaseAdmin.from("draws").insert({
-      campaign_id: c.id,
+      campaign_id: campaignId,
       list_hash: result.listHash,
       seed: result.seed,
       drawn_at: drawnAt,
@@ -107,34 +123,42 @@ export const drawCampaign = createServerFn({ method: "POST" })
     });
     if (dErr) throw new Error(dErr.message);
     // Conditions met at draw time: the funded prize pool is captured for payout.
-    await supabaseAdmin
+    const { data: flipped, error: uErr } = await supabaseAdmin
       .from("campaigns")
       .update({
         status: "drawn",
         // Simulated pools never hold funds, so there's nothing to capture.
-        ...(camp?.is_simulated ? {} : { escrow_status: "charged" }),
+        ...(camp.is_simulated ? {} : { escrow_status: "charged" }),
         draw_mode: mode,
         draw_weights: mode === "weighted" ? weights : null,
       })
-      .eq("id", c.id);
+      .eq("id", campaignId)
+      .eq("status", "open")
+      .select("id");
+    if (uErr) throw new Error(uErr.message);
+    if (!flipped?.length) {
+      // Lost a concurrent draw — remove the orphaned draw row we just wrote.
+      await supabaseAdmin.from("draws").delete().eq("campaign_id", campaignId).eq("drawn_at", drawnAt);
+      throw new Error("Draw already recorded");
+    }
     const payoutAddr = new Map((entries ?? []).map((e) => [e.handle, e.payout_address]));
     await supabaseAdmin
       .from("payouts")
-      .insert(winners.map((w) => ({ campaign_id: c.id, winner_handle: w.handle, wallet_address: payoutAddr.get(w.handle) ?? null })));
+      .insert(winners.map((w) => ({ campaign_id: campaignId, winner_handle: w.handle, wallet_address: payoutAddr.get(w.handle) ?? null })));
 
     // Escrow pools: commit winner shares on-chain so pay() can settle claims.
     // Best-effort — a failed broadcast is retried lazily on the first claim.
-    if (camp?.payment_method === "chain" && camp.prize_amount) {
+    if (camp.payment_method === "chain" && camp.prize_amount) {
       try {
         const { escrowCampaign, escrowResolve } = await import("@/lib/chain.server");
-        const esc = await escrowCampaign(c.id);
-        if (esc && !esc.resolved) await escrowResolve(c.id, winners.length, Number(camp.prize_amount));
+        const esc = await escrowCampaign(campaignId);
+        if (esc && !esc.resolved) await escrowResolve(campaignId, winners.length, Number(camp.prize_amount));
       } catch (err) {
         console.error("escrow resolve deferred to claim:", err);
       }
     }
     return { ok: true };
-  });
+}
 
 type EscrowState = "none" | "refunded" | "refund_pending";
 
@@ -441,8 +465,28 @@ export async function runConditionCheckCore(db: any, c: CheckableCampaign): Prom
         /* refund failure leaves the campaign open for manual handling */
       }
     }
+
+    // Deadline passed with every condition provably met → auto-draw: a funded
+    // pool shouldn't wait on the organiser clicking a button. Only definitive
+    // "met" counts — unknown metrics stay open for manual review (consistent
+    // with "unknown never cancels"). Zero eligible entries or a lost race
+    // throws inside runDrawCore; the next sweep retries within END_GRACE_MS.
+    if (
+      c.status === "open" &&
+      Date.parse(c.ends_at) + AUTO_DRAW_DELAY_MS <= Date.now() &&
+      checks.every((ch) => ch.state === "met")
+    ) {
+      try {
+        await runDrawCore(db, c.id, "all", { blue: 1, normal: 1 });
+      } catch (err) {
+        console.warn(`auto-draw skipped for campaign ${c.id}:`, err);
+      }
+    }
     return { checks, progress, metrics };
 }
+
+/** Short grace after the deadline before auto-drawing, so near-deadline replies make one more import cycle. */
+const AUTO_DRAW_DELAY_MS = 5 * 60 * 1000;
 
 /** Remote metric fields the sweep tries to read every round. */
 const MISSING_METRIC_KEYS = ["likes", "replies", "reposts", "quotes", "bookmarks", "views", "followers"] as const;
