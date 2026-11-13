@@ -58,14 +58,17 @@ function CampaignPage() {
       const { data: c } = await supabase.from("campaigns").select("*").eq("slug", slug).maybeSingle();
       if (!c) return null;
       const { data: count } = await supabase.rpc("entry_count", { _campaign_id: c.id });
-      const [snaps, { data: draw }, escrow, { data: entries }, { data: hubs }] = await Promise.all([
+      const [snaps, { data: draw }, escrow, { data: entries }, { count: validCount }, { data: hubs }] = await Promise.all([
         fetchAllSnaps((from, size) => supabase.from("condition_snapshots").select("metrics, progress, fetched_at").eq("campaign_id", c.id).order("fetched_at", { ascending: true }).range(from, from + size - 1)),
         supabase.from("draws").select("drawn_at").eq("campaign_id", c.id).maybeSingle(),
         c.payment_method === "chain" && c.prize_amount !== null ? getEscrowState({ data: { campaignId: c.id } }) : Promise.resolve(null),
         supabase.from("entries").select("handle, eligibility_status, fetched_meta, created_at").eq("campaign_id", c.id).order("created_at", { ascending: false }).limit(120),
+        // Head-count matches isValidEntry (verified or owner-eligible); the
+        // feed query is capped at 120 rows so it can't be counted client-side.
+        supabase.from("entries").select("id", { count: "exact", head: true }).eq("campaign_id", c.id).in("eligibility_status", ["verified", "eligible"]),
         supabase.from("campaigns").select("id,slug,title,prize,prize_amount,currency,winners_count,ends_at,created_at,status,escrow_status,tweet_url,owner_id,clicks,conditions,is_simulated").eq("status", "open").not("tweet_url", "is", null).or("escrow_status.in.(funded,preauthorized),prize_amount.is.null,is_simulated.eq.true").neq("id", c.id).order("created_at", { ascending: false }).limit(40),
       ]);
-      return { c, count: count ?? 0, snaps, drawAt: draw?.drawn_at ?? null, escrow, entries: entries ?? [], hubs: hubs ?? [] };
+      return { c, count: count ?? 0, validCount: validCount ?? 0, snaps, drawAt: draw?.drawn_at ?? null, escrow, entries: entries ?? [], hubs: hubs ?? [] };
     },
   });
   const cd = useCountdown(data?.c?.ends_at);
@@ -73,7 +76,7 @@ function CampaignPage() {
 
   if (isLoading) return <p className="p-10 text-center text-muted-foreground">{t("common.loading")}</p>;
   if (!data) return <p className="p-10 text-center text-muted-foreground">404</p>;
-  const { c, count, snaps, drawAt, escrow, entries, hubs } = data;
+  const { c, count, validCount, snaps, drawAt, escrow, entries, hubs } = data;
   const latestSnap = snaps[snaps.length - 1] ?? null;
   const latestM = asMetrics(latestSnap?.metrics);
   // Baseline = the earliest snapshot that actually captured followers; older rows never had the field.
@@ -129,8 +132,8 @@ function CampaignPage() {
   // so participation is open to every visitor.
   const joinable = running;
   const endedNoDraw = linked && closed && !drawn && c.status !== "cancelled";
-  const validN = entries.filter((e) => isValidEntry(e.eligibility_status)).length;
-  const badN = entries.length - validN;
+  const validN = validCount;
+  const badN = Math.max(0, count - validN);
   // Slowest unmet numeric condition drives the organiser hint.
   const lagging = prog?.checks
     .filter((ch) => ch.state !== "met" && typeof ch.target === "number" && typeof ch.current === "number")

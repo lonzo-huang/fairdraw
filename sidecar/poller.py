@@ -36,7 +36,7 @@ POLL_SECONDS = int(os.environ.get("POLL_SECONDS", "300"))
 MAX_PAGES = 10  # safety cap: ~200 replies per sweep per campaign
 FULL_SCAN_EVERY = 3600  # force a full reply scan hourly even when reply_count is flat
 LAST_FULL: dict[str, float] = {}  # campaign_id -> last full-scan timestamp
-MAX_REPLIERS = 1000  # raffle pool cap: first 1000 visible repliers in X's order
+MAX_REPLIERS = 10000  # raffle pool cap: first 10000 visible repliers in X's order
 
 HDRS = {
     "apikey": KEY,
