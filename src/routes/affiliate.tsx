@@ -1,4 +1,5 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { i18nLinks } from "@/lib/seo";
 import { useEffect, useMemo, useState, type CSSProperties } from "react";
 import { useAuth } from "@/hooks/use-auth";
 import { useI18n } from "@/lib/i18n";
@@ -11,11 +12,14 @@ import { toast } from "sonner";
 import { ArrowUpRight, BadgeCheck, Link2, ShieldAlert, ShieldCheck, UserPlus, Wallet, XCircle } from "lucide-react";
 
 export const Route = createFileRoute("/affiliate")({
-  head: () => ({ meta: [
-    { title: "联盟计划 · FairDraw — 分享净收入 30%" },
-    { name: "description", content: "推荐发起者使用 FairDraw：活动净收入（服务费 − 直接成本）你分 30%，持续 12 个月，USDT 链上结算。" },
-    { property: "og:title", content: "FairDraw Affiliate Program — 30% of net revenue" },
-  ] }),
+  head: () => ({
+    meta: [
+      { title: "联盟计划 · FairDraw — 分享净收入 30%" },
+      { name: "description", content: "推荐发起者使用 FairDraw：活动净收入（服务费 − 直接成本）你分 30%，持续 12 个月，USDT 链上结算。" },
+      { property: "og:title", content: "FairDraw Affiliate Program — 30% of net revenue" },
+    ],
+    links: i18nLinks("/affiliate"),
+  }),
   component: AffiliateLanding,
 });
 
@@ -28,7 +32,7 @@ const FEED = [
   ["CM", "#8b5cf6", "@chak***ion", "回复赢 30 USDT", 2.4],
 ] as const;
 
-function AffiliateLanding() {
+export function AffiliateLanding() {
   const { t } = useI18n();
   const { user } = useAuth();
   const navigate = useNavigate();

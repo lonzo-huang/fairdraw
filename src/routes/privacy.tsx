@@ -2,14 +2,17 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { LegalPage, LegalSection, type LegalSec, type LegalSum } from "@/components/legal-page";
 import { useI18n } from "@/lib/i18n";
 import { AlertTriangle, CheckCircle2, CreditCard, DollarSign, Eye, MessageCircle, Pencil, Trash2, Download } from "lucide-react";
+import { i18nLinks } from "@/lib/seo";
 
 export const Route = createFileRoute("/privacy")({
   head: () => ({
     meta: [
       { title: "隐私声明 — FairDraw" },
       { name: "description", content: "FairDraw 收集哪些数据、如何使用、保留多久。" },
+      { property: "og:title", content: "隐私声明 — FairDraw" },
       { property: "og:type", content: "website" },
     ],
+    links: i18nLinks("/privacy"),
   }),
   component: Privacy,
 });
@@ -31,8 +34,8 @@ const SUM: LegalSum[] = [
   { I: Trash2, bg: "rgba(124,92,255,.14)", color: "#a99bff", b: "pp.sc4t", p: "pp.sc4p" },
 ];
 
-function Privacy() {
-  const { t } = useI18n();
+export function Privacy() {
+  const { t, lp } = useI18n();
   return (
     <LegalPage doc="privacy" titleKey="pp.title" secs={SECS} sum={SUM}>
       <LegalSection id="p-collect" n="01" t="pp.h1">
@@ -82,7 +85,7 @@ function Privacy() {
           <div><b>{t("pp.f2t")}</b>{t("pp.f2d")}</div>
           <div><b>{t("pp.f3t")}</b>{t("pp.f3d")}</div>
         </div>
-        <div className="callout warn"><AlertTriangle /><div>{t("pp.co4a")}<Link to="/contact">{t("ct.title")}</Link>{t("pp.co4b")}</div></div>
+        <div className="callout warn"><AlertTriangle /><div>{t("pp.co4a")}<Link to={lp("/contact") as never}>{t("ct.title")}</Link>{t("pp.co4b")}</div></div>
       </LegalSection>
 
       <LegalSection id="p-rights" n="05" t="pp.h5">
@@ -101,7 +104,7 @@ function Privacy() {
 
       <LegalSection id="p-contact" n="07" t="pp.h7">
         <p>
-          {t("pp.p7a")}<Link to="/contact">{t("ct.title")}</Link>{t("pp.p7b")}{" "}
+          {t("pp.p7a")}<Link to={lp("/contact") as never}>{t("ct.title")}</Link>{t("pp.p7b")}{" "}
           <a href="https://x.com/Mirrortekuk" target="_blank" rel="noopener noreferrer">@Mirrortekuk</a>{" "}
           {t("pp.p7c")}
         </p>

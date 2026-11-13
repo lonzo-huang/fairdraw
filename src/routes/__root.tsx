@@ -4,6 +4,7 @@ import {
   Link,
   createRootRouteWithContext,
   useRouter,
+  useRouterState,
   HeadContent,
   Scripts,
   type ErrorComponentProps,
@@ -11,13 +12,14 @@ import {
 import { useEffect, type ReactNode } from "react";
 
 import appCss from "../styles.css?url";
-import { I18nProvider } from "@/lib/i18n";
+import { I18nProvider, useI18n } from "@/lib/i18n";
 import { SiteHeader, SiteFooter } from "@/components/site-header";
 import { RefCapture } from "@/components/ref-capture";
 import { Toaster } from "@/components/ui/sonner";
 import { supabase } from "@/integrations/supabase/client";
 
 function NotFoundComponent() {
+  const { lp } = useI18n();
   return (
     <div className="flex min-h-screen items-center justify-center bg-background px-4">
       <div className="max-w-md text-center">
@@ -28,7 +30,7 @@ function NotFoundComponent() {
         </p>
         <div className="mt-6">
           <Link
-            to="/"
+            to={lp("/") as never}
             className="inline-flex items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
           >
             Go home
@@ -103,6 +105,43 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
         href: "https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,700&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&family=Noto+Serif+SC:wght@600;700&family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=Noto+Sans+SC:wght@400;500;700&display=swap",
       },
     ],
+    scripts: [{
+      type: "application/ld+json",
+      children: JSON.stringify({
+        "@context": "https://schema.org",
+        "@graph": [
+          {
+            "@type": "Organization",
+            name: "FairDraw",
+            url: "https://www.fairdraw.win/",
+            logo: "https://www.fairdraw.win/fairdraw-mark-512.png",
+            description: "Verifiable giveaway platform for X (Twitter): escrowed prize pools, provably fair draws, public payout receipts.",
+            sameAs: ["https://x.com/FairDraw", "https://github.com/lonzo-huang/fairdraw"],
+          },
+          {
+            "@type": "WebSite",
+            name: "FairDraw",
+            url: "https://www.fairdraw.win/",
+            inLanguage: ["zh-CN", "en"],
+          },
+          {
+            "@type": "SoftwareApplication",
+            name: "FairDraw",
+            applicationCategory: "BusinessApplication",
+            operatingSystem: "Web",
+            url: "https://www.fairdraw.win/",
+            inLanguage: ["zh-CN", "en"],
+            description: "面向 X（Twitter）的可验证抽奖平台：奖池担保、开源开奖算法、结果可在浏览器复算、派奖凭证公示。",
+            offers: {
+              "@type": "Offer",
+              price: "0",
+              priceCurrency: "USD",
+              description: "Free to join; organisers pay a tiered service fee on funded prize pools.",
+            },
+          },
+        ],
+      }),
+    }],
   }),
   shellComponent: RootShell,
   component: RootComponent,
@@ -111,8 +150,10 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
 });
 
 function RootShell({ children }: { children: ReactNode }) {
+  const pathname = useRouterState({ select: (s) => s.location.pathname });
+  const isEn = pathname === "/en" || pathname.startsWith("/en/");
   return (
-    <html lang="en">
+    <html lang={isEn ? "en" : "zh-CN"}>
       <head>
         <HeadContent />
       </head>

@@ -1,15 +1,19 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { LegalPage, LegalSection, type LegalSec, type LegalSum } from "@/components/legal-page";
 import { useI18n } from "@/lib/i18n";
+import { useFeeTiers } from "@/hooks/use-fee-tiers";
 import { AlertTriangle, Ban, Gift, RotateCcw, User } from "lucide-react";
+import { i18nLinks } from "@/lib/seo";
 
 export const Route = createFileRoute("/terms")({
   head: () => ({
     meta: [
       { title: "使用条款 — FairDraw" },
       { name: "description", content: "FairDraw 平台的使用规则、奖池与退款政策。" },
+      { property: "og:title", content: "使用条款 — FairDraw" },
       { property: "og:type", content: "website" },
     ],
+    links: i18nLinks("/terms"),
   }),
   component: Terms,
 });
@@ -31,8 +35,14 @@ const SUM: LegalSum[] = [
   { I: Ban, bg: "rgba(248,113,113,.12)", color: "#f87171", b: "tt.sc4t", p: "tt.sc4p" },
 ];
 
-function Terms() {
-  const { t } = useI18n();
+export function Terms() {
+  const { t, lp } = useI18n();
+  const { data: tiers } = useFeeTiers();
+  const rows = (tiers?.length ? tiers : [{ min_amount: 0, rate_percent: 20 }]).map((tier, i, arr) => {
+    const next = arr[i + 1];
+    const label = i === 0 && next ? `≤ ${next.min_amount} USDT` : next ? `${tier.min_amount}–${next.min_amount} USDT` : `> ${tier.min_amount.toLocaleString()} USDT`;
+    return { label, rate: tier.rate_percent };
+  });
   return (
     <LegalPage doc="terms" titleKey="tt.title" secs={SECS} sum={SUM}>
       <LegalSection id="t-service" n="01" t="tt.h1">
@@ -58,9 +68,7 @@ function Terms() {
           <table>
             <thead><tr><th>{t("tt.th1")}</th><th>{t("tt.th2")}</th></tr></thead>
             <tbody>
-              <tr><td>{t("tt.fe1")}</td><td>8%</td></tr>
-              <tr><td>{t("tt.fe2")}</td><td>6%</td></tr>
-              <tr><td>{t("tt.fe3")}</td><td>4%</td></tr>
+              {rows.map((r) => <tr key={r.label}><td>{r.label}</td><td>{r.rate}%</td></tr>)}
             </tbody>
           </table>
         </div>
@@ -95,8 +103,8 @@ function Terms() {
 
       <LegalSection id="t-law" n="07" t="tt.h7">
         <p>
-          {t("tt.p7a")}<Link to="/contact">{t("ct.title")}</Link>{t("tt.p7b")}{" "}
-          <a href="https://x.com/Mirrortekuk" target="_blank" rel="noopener noreferrer">@Mirrortekuk</a>{" "}
+          {t("tt.p7a")}<Link to={lp("/contact") as never}>{t("ct.title")}</Link>{t("tt.p7b")}{" "}
+          <a href="https://x.com/FairDraw" target="_blank" rel="noopener noreferrer">@FairDraw</a>{" "}
           {t("tt.p7c")}
         </p>
       </LegalSection>

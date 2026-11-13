@@ -549,7 +549,7 @@ function NewCampaign() {
             </h1>
             <p style={{ color: "var(--muted-foreground)", marginTop: "8px" }}>
               {lang === "zh"
-                ? "设好奖池和开奖条件，奖金托管在平台，达标后自动公开抽奖。"
+                ? "设好奖池和开奖条件，奖金由平台担保，达标后自动公开抽奖。"
                 : "Set prize pool and conditions — funds escrowed, drawn on-chain when targets are met."}
             </p>
           </div>

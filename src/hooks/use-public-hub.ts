@@ -1,10 +1,10 @@
-import { useQuery } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
+import { useSuspenseQuery } from "@tanstack/react-query";
+import { publicHubQuery } from "@/lib/hub-queries";
 
+/**
+ * Suspense query so SSR waits for the campaign rows — the rendered HTML carries
+ * real cards instead of the loading skeleton. Data is ensured by route loaders.
+ */
 export function usePublicHub() {
-  return useQuery({ queryKey: ["public-campaign-hub"], queryFn: async () => {
-    const { data, error } = await supabase.from("campaigns").select("id,slug,title,prize,prize_amount,currency,winners_count,ends_at,created_at,status,escrow_status,tweet_url,owner_id,clicks,conditions,is_simulated").order("created_at", { ascending: false });
-    if (error) throw error;
-    return data;
-  }, refetchInterval: 15 * 60 * 1000 });
+  return useSuspenseQuery({ ...publicHubQuery, refetchInterval: 15 * 60 * 1000 });
 }

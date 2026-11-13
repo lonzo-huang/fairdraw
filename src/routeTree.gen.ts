@@ -11,19 +11,31 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/route'
+import { Route as AboutRouteImport } from './routes/about'
 import { Route as AffiliateRouteImport } from './routes/affiliate'
 import { Route as ArchiveRouteImport } from './routes/archive'
 import { Route as AuthRouteImport } from './routes/auth'
 import { Route as ContactRouteImport } from './routes/contact'
+import { Route as EnRouteImport } from './routes/en'
 import { Route as GuideRouteImport } from './routes/guide'
 import { Route as PrivacyRouteImport } from './routes/privacy'
 import { Route as RankingsRouteImport } from './routes/rankings'
+import { Route as SitemapDotxmlRouteImport } from './routes/sitemap[.]xml'
 import { Route as TermsRouteImport } from './routes/terms'
 import { Route as AuthenticatedAdminRouteImport } from './routes/_authenticated/admin'
 import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated/dashboard'
 import { Route as AuthenticatedMyEntriesRouteImport } from './routes/_authenticated/my-entries'
 import { Route as AuthenticatedNewRouteImport } from './routes/_authenticated/new'
 import { Route as CSlugRouteImport } from './routes/c.$slug'
+import { Route as EnIndexRouteImport } from './routes/en.index'
+import { Route as EnAboutRouteImport } from './routes/en.about'
+import { Route as EnAffiliateRouteImport } from './routes/en.affiliate'
+import { Route as EnArchiveRouteImport } from './routes/en.archive'
+import { Route as EnContactRouteImport } from './routes/en.contact'
+import { Route as EnGuideRouteImport } from './routes/en.guide'
+import { Route as EnPrivacyRouteImport } from './routes/en.privacy'
+import { Route as EnRankingsRouteImport } from './routes/en.rankings'
+import { Route as EnTermsRouteImport } from './routes/en.terms'
 import { Route as FaqPaymentRouteImport } from './routes/faq.payment'
 import { Route as GoSlugRouteImport } from './routes/go.$slug'
 import { Route as RSlugRouteImport } from './routes/r.$slug'
@@ -31,12 +43,19 @@ import { Route as AuthenticatedAffiliateDashboardRouteImport } from './routes/_a
 import { Route as AuthenticatedManageIdRouteImport } from './routes/_authenticated/manage.$id'
 import { Route as ApiCronConditionsRouteImport } from './routes/api/cron/conditions'
 import { Route as ApiStripeWebhookRouteImport } from './routes/api/stripe/webhook'
+import { Route as EnCSlugRouteImport } from './routes/en.c.$slug'
+import { Route as EnFaqPaymentRouteImport } from './routes/en.faq.payment'
+import { Route as EnRSlugRouteImport } from './routes/en.r.$slug'
 import { Route as FaqPaymentIndexRouteImport } from './routes/faq.payment.index'
 import { Route as FaqPaymentBinanceRouteImport } from './routes/faq.payment.binance'
 import { Route as FaqPaymentMetamaskRouteImport } from './routes/faq.payment.metamask'
 import { Route as FaqPaymentOkxRouteImport } from './routes/faq.payment.okx'
 import { Route as RSlugClaimRouteImport } from './routes/r.$slug.claim'
 import { Route as ApiPublicCampaignImageSlugRouteImport } from './routes/api/public/campaign-image.$slug'
+import { Route as EnFaqPaymentIndexRouteImport } from './routes/en.faq.payment.index'
+import { Route as EnFaqPaymentBinanceRouteImport } from './routes/en.faq.payment.binance'
+import { Route as EnFaqPaymentMetamaskRouteImport } from './routes/en.faq.payment.metamask'
+import { Route as EnFaqPaymentOkxRouteImport } from './routes/en.faq.payment.okx'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -45,6 +64,11 @@ const IndexRoute = IndexRouteImport.update({
 } as any)
 const AuthenticatedRouteRoute = AuthenticatedRouteRouteImport.update({
   id: '/_authenticated',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AboutRoute = AboutRouteImport.update({
+  id: '/about',
+  path: '/about',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AffiliateRoute = AffiliateRouteImport.update({
@@ -67,6 +91,11 @@ const ContactRoute = ContactRouteImport.update({
   path: '/contact',
   getParentRoute: () => rootRouteImport,
 } as any)
+const EnRoute = EnRouteImport.update({
+  id: '/en',
+  path: '/en',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const GuideRoute = GuideRouteImport.update({
   id: '/guide',
   path: '/guide',
@@ -80,6 +109,11 @@ const PrivacyRoute = PrivacyRouteImport.update({
 const RankingsRoute = RankingsRouteImport.update({
   id: '/rankings',
   path: '/rankings',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SitemapDotxmlRoute = SitemapDotxmlRouteImport.update({
+  id: '/sitemap.xml',
+  path: '/sitemap.xml',
   getParentRoute: () => rootRouteImport,
 } as any)
 const TermsRoute = TermsRouteImport.update({
@@ -111,6 +145,51 @@ const CSlugRoute = CSlugRouteImport.update({
   id: '/c/$slug',
   path: '/c/$slug',
   getParentRoute: () => rootRouteImport,
+} as any)
+const EnIndexRoute = EnIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => EnRoute,
+} as any)
+const EnAboutRoute = EnAboutRouteImport.update({
+  id: '/about',
+  path: '/about',
+  getParentRoute: () => EnRoute,
+} as any)
+const EnAffiliateRoute = EnAffiliateRouteImport.update({
+  id: '/affiliate',
+  path: '/affiliate',
+  getParentRoute: () => EnRoute,
+} as any)
+const EnArchiveRoute = EnArchiveRouteImport.update({
+  id: '/archive',
+  path: '/archive',
+  getParentRoute: () => EnRoute,
+} as any)
+const EnContactRoute = EnContactRouteImport.update({
+  id: '/contact',
+  path: '/contact',
+  getParentRoute: () => EnRoute,
+} as any)
+const EnGuideRoute = EnGuideRouteImport.update({
+  id: '/guide',
+  path: '/guide',
+  getParentRoute: () => EnRoute,
+} as any)
+const EnPrivacyRoute = EnPrivacyRouteImport.update({
+  id: '/privacy',
+  path: '/privacy',
+  getParentRoute: () => EnRoute,
+} as any)
+const EnRankingsRoute = EnRankingsRouteImport.update({
+  id: '/rankings',
+  path: '/rankings',
+  getParentRoute: () => EnRoute,
+} as any)
+const EnTermsRoute = EnTermsRouteImport.update({
+  id: '/terms',
+  path: '/terms',
+  getParentRoute: () => EnRoute,
 } as any)
 const FaqPaymentRoute = FaqPaymentRouteImport.update({
   id: '/faq/payment',
@@ -148,6 +227,21 @@ const ApiStripeWebhookRoute = ApiStripeWebhookRouteImport.update({
   path: '/api/stripe/webhook',
   getParentRoute: () => rootRouteImport,
 } as any)
+const EnCSlugRoute = EnCSlugRouteImport.update({
+  id: '/c/$slug',
+  path: '/c/$slug',
+  getParentRoute: () => EnRoute,
+} as any)
+const EnFaqPaymentRoute = EnFaqPaymentRouteImport.update({
+  id: '/faq/payment',
+  path: '/faq/payment',
+  getParentRoute: () => EnRoute,
+} as any)
+const EnRSlugRoute = EnRSlugRouteImport.update({
+  id: '/r/$slug',
+  path: '/r/$slug',
+  getParentRoute: () => EnRoute,
+} as any)
 const FaqPaymentIndexRoute = FaqPaymentIndexRouteImport.update({
   id: '/',
   path: '/',
@@ -179,38 +273,78 @@ const ApiPublicCampaignImageSlugRoute =
     path: '/api/public/campaign-image/$slug',
     getParentRoute: () => rootRouteImport,
   } as any)
+const EnFaqPaymentIndexRoute = EnFaqPaymentIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => EnFaqPaymentRoute,
+} as any)
+const EnFaqPaymentBinanceRoute = EnFaqPaymentBinanceRouteImport.update({
+  id: '/binance',
+  path: '/binance',
+  getParentRoute: () => EnFaqPaymentRoute,
+} as any)
+const EnFaqPaymentMetamaskRoute = EnFaqPaymentMetamaskRouteImport.update({
+  id: '/metamask',
+  path: '/metamask',
+  getParentRoute: () => EnFaqPaymentRoute,
+} as any)
+const EnFaqPaymentOkxRoute = EnFaqPaymentOkxRouteImport.update({
+  id: '/okx',
+  path: '/okx',
+  getParentRoute: () => EnFaqPaymentRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/about': typeof AboutRoute
   '/affiliate': typeof AffiliateRoute
   '/archive': typeof ArchiveRoute
   '/auth': typeof AuthRoute
   '/contact': typeof ContactRoute
+  '/en': typeof EnRouteWithChildren
   '/guide': typeof GuideRoute
   '/privacy': typeof PrivacyRoute
   '/rankings': typeof RankingsRoute
+  '/sitemap.xml': typeof SitemapDotxmlRoute
   '/terms': typeof TermsRoute
   '/admin': typeof AuthenticatedAdminRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/my-entries': typeof AuthenticatedMyEntriesRoute
   '/new': typeof AuthenticatedNewRoute
   '/c/$slug': typeof CSlugRoute
+  '/en/about': typeof EnAboutRoute
+  '/en/affiliate': typeof EnAffiliateRoute
+  '/en/archive': typeof EnArchiveRoute
+  '/en/contact': typeof EnContactRoute
+  '/en/guide': typeof EnGuideRoute
+  '/en/privacy': typeof EnPrivacyRoute
+  '/en/rankings': typeof EnRankingsRoute
+  '/en/terms': typeof EnTermsRoute
   '/faq/payment': typeof FaqPaymentRouteWithChildren
   '/go/$slug': typeof GoSlugRoute
   '/r/$slug': typeof RSlugRouteWithChildren
+  '/en/': typeof EnIndexRoute
   '/affiliate/dashboard': typeof AuthenticatedAffiliateDashboardRoute
   '/manage/$id': typeof AuthenticatedManageIdRoute
   '/api/cron/conditions': typeof ApiCronConditionsRoute
   '/api/stripe/webhook': typeof ApiStripeWebhookRoute
+  '/en/c/$slug': typeof EnCSlugRoute
+  '/en/faq/payment': typeof EnFaqPaymentRouteWithChildren
+  '/en/r/$slug': typeof EnRSlugRoute
   '/faq/payment/binance': typeof FaqPaymentBinanceRoute
   '/faq/payment/metamask': typeof FaqPaymentMetamaskRoute
   '/faq/payment/okx': typeof FaqPaymentOkxRoute
   '/r/$slug/claim': typeof RSlugClaimRoute
   '/faq/payment/': typeof FaqPaymentIndexRoute
   '/api/public/campaign-image/$slug': typeof ApiPublicCampaignImageSlugRoute
+  '/en/faq/payment/binance': typeof EnFaqPaymentBinanceRoute
+  '/en/faq/payment/metamask': typeof EnFaqPaymentMetamaskRoute
+  '/en/faq/payment/okx': typeof EnFaqPaymentOkxRoute
+  '/en/faq/payment/': typeof EnFaqPaymentIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/about': typeof AboutRoute
   '/affiliate': typeof AffiliateRoute
   '/archive': typeof ArchiveRoute
   '/auth': typeof AuthRoute
@@ -218,89 +352,144 @@ export interface FileRoutesByTo {
   '/guide': typeof GuideRoute
   '/privacy': typeof PrivacyRoute
   '/rankings': typeof RankingsRoute
+  '/sitemap.xml': typeof SitemapDotxmlRoute
   '/terms': typeof TermsRoute
   '/admin': typeof AuthenticatedAdminRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/my-entries': typeof AuthenticatedMyEntriesRoute
   '/new': typeof AuthenticatedNewRoute
   '/c/$slug': typeof CSlugRoute
+  '/en/about': typeof EnAboutRoute
+  '/en/affiliate': typeof EnAffiliateRoute
+  '/en/archive': typeof EnArchiveRoute
+  '/en/contact': typeof EnContactRoute
+  '/en/guide': typeof EnGuideRoute
+  '/en/privacy': typeof EnPrivacyRoute
+  '/en/rankings': typeof EnRankingsRoute
+  '/en/terms': typeof EnTermsRoute
   '/go/$slug': typeof GoSlugRoute
   '/r/$slug': typeof RSlugRouteWithChildren
+  '/en': typeof EnIndexRoute
   '/affiliate/dashboard': typeof AuthenticatedAffiliateDashboardRoute
   '/manage/$id': typeof AuthenticatedManageIdRoute
   '/api/cron/conditions': typeof ApiCronConditionsRoute
   '/api/stripe/webhook': typeof ApiStripeWebhookRoute
+  '/en/c/$slug': typeof EnCSlugRoute
+  '/en/r/$slug': typeof EnRSlugRoute
   '/faq/payment/binance': typeof FaqPaymentBinanceRoute
   '/faq/payment/metamask': typeof FaqPaymentMetamaskRoute
   '/faq/payment/okx': typeof FaqPaymentOkxRoute
   '/r/$slug/claim': typeof RSlugClaimRoute
   '/faq/payment': typeof FaqPaymentIndexRoute
   '/api/public/campaign-image/$slug': typeof ApiPublicCampaignImageSlugRoute
+  '/en/faq/payment/binance': typeof EnFaqPaymentBinanceRoute
+  '/en/faq/payment/metamask': typeof EnFaqPaymentMetamaskRoute
+  '/en/faq/payment/okx': typeof EnFaqPaymentOkxRoute
+  '/en/faq/payment': typeof EnFaqPaymentIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/_authenticated': typeof AuthenticatedRouteRouteWithChildren
+  '/about': typeof AboutRoute
   '/affiliate': typeof AffiliateRoute
   '/archive': typeof ArchiveRoute
   '/auth': typeof AuthRoute
   '/contact': typeof ContactRoute
+  '/en': typeof EnRouteWithChildren
   '/guide': typeof GuideRoute
   '/privacy': typeof PrivacyRoute
   '/rankings': typeof RankingsRoute
+  '/sitemap.xml': typeof SitemapDotxmlRoute
   '/terms': typeof TermsRoute
   '/_authenticated/admin': typeof AuthenticatedAdminRoute
   '/_authenticated/dashboard': typeof AuthenticatedDashboardRoute
   '/_authenticated/my-entries': typeof AuthenticatedMyEntriesRoute
   '/_authenticated/new': typeof AuthenticatedNewRoute
   '/c/$slug': typeof CSlugRoute
+  '/en/about': typeof EnAboutRoute
+  '/en/affiliate': typeof EnAffiliateRoute
+  '/en/archive': typeof EnArchiveRoute
+  '/en/contact': typeof EnContactRoute
+  '/en/guide': typeof EnGuideRoute
+  '/en/privacy': typeof EnPrivacyRoute
+  '/en/rankings': typeof EnRankingsRoute
+  '/en/terms': typeof EnTermsRoute
   '/faq/payment': typeof FaqPaymentRouteWithChildren
   '/go/$slug': typeof GoSlugRoute
   '/r/$slug': typeof RSlugRouteWithChildren
+  '/en/': typeof EnIndexRoute
   '/_authenticated/affiliate/dashboard': typeof AuthenticatedAffiliateDashboardRoute
   '/_authenticated/manage/$id': typeof AuthenticatedManageIdRoute
   '/api/cron/conditions': typeof ApiCronConditionsRoute
   '/api/stripe/webhook': typeof ApiStripeWebhookRoute
+  '/en/c/$slug': typeof EnCSlugRoute
+  '/en/faq/payment': typeof EnFaqPaymentRouteWithChildren
+  '/en/r/$slug': typeof EnRSlugRoute
   '/faq/payment/binance': typeof FaqPaymentBinanceRoute
   '/faq/payment/metamask': typeof FaqPaymentMetamaskRoute
   '/faq/payment/okx': typeof FaqPaymentOkxRoute
   '/r/$slug/claim': typeof RSlugClaimRoute
   '/faq/payment/': typeof FaqPaymentIndexRoute
   '/api/public/campaign-image/$slug': typeof ApiPublicCampaignImageSlugRoute
+  '/en/faq/payment/binance': typeof EnFaqPaymentBinanceRoute
+  '/en/faq/payment/metamask': typeof EnFaqPaymentMetamaskRoute
+  '/en/faq/payment/okx': typeof EnFaqPaymentOkxRoute
+  '/en/faq/payment/': typeof EnFaqPaymentIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/about'
     | '/affiliate'
     | '/archive'
     | '/auth'
     | '/contact'
+    | '/en'
     | '/guide'
     | '/privacy'
     | '/rankings'
+    | '/sitemap.xml'
     | '/terms'
     | '/admin'
     | '/dashboard'
     | '/my-entries'
     | '/new'
     | '/c/$slug'
+    | '/en/about'
+    | '/en/affiliate'
+    | '/en/archive'
+    | '/en/contact'
+    | '/en/guide'
+    | '/en/privacy'
+    | '/en/rankings'
+    | '/en/terms'
     | '/faq/payment'
     | '/go/$slug'
     | '/r/$slug'
+    | '/en/'
     | '/affiliate/dashboard'
     | '/manage/$id'
     | '/api/cron/conditions'
     | '/api/stripe/webhook'
+    | '/en/c/$slug'
+    | '/en/faq/payment'
+    | '/en/r/$slug'
     | '/faq/payment/binance'
     | '/faq/payment/metamask'
     | '/faq/payment/okx'
     | '/r/$slug/claim'
     | '/faq/payment/'
     | '/api/public/campaign-image/$slug'
+    | '/en/faq/payment/binance'
+    | '/en/faq/payment/metamask'
+    | '/en/faq/payment/okx'
+    | '/en/faq/payment/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/about'
     | '/affiliate'
     | '/archive'
     | '/auth'
@@ -308,66 +497,104 @@ export interface FileRouteTypes {
     | '/guide'
     | '/privacy'
     | '/rankings'
+    | '/sitemap.xml'
     | '/terms'
     | '/admin'
     | '/dashboard'
     | '/my-entries'
     | '/new'
     | '/c/$slug'
+    | '/en/about'
+    | '/en/affiliate'
+    | '/en/archive'
+    | '/en/contact'
+    | '/en/guide'
+    | '/en/privacy'
+    | '/en/rankings'
+    | '/en/terms'
     | '/go/$slug'
     | '/r/$slug'
+    | '/en'
     | '/affiliate/dashboard'
     | '/manage/$id'
     | '/api/cron/conditions'
     | '/api/stripe/webhook'
+    | '/en/c/$slug'
+    | '/en/r/$slug'
     | '/faq/payment/binance'
     | '/faq/payment/metamask'
     | '/faq/payment/okx'
     | '/r/$slug/claim'
     | '/faq/payment'
     | '/api/public/campaign-image/$slug'
+    | '/en/faq/payment/binance'
+    | '/en/faq/payment/metamask'
+    | '/en/faq/payment/okx'
+    | '/en/faq/payment'
   id:
     | '__root__'
     | '/'
     | '/_authenticated'
+    | '/about'
     | '/affiliate'
     | '/archive'
     | '/auth'
     | '/contact'
+    | '/en'
     | '/guide'
     | '/privacy'
     | '/rankings'
+    | '/sitemap.xml'
     | '/terms'
     | '/_authenticated/admin'
     | '/_authenticated/dashboard'
     | '/_authenticated/my-entries'
     | '/_authenticated/new'
     | '/c/$slug'
+    | '/en/about'
+    | '/en/affiliate'
+    | '/en/archive'
+    | '/en/contact'
+    | '/en/guide'
+    | '/en/privacy'
+    | '/en/rankings'
+    | '/en/terms'
     | '/faq/payment'
     | '/go/$slug'
     | '/r/$slug'
+    | '/en/'
     | '/_authenticated/affiliate/dashboard'
     | '/_authenticated/manage/$id'
     | '/api/cron/conditions'
     | '/api/stripe/webhook'
+    | '/en/c/$slug'
+    | '/en/faq/payment'
+    | '/en/r/$slug'
     | '/faq/payment/binance'
     | '/faq/payment/metamask'
     | '/faq/payment/okx'
     | '/r/$slug/claim'
     | '/faq/payment/'
     | '/api/public/campaign-image/$slug'
+    | '/en/faq/payment/binance'
+    | '/en/faq/payment/metamask'
+    | '/en/faq/payment/okx'
+    | '/en/faq/payment/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AuthenticatedRouteRoute: typeof AuthenticatedRouteRouteWithChildren
+  AboutRoute: typeof AboutRoute
   AffiliateRoute: typeof AffiliateRoute
   ArchiveRoute: typeof ArchiveRoute
   AuthRoute: typeof AuthRoute
   ContactRoute: typeof ContactRoute
+  EnRoute: typeof EnRouteWithChildren
   GuideRoute: typeof GuideRoute
   PrivacyRoute: typeof PrivacyRoute
   RankingsRoute: typeof RankingsRoute
+  SitemapDotxmlRoute: typeof SitemapDotxmlRoute
   TermsRoute: typeof TermsRoute
   CSlugRoute: typeof CSlugRoute
   FaqPaymentRoute: typeof FaqPaymentRouteWithChildren
@@ -392,6 +619,13 @@ declare module '@tanstack/react-router' {
       path: ''
       fullPath: '/'
       preLoaderRoute: typeof AuthenticatedRouteRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/about': {
+      id: '/about'
+      path: '/about'
+      fullPath: '/about'
+      preLoaderRoute: typeof AboutRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/affiliate': {
@@ -422,6 +656,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ContactRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/en': {
+      id: '/en'
+      path: '/en'
+      fullPath: '/en'
+      preLoaderRoute: typeof EnRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/guide': {
       id: '/guide'
       path: '/guide'
@@ -441,6 +682,13 @@ declare module '@tanstack/react-router' {
       path: '/rankings'
       fullPath: '/rankings'
       preLoaderRoute: typeof RankingsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/sitemap.xml': {
+      id: '/sitemap.xml'
+      path: '/sitemap.xml'
+      fullPath: '/sitemap.xml'
+      preLoaderRoute: typeof SitemapDotxmlRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/terms': {
@@ -484,6 +732,69 @@ declare module '@tanstack/react-router' {
       fullPath: '/c/$slug'
       preLoaderRoute: typeof CSlugRouteImport
       parentRoute: typeof rootRouteImport
+    }
+    '/en/': {
+      id: '/en/'
+      path: '/'
+      fullPath: '/en/'
+      preLoaderRoute: typeof EnIndexRouteImport
+      parentRoute: typeof EnRoute
+    }
+    '/en/about': {
+      id: '/en/about'
+      path: '/about'
+      fullPath: '/en/about'
+      preLoaderRoute: typeof EnAboutRouteImport
+      parentRoute: typeof EnRoute
+    }
+    '/en/affiliate': {
+      id: '/en/affiliate'
+      path: '/affiliate'
+      fullPath: '/en/affiliate'
+      preLoaderRoute: typeof EnAffiliateRouteImport
+      parentRoute: typeof EnRoute
+    }
+    '/en/archive': {
+      id: '/en/archive'
+      path: '/archive'
+      fullPath: '/en/archive'
+      preLoaderRoute: typeof EnArchiveRouteImport
+      parentRoute: typeof EnRoute
+    }
+    '/en/contact': {
+      id: '/en/contact'
+      path: '/contact'
+      fullPath: '/en/contact'
+      preLoaderRoute: typeof EnContactRouteImport
+      parentRoute: typeof EnRoute
+    }
+    '/en/guide': {
+      id: '/en/guide'
+      path: '/guide'
+      fullPath: '/en/guide'
+      preLoaderRoute: typeof EnGuideRouteImport
+      parentRoute: typeof EnRoute
+    }
+    '/en/privacy': {
+      id: '/en/privacy'
+      path: '/privacy'
+      fullPath: '/en/privacy'
+      preLoaderRoute: typeof EnPrivacyRouteImport
+      parentRoute: typeof EnRoute
+    }
+    '/en/rankings': {
+      id: '/en/rankings'
+      path: '/rankings'
+      fullPath: '/en/rankings'
+      preLoaderRoute: typeof EnRankingsRouteImport
+      parentRoute: typeof EnRoute
+    }
+    '/en/terms': {
+      id: '/en/terms'
+      path: '/terms'
+      fullPath: '/en/terms'
+      preLoaderRoute: typeof EnTermsRouteImport
+      parentRoute: typeof EnRoute
     }
     '/faq/payment': {
       id: '/faq/payment'
@@ -534,6 +845,27 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiStripeWebhookRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/en/c/$slug': {
+      id: '/en/c/$slug'
+      path: '/c/$slug'
+      fullPath: '/en/c/$slug'
+      preLoaderRoute: typeof EnCSlugRouteImport
+      parentRoute: typeof EnRoute
+    }
+    '/en/faq/payment': {
+      id: '/en/faq/payment'
+      path: '/faq/payment'
+      fullPath: '/en/faq/payment'
+      preLoaderRoute: typeof EnFaqPaymentRouteImport
+      parentRoute: typeof EnRoute
+    }
+    '/en/r/$slug': {
+      id: '/en/r/$slug'
+      path: '/r/$slug'
+      fullPath: '/en/r/$slug'
+      preLoaderRoute: typeof EnRSlugRouteImport
+      parentRoute: typeof EnRoute
+    }
     '/faq/payment/': {
       id: '/faq/payment/'
       path: '/'
@@ -576,6 +908,34 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicCampaignImageSlugRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/en/faq/payment/': {
+      id: '/en/faq/payment/'
+      path: '/'
+      fullPath: '/en/faq/payment/'
+      preLoaderRoute: typeof EnFaqPaymentIndexRouteImport
+      parentRoute: typeof EnFaqPaymentRoute
+    }
+    '/en/faq/payment/binance': {
+      id: '/en/faq/payment/binance'
+      path: '/binance'
+      fullPath: '/en/faq/payment/binance'
+      preLoaderRoute: typeof EnFaqPaymentBinanceRouteImport
+      parentRoute: typeof EnFaqPaymentRoute
+    }
+    '/en/faq/payment/metamask': {
+      id: '/en/faq/payment/metamask'
+      path: '/metamask'
+      fullPath: '/en/faq/payment/metamask'
+      preLoaderRoute: typeof EnFaqPaymentMetamaskRouteImport
+      parentRoute: typeof EnFaqPaymentRoute
+    }
+    '/en/faq/payment/okx': {
+      id: '/en/faq/payment/okx'
+      path: '/okx'
+      fullPath: '/en/faq/payment/okx'
+      preLoaderRoute: typeof EnFaqPaymentOkxRouteImport
+      parentRoute: typeof EnFaqPaymentRoute
+    }
   }
 }
 
@@ -599,6 +959,56 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
 
 const AuthenticatedRouteRouteWithChildren =
   AuthenticatedRouteRoute._addFileChildren(AuthenticatedRouteRouteChildren)
+
+interface EnFaqPaymentRouteChildren {
+  EnFaqPaymentBinanceRoute: typeof EnFaqPaymentBinanceRoute
+  EnFaqPaymentMetamaskRoute: typeof EnFaqPaymentMetamaskRoute
+  EnFaqPaymentOkxRoute: typeof EnFaqPaymentOkxRoute
+  EnFaqPaymentIndexRoute: typeof EnFaqPaymentIndexRoute
+}
+
+const EnFaqPaymentRouteChildren: EnFaqPaymentRouteChildren = {
+  EnFaqPaymentBinanceRoute: EnFaqPaymentBinanceRoute,
+  EnFaqPaymentMetamaskRoute: EnFaqPaymentMetamaskRoute,
+  EnFaqPaymentOkxRoute: EnFaqPaymentOkxRoute,
+  EnFaqPaymentIndexRoute: EnFaqPaymentIndexRoute,
+}
+
+const EnFaqPaymentRouteWithChildren = EnFaqPaymentRoute._addFileChildren(
+  EnFaqPaymentRouteChildren,
+)
+
+interface EnRouteChildren {
+  EnAboutRoute: typeof EnAboutRoute
+  EnAffiliateRoute: typeof EnAffiliateRoute
+  EnArchiveRoute: typeof EnArchiveRoute
+  EnContactRoute: typeof EnContactRoute
+  EnGuideRoute: typeof EnGuideRoute
+  EnPrivacyRoute: typeof EnPrivacyRoute
+  EnRankingsRoute: typeof EnRankingsRoute
+  EnTermsRoute: typeof EnTermsRoute
+  EnIndexRoute: typeof EnIndexRoute
+  EnCSlugRoute: typeof EnCSlugRoute
+  EnFaqPaymentRoute: typeof EnFaqPaymentRouteWithChildren
+  EnRSlugRoute: typeof EnRSlugRoute
+}
+
+const EnRouteChildren: EnRouteChildren = {
+  EnAboutRoute: EnAboutRoute,
+  EnAffiliateRoute: EnAffiliateRoute,
+  EnArchiveRoute: EnArchiveRoute,
+  EnContactRoute: EnContactRoute,
+  EnGuideRoute: EnGuideRoute,
+  EnPrivacyRoute: EnPrivacyRoute,
+  EnRankingsRoute: EnRankingsRoute,
+  EnTermsRoute: EnTermsRoute,
+  EnIndexRoute: EnIndexRoute,
+  EnCSlugRoute: EnCSlugRoute,
+  EnFaqPaymentRoute: EnFaqPaymentRouteWithChildren,
+  EnRSlugRoute: EnRSlugRoute,
+}
+
+const EnRouteWithChildren = EnRoute._addFileChildren(EnRouteChildren)
 
 interface FaqPaymentRouteChildren {
   FaqPaymentBinanceRoute: typeof FaqPaymentBinanceRoute
@@ -631,13 +1041,16 @@ const RSlugRouteWithChildren = RSlugRoute._addFileChildren(RSlugRouteChildren)
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AuthenticatedRouteRoute: AuthenticatedRouteRouteWithChildren,
+  AboutRoute: AboutRoute,
   AffiliateRoute: AffiliateRoute,
   ArchiveRoute: ArchiveRoute,
   AuthRoute: AuthRoute,
   ContactRoute: ContactRoute,
+  EnRoute: EnRouteWithChildren,
   GuideRoute: GuideRoute,
   PrivacyRoute: PrivacyRoute,
   RankingsRoute: RankingsRoute,
+  SitemapDotxmlRoute: SitemapDotxmlRoute,
   TermsRoute: TermsRoute,
   CSlugRoute: CSlugRoute,
   FaqPaymentRoute: FaqPaymentRouteWithChildren,

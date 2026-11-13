@@ -3,9 +3,10 @@ import { useQuery } from "@tanstack/react-query";
 import { Fragment, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
-import { translate, useI18n } from "@/lib/i18n";
+import { translate, useI18n, type DictKey } from "@/lib/i18n";
 import { parseConditions, type Metrics } from "@/lib/conditions";
 import { feeRate, type FeeTier } from "@/lib/fees";
+import { i18nLinks } from "@/lib/seo";
 import { Check, Copy, Gift, Heart, MessageCircle, Plus, Repeat2, Search, Send, ShieldCheck, TrendingUp } from "lucide-react";
 
 export const Route = createFileRoute("/guide")({
@@ -16,6 +17,14 @@ export const Route = createFileRoute("/guide")({
       { property: "og:title", content: "涨粉攻略 — FairDraw" },
       { property: "og:type", content: "website" },
     ],
+    links: i18nLinks("/guide"),
+    scripts: [{
+      type: "application/ld+json",
+      children: JSON.stringify({
+        "@context": "https://schema.org", "@type": "FAQPage",
+        mainEntity: GROUPS.flatMap((g) => g.q.map((q) => ({ "@type": "Question", name: translate("zh", q.q), acceptedAnswer: { "@type": "Answer", text: translate("zh", q.a) } }))),
+      }),
+    }],
   }),
   component: Guide,
 });
@@ -119,7 +128,7 @@ function useGuideStats() {
 }
 
 type FaqLink = { label: string; href: string; subZh: string; subEn: string; color: string };
-type FaqQ = { id: string; q: string; a: string; k?: string; act?: { l: string; to?: string; href?: string; result?: boolean }; links?: FaqLink[]; code?: boolean };
+type FaqQ = { id: string; q: DictKey; a: DictKey; k?: DictKey; act?: { l: DictKey; to?: string; href?: string; result?: boolean }; links?: FaqLink[]; code?: boolean; tiers?: boolean };
 
 /** Pseudocode mirroring src/lib/draw.ts — keep in sync with the implementation. */
 const DRAW_CODE = `candidates 按 id 排序 → 每行 "id:handle" → canonicalList
@@ -136,16 +145,16 @@ seed     = SHA-256(listHash + "|" + 开奖时间)
   u_i   = int(SHA-256(seed + ":" + id + ":" + i)前48位, 16) / 2^48
   s_i   = ln(u_i) / w_i
   winners = s_i 最高的前 k 名`;
-type FaqG = { id: string; name: string; who: string; color: string; bg: string; I: typeof Gift; q: FaqQ[] };
+type FaqG = { id: string; name: DictKey; who: DictKey; color: string; bg: string; I: typeof Gift; q: FaqQ[] };
 
-const GROUPS: FaqG[] = [
+export const GROUPS: FaqG[] = [
   {
     id: "g-start", name: "gd.g1", who: "gd.who1", color: "#f5b83d", bg: "rgba(245,184,61,.12)", I: TrendingUp,
     q: [
       { id: "what", q: "faq.q1", a: "faq.a1" },
       { id: "why", q: "faq.q2", a: "faq.a2" },
       { id: "how", q: "faq.q3", a: "faq.a3", act: { l: "gd.actStart", to: "/new" } },
-      { id: "fee", q: "gd.qFee", a: "gd.aFee", k: "gd.qFeeK" },
+      { id: "fee", q: "gd.qFee", a: "gd.aFee", k: "gd.qFeeK", tiers: true },
       { id: "fail", q: "faq.q10", a: "faq.a10" },
       { id: "pay-crypto", q: "faq.qPay", a: "faq.aPay", links: [
         { label: "MetaMask", href: "/faq/payment/metamask", subZh: "加密钱包 · 浏览器插件 / 手机 App", subEn: "Self-custody wallet · extension or mobile app", color: "#e88100" },
@@ -167,7 +176,9 @@ const GROUPS: FaqG[] = [
     id: "g-trust", name: "gd.g3", who: "gd.who3", color: "#a99bff", bg: "rgba(124,92,255,.14)", I: ShieldCheck,
     q: [
       { id: "fair", q: "faq.q5", a: "faq.a5", k: "gd.qFairK", act: { l: "gd.actVerify", result: true } },
-      { id: "algo", q: "faq.qAlgo", a: "faq.aAlgo", k: "faq.qAlgoK", code: true, act: { l: "gd.actVerify", result: true } },
+      { id: "algo", q: "faq.qAlgo", a: "faq.aAlgo", k: "faq.qAlgoK", code: true, act: { l: "gd.actVerify", result: true }, links: [
+        { label: "src/lib/draw.ts · GitHub", href: "https://github.com/lonzo-huang/fairdraw/blob/main/src/lib/draw.ts", subZh: "开奖算法开源实现", subEn: "Open-source draw algorithm", color: "#38bdf8" },
+      ] },
       { id: "escrow", q: "gd.qEscrow", a: "gd.aEscrow" },
       { id: "xrule", q: "faq.q11", a: "faq.a11", k: "gd.qXruleK", act: { l: "gd.actXrules", href: "https://help.x.com/en/rules-and-policies" } },
     ],
@@ -176,8 +187,8 @@ const GROUPS: FaqG[] = [
 
 const CASE_AV = ["linear-gradient(135deg,#f59e9e,#b45f7c)", "radial-gradient(circle at 30% 30%,#5aa0ff,#173a8a)", "linear-gradient(135deg,#8b6b4a,#3a2a1e)"];
 
-function Guide() {
-  const { t, lang } = useI18n();
+export function Guide() {
+  const { t, lang, lp } = useI18n();
   const { data: st } = useGuideStats();
   const [qstr, setQstr] = useState("");
   const [open, setOpen] = useState<Set<string>>(new Set());
@@ -206,7 +217,7 @@ function Guide() {
   const isOpen = (id: string) => (qstr ? true : open.has(id));
   const filteredIds = filtered.map((g) => g.id).join(",");
 
-  // "/" focuses search; deep links open the question; FAQ JSON-LD for SEO.
+  // "/" focuses search; deep links open the question. FAQ JSON-LD lives in the route head() so it lands in SSR HTML.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "/" && document.activeElement?.tagName !== "INPUT") { e.preventDefault(); searchRef.current?.focus(); }
@@ -217,16 +228,8 @@ function Guide() {
       setOpen(new Set([h]));
       setTimeout(() => document.getElementById(h)?.scrollIntoView(), 60);
     }
-    const sc = document.createElement("script");
-    sc.type = "application/ld+json";
-    sc.textContent = JSON.stringify({
-      "@context": "https://schema.org", "@type": "FAQPage",
-      mainEntity: GROUPS.flatMap((g) => g.q.map((q) => ({ "@type": "Question", name: t(q.q), acceptedAnswer: { "@type": "Answer", text: t(q.a) } }))),
-    });
-    document.head.appendChild(sc);
-    return () => { document.removeEventListener("keydown", onKey); sc.remove(); };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [lang]);
+    return () => { document.removeEventListener("keydown", onKey); };
+  }, []);
 
   // Scroll-spy on the visible FAQ groups.
   useEffect(() => {
@@ -373,14 +376,14 @@ function Guide() {
               <span className="tag">{t("gd.t5tag")}</span>
               <h3>{t("gd.t5h")}</h3>
               <div className="viz">
-                <div className="tpl">{t(`gd.tpl${tplIdx}`)}</div>
+                <div className="tpl">{t(`gd.tpl${tplIdx}` as DictKey)}</div>
                 <div className="tpl-f">
                   <div className="tpl-tabs">
                     {[0, 1, 2].map((i) => (
-                      <button key={i} type="button" aria-pressed={tplIdx === i} onClick={() => setTplIdx(i)}>{t(`gd.tplTab${i}`)}</button>
+                      <button key={i} type="button" aria-pressed={tplIdx === i} onClick={() => setTplIdx(i)}>{t(`gd.tplTab${i}` as DictKey)}</button>
                     ))}
                   </div>
-                  <button type="button" className="ghost" style={{ height: 32, fontSize: 13 }} onClick={() => copy(t(`gd.tpl${tplIdx}`), t("gd.tplCopied"))}>
+                  <button type="button" className="ghost" style={{ height: 32, fontSize: 13 }} onClick={() => copy(t(`gd.tpl${tplIdx}` as DictKey), t("gd.tplCopied"))}>
                     <Copy />{t("gd.tplCopy")}
                   </button>
                 </div>
@@ -419,7 +422,7 @@ function Guide() {
                 <div><div className="v">{short(ppl)}</div><div className="k">{t("gd.rPpl")}</div></div>
               </div>
               <div className="res-l">{t("gd.cost")} <b className="num" style={{ color: "#e8ecf4" }}>{cost.toFixed(2)} USDT</b>，{t("gd.cpf")} <b className="num" style={{ color: "#34d399" }}>${(cost / fol).toFixed(2)}</b></div>
-              <p className="note">{t("gd.calcNote")}</p>
+              <p className="note">{st ? translate(lang, "gd.calcNote", { n: st.drawn }) : t("gd.calcP")}</p>
               <Link to="/new" className="btn" style={{ marginTop: 20 }}>{t("gd.calcGo")}</Link>
             </div>
           </div>
@@ -443,7 +446,7 @@ function Guide() {
                     <div><div className="v">{cs.eng != null ? short(cs.eng) : "—"}</div><div className="k">{t("gd.caseEng")}</div></div>
                     <div><div className="v" style={{ color: "#34d399" }}>{cs.fol != null ? `+${short(cs.fol)}` : "—"}</div><div className="k">{t("gd.caseFol")}</div></div>
                   </div>
-                  <q>{cs.title} · <Link to="/c/$slug" params={{ slug: cs.slug }}>{t("gd.caseGo")}</Link></q>
+                  <q>{cs.title} · <Link to={lp(`/c/${cs.slug}`) as never}>{t("gd.caseGo")}</Link></q>
                 </div>
               ))}
             </div>
@@ -478,13 +481,22 @@ function Guide() {
                         <div>
                           <div className="qa">
                             {hl(t(item.a))}
+                            {item.tiers && st?.tiers?.length ? (
+                              <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 10 }}>
+                                {[...st.tiers].sort((a, b) => a.min_amount - b.min_amount).map((tier, i, arr) => {
+                                  const next = arr[i + 1];
+                                  const label = i === 0 ? `≤ ${next?.min_amount} USDT` : next ? `${tier.min_amount}–${next.min_amount} USDT` : `> ${tier.min_amount.toLocaleString()} USDT`;
+                                  return <span key={tier.min_amount} style={{ padding: "3px 10px", borderRadius: 999, border: "1px solid var(--border)", fontSize: 12, fontFamily: "monospace" }}>{label} → {tier.rate_percent}%</span>;
+                                })}
+                              </div>
+                            ) : null}
                             {item.code && (
                               <pre style={{ marginTop: 12, padding: "14px 16px", borderRadius: 10, border: "1px solid var(--border)", background: "var(--background)", fontSize: 12, lineHeight: 1.75, overflowX: "auto", fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace", color: "var(--muted-foreground)", whiteSpace: "pre" }}>{DRAW_CODE}</pre>
                             )}
                             {item.links && (
                               <div style={{display:"flex",flexDirection:"column",gap:8,marginTop:12}}>
                                 {item.links.map((lk) => (
-                                  <a key={lk.href} href={lk.href} style={{display:"flex",alignItems:"center",gap:12,padding:"10px 14px",borderRadius:10,border:"1px solid var(--border)",background:"var(--card)",textDecoration:"none",color:"inherit"}}>
+                                  <a key={lk.href} href={lp(lk.href)} style={{display:"flex",alignItems:"center",gap:12,padding:"10px 14px",borderRadius:10,border:"1px solid var(--border)",background:"var(--card)",textDecoration:"none",color:"inherit"}}>
                                     <span style={{width:8,height:8,borderRadius:"50%",background:lk.color,flexShrink:0}} />
                                     <span style={{flex:1}}>
                                       <span style={{fontWeight:600,fontSize:14}}>{lk.label}</span>
@@ -500,15 +512,15 @@ function Guide() {
                                 {item.act.href ? (
                                   <a className="ghost" href={item.act.href} target="_blank" rel="noopener noreferrer">{t(item.act.l)} →</a>
                                 ) : item.act.result ? (
-                                  <Link className="ghost" to="/r/$slug" params={{ slug: firstResult! }}>{t(item.act.l)} →</Link>
+                                  <Link className="ghost" to={lp(`/r/${firstResult!}`) as never}>{t(item.act.l)} →</Link>
                                 ) : (
-                                  <Link className="ghost" to={item.act.to!}>{t(item.act.l)} →</Link>
+                                  <Link className="ghost" to={lp(item.act.to!) as never}>{t(item.act.l)} →</Link>
                                 )}
                               </div>
                             )}
                             {fb[item.id] ? (
                               <div className="qf">
-                                {fb[item.id] === "up" ? t("gd.fbThanks") : <>{t("gd.fbSorry")}<Link to="/contact">{t("gd.fbContact")}</Link></>}
+                                {fb[item.id] === "up" ? t("gd.fbThanks") : <>{t("gd.fbSorry")}<Link to={lp("/contact") as never}>{t("gd.fbContact")}</Link></>}
                               </div>
                             ) : (
                               <div className="qf">
@@ -534,11 +546,11 @@ function Guide() {
             <h2>{t("gd.ctaH")}</h2>
             <p>{t("gd.ctaP")}</p>
             <div className="contact">
-              <a className="ghost" href="https://x.com/Mirrortekuk" target="_blank" rel="noopener noreferrer">
+              <a className="ghost" href="https://x.com/FairDraw" target="_blank" rel="noopener noreferrer">
                 <svg viewBox="0 0 24 24" fill="currentColor" style={{ width: 13, height: 13 }}><path d="M18.2 2.3h3.4l-7.4 8.4 8.7 11.5h-6.8l-5.3-7-6.1 7H1.3l7.9-9L.9 2.3h7l4.8 6.4 5.5-6.4Zm-1.2 17.9h1.9L7.1 4.2H5.1l11.9 16Z" /></svg>
                 {t("gd.ctaX")}
               </a>
-              <Link className="ghost" to="/contact"><Send style={{ width: 13, height: 13 }} />{t("gd.ctaMail")}</Link>
+              <Link className="ghost" to={lp("/contact") as never}><Send style={{ width: 13, height: 13 }} />{t("gd.ctaMail")}</Link>
             </div>
           </div>
           <Link className="btn" to="/new">{t("gd.ctaGo")}</Link>

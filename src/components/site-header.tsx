@@ -9,16 +9,17 @@ import { ArrowUpRight, Menu, X } from "lucide-react";
 const logoSrc = "/fairdraw-logo-dark-bg.svg";
 
 export function Logo() {
+  const { lp } = useI18n();
   return (
-    <Link to="/" className="flex shrink-0 items-center" aria-label="FairDraw">
-      <img src={logoSrc} alt="FairDraw" className="h-9 w-auto object-contain" />
+    <Link to={lp("/") as never} className="flex shrink-0 items-center" aria-label="FairDraw">
+      <img src={logoSrc} alt="FairDraw 可验证抽奖平台" className="h-9 w-auto object-contain" />
     </Link>
   );
 }
 
 export function SiteHeader() {
   const { user } = useAuth();
-  const { t, lang, setLang } = useI18n();
+  const { t, lang, setLang, lp } = useI18n();
   const navigate = useNavigate();
   const qc = useQueryClient();
   const pathname = useRouterState({ select: (state) => state.location.pathname });
@@ -55,9 +56,9 @@ export function SiteHeader() {
       <div className="mx-auto flex h-18 max-w-7xl items-center justify-between gap-3 px-5 sm:px-8">
         <Logo />
         <nav className="flex items-center gap-1 text-sm sm:gap-3">
-          {onHome ? <a href="#campaigns" className="hidden px-2 text-muted-foreground hover:text-foreground sm:inline">{t("cy.live")}</a> : <Link to="/" className="hidden px-2 text-muted-foreground hover:text-foreground sm:inline">{t("cy.live")}</Link>}
-          <Link to="/guide" className="hidden px-2 text-muted-foreground hover:text-foreground sm:inline">{t("nav.guide")}</Link>
-          <Link to="/affiliate" className="hidden px-2 text-muted-foreground hover:text-foreground sm:inline">{t("nav.affiliate")}</Link>
+          {onHome ? <a href="#campaigns" className="hidden px-2 text-muted-foreground hover:text-foreground sm:inline">{t("cy.live")}</a> : <Link to={lp("/") as never} className="hidden px-2 text-muted-foreground hover:text-foreground sm:inline">{t("cy.live")}</Link>}
+          <Link to={lp("/guide") as never} className="hidden px-2 text-muted-foreground hover:text-foreground sm:inline">{t("nav.guide")}</Link>
+          <Link to={lp("/affiliate") as never} className="hidden px-2 text-muted-foreground hover:text-foreground sm:inline">{t("nav.affiliate")}</Link>
           {user && (
             <>
               <Link to="/dashboard" className="px-2 text-muted-foreground hover:text-foreground">
@@ -103,10 +104,10 @@ export function SiteHeader() {
             {onHome ? (
               <a href="#campaigns" className={navLinkCls} onClick={() => setNavOpen(false)}>{t("cy.live")}</a>
             ) : (
-              <Link to="/" className={navLinkCls}>{t("cy.live")}</Link>
+              <Link to={lp("/") as never} className={navLinkCls}>{t("cy.live")}</Link>
             )}
-            <Link to="/guide" className={navLinkCls}>{t("nav.guide")}</Link>
-            <Link to="/affiliate" className={navLinkCls}>{t("nav.affiliate")}</Link>
+            <Link to={lp("/guide") as never} className={navLinkCls}>{t("nav.guide")}</Link>
+            <Link to={lp("/affiliate") as never} className={navLinkCls}>{t("nav.affiliate")}</Link>
             {user && <Link to="/dashboard" className={navLinkCls}>{t("nav.dashboard")}</Link>}
             {user && isAdmin && <Link to="/admin" className={navLinkCls}>{t("nav.admin")}</Link>}
           </nav>
@@ -117,11 +118,11 @@ export function SiteHeader() {
 }
 
 export function SiteFooter() {
-  const { t } = useI18n();
+  const { t, lp } = useI18n();
   return (
     <footer className="border-t border-border bg-background">
       <div className="mx-auto max-w-7xl px-5 py-7 sm:px-8">
-        <div className="flex flex-wrap items-center justify-between gap-6"><div><Logo /><p className="mt-3 text-xs text-muted-foreground">{t("cy.footer")}</p></div><div className="flex gap-6 text-xs text-muted-foreground"><Link to="/">{t("cy.live")}</Link><Link to="/archive">{t("nav.archive")}</Link><Link to="/guide">{t("nav.guide")}</Link><Link to="/affiliate">{t("nav.affiliate")}</Link><Link to="/new">{t("cy.start")}</Link><Link to="/privacy">{t("footer.privacy")}</Link><Link to="/terms">{t("footer.terms")}</Link><Link to="/contact">{t("footer.contact")}</Link></div></div>
+        <div className="flex flex-wrap items-center justify-between gap-6"><div><Logo /><p className="mt-3 text-xs text-muted-foreground">{t("cy.footer")}</p></div><div className="flex gap-6 text-xs text-muted-foreground"><Link to={lp("/") as never}>{t("cy.live")}</Link><Link to={lp("/archive") as never}>{t("nav.archive")}</Link><Link to={lp("/guide") as never}>{t("nav.guide")}</Link><Link to={lp("/affiliate") as never}>{t("nav.affiliate")}</Link><Link to="/new">{t("cy.start")}</Link><Link to={lp("/about") as never}>{t("nav.about")}</Link><Link to={lp("/privacy") as never}>{t("footer.privacy")}</Link><Link to={lp("/terms") as never}>{t("footer.terms")}</Link><Link to={lp("/contact") as never}>{t("footer.contact")}</Link></div></div>
       </div>
     </footer>
   );

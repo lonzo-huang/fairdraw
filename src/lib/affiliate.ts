@@ -54,4 +54,4 @@ export const refLink = (code: string) => `https://fairdraw.win/?ref=${encodeURIC
 
 /** Promo tweet template — the #广告/#ad disclosure must stay. */
 export const refTweet = (link: string) =>
-  `想在 X 上涨粉，又怕抽奖被说是骗局？\n\n我最近在用 @FairDraw：奖金先托管，开奖过程公开可验证，参与者一看就放心 👀\n\n通过我的链接注册试试 👇\n${link}\n\n#广告`;
+  `想在 X 上涨粉，又怕抽奖被说是骗局？\n\n我最近在用 @FairDraw：奖金先担保，开奖过程公开可验证，参与者一看就放心 👀\n\n通过我的链接注册试试 👇\n${link}\n\n#广告`;

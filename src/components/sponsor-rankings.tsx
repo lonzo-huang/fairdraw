@@ -10,7 +10,7 @@ import type { ImpactRow } from "@/lib/sponsor-ranking";
 export function RankingAvatar({ row }: { row: ImpactRow }) {
   const [failed, setFailed] = useState(false);
   const src = `https://unavatar.io/x/${row.handle}`;
-  return row.handle && !failed ? <img src={src} alt="" onError={() => setFailed(true)} loading="lazy" className="sponsor-avatar size-8 shrink-0 object-cover" /> : <span className="sponsor-avatar size-8 shrink-0 text-xs">{row.name.charAt(0)}</span>;
+  return row.handle && !failed ? <img src={src} alt={`@${row.handle}`} onError={() => setFailed(true)} loading="lazy" className="sponsor-avatar size-8 shrink-0 object-cover" /> : <span className="sponsor-avatar size-8 shrink-0 text-xs">{row.name.charAt(0)}</span>;
 }
 export function SponsorBoard({ period }: { period: RankPeriod }) {
   const { t } = useI18n();

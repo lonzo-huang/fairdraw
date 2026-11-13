@@ -1,4 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { i18nLinks } from "@/lib/seo";
 import { Mail } from "lucide-react";
 import { useI18n } from "@/lib/i18n";
 
@@ -9,11 +10,12 @@ export const Route = createFileRoute("/contact")({
       { name: "description", content: "联系 FairDraw：活动问题、开奖异议、合作接入。" },
       { property: "og:type", content: "website" },
     ],
+    links: i18nLinks("/contact"),
   }),
   component: Contact,
 });
 
-function Contact() {
+export function Contact() {
   const { t } = useI18n();
   const items = [
     { k: "mail", icon: <Mail className="size-4 text-primary" /> },

@@ -1,0 +1,26 @@
+# FairDraw
+
+> FairDraw is a verifiable giveaway and growth platform for X (Twitter). Organisers set a prize pool and entry conditions; FairDraw imports replies, checks eligibility, draws winners with a deterministic SHA-256-seeded algorithm (open source at src/lib/draw.ts), and publishes results anyone can recompute in the browser. Payouts are published as on-chain tx hashes or receipts.
+
+## Key facts
+- Prize pools are escrowed: organisers fund upfront, unmet conditions trigger 100% refunds, drawn pools lock for payouts.
+- Fees are tiered by pool amount (live tiers on the launch page and Terms), no other charges.
+- Deposits accept USDT/USDC on BNB Chain, Base, Polygon, Arbitrum and X Layer. On-chain-funded pools pay winners USDT on BNB Smart Chain (network fee covered); card-funded pools pay an equal-value gift card by email; manual pools are paid directly by the organiser.
+- Candidate list + seed are public; the draw algorithm is open source at https://github.com/lonzo-huang/fairdraw/blob/main/src/lib/draw.ts — results are recomputable client-side.
+- Official X account: https://x.com/FairDraw
+- FairDraw is not affiliated with X (Twitter).
+
+## Main pages
+- Home (live campaign hub + rankings): https://www.fairdraw.win/
+- Growth playbook & FAQ: https://www.fairdraw.win/guide
+- Campaign archive: https://www.fairdraw.win/archive
+- Community leaderboard: https://www.fairdraw.win/rankings
+- About: https://www.fairdraw.win/about
+- Terms: https://www.fairdraw.win/terms
+- Privacy: https://www.fairdraw.win/privacy
+- Contact: https://www.fairdraw.win/contact
+- Public campaign pages: https://www.fairdraw.win/c/{slug}
+- Public result pages: https://www.fairdraw.win/r/{slug}
+
+## Languages
+The site is bilingual: Chinese (default) and English.

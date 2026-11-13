@@ -39,6 +39,7 @@ export const Route = createFileRoute("/r/$slug/claim")({
   head: () => ({
     meta: [
       { title: "Claim your prize — FairDraw" },
+      { name: "robots", content: "noindex" },
       { name: "description", content: "Winner payout claim — submit your receiving details for a publicly verifiable prize." },
       { property: "og:title", content: "Claim your prize — FairDraw" },
       { name: "twitter:card", content: "summary" },

@@ -1,4 +1,4 @@
-import { createFileRoute, Link, Outlet, useMatchRoute } from "@tanstack/react-router";
+import { createFileRoute, Link, Outlet, notFound, useMatchRoute, useParams } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useEffect, useRef, useState } from "react";
@@ -7,6 +7,9 @@ import { supabase } from "@/integrations/supabase/client";
 import { translate, useI18n } from "@/lib/i18n";
 import { useAuth } from "@/hooks/use-auth";
 import { autoStripePayout, syncWisePayout } from "@/lib/payment.functions";
+import { getCampaignShare } from "@/lib/campaign-share.functions";
+import { i18nLinks } from "@/lib/seo";
+import { xHandleFromUrl } from "@/lib/campaign-hub";
 import { canonicalList, listHash, makeSeed, pickWinners, type Candidate } from "@/lib/draw";
 import { computeProgress, parseConditions, type Metrics } from "@/lib/conditions";
 import { Button } from "@/components/ui/button";
@@ -24,6 +27,7 @@ const COND_CHIPS: { k: keyof typeof COND_LABEL | "keyword"; I: typeof Heart }[] 
   { k: "min_participants", I: Users }, { k: "min_verified", I: BadgeCheck }, { k: "keyword", I: Search },
 ];
 const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
+const dateLoc = (l: string) => (l === "zh" ? "zh-CN" : "en-US");
 type StepState = "" | "run" | "ok" | "bad";
 type PoState = "" | "done" | "now";
 
@@ -49,29 +53,74 @@ function burst(cv: HTMLCanvasElement | null) {
   })();
 }
 
+export const resultPageQuery = (slug: string) => ({
+  queryKey: ["result", slug],
+  queryFn: async () => {
+    const { data: c } = await supabase.from("campaigns").select("*").eq("slug", slug).maybeSingle();
+    if (!c) return null;
+    const [{ data: d }, { data: payouts }, { data: lastSnap }] = await Promise.all([
+      supabase.from("draws").select("*").eq("campaign_id", c.id).maybeSingle(),
+      supabase.from("payouts").select("*").eq("campaign_id", c.id),
+      supabase.from("condition_snapshots").select("metrics").eq("campaign_id", c.id).order("fetched_at", { ascending: false }).limit(1).maybeSingle(),
+    ]);
+    return { c, d, payouts: payouts ?? [], lastM: (lastSnap?.metrics ?? null) as Metrics | null };
+  },
+});
+
 export const Route = createFileRoute("/r/$slug")({
-  head: () => ({
-    meta: [
-      { title: "Draw result — Verified with FairDraw" },
-      { name: "description", content: "Public, re-computable giveaway result with payout proof." },
-      { property: "og:title", content: "Draw result — Verified with FairDraw" },
-      { property: "og:description", content: "Public, re-computable giveaway result with payout proof." },
-      { property: "og:type", content: "website" },
-      { name: "twitter:card", content: "summary_large_image" },
-    ],
-  }),
+  loader: async ({ params, context }) => {
+    const share = await getCampaignShare({ data: { slug: params.slug } });
+    // Real 404 status for missing result pages (also covers /r/$slug/claim).
+    if (!share?.c) throw notFound();
+    await context.queryClient.ensureQueryData(resultPageQuery(params.slug));
+    return share;
+  },
+  head: ({ loaderData }) => {
+    const c = loaderData?.c;
+    const title = c ? `${c.title} — 开奖结果 · FairDraw` : "Draw result — Verified with FairDraw";
+    const org = c?.tweet_url ? xHandleFromUrl(c.tweet_url) : null;
+    const amt = c ? (c.prize_amount !== null && c.prize_amount !== undefined ? `${c.prize_amount} ${c.currency ?? ""}`.trim() : c.prize) : "";
+    const description = c
+      ? `${org ? `@${org} 发起的` : ""}回帖抽奖，公开抽出 ${c.winners_count} 位中奖者，共 ${amt}。开奖过程可在浏览器复算验证，派奖凭证已公示。`
+      : "Public, re-computable giveaway result with payout proof.";
+    const image = loaderData?.imageUrl;
+    return {
+      meta: [
+        { title },
+        { name: "description", content: description },
+        ...(c?.is_simulated ? [{ name: "robots", content: "noindex" }] : []),
+        { property: "og:title", content: title },
+        { property: "og:description", content: description },
+        { property: "og:type", content: "website" },
+        { name: "twitter:card", content: "summary_large_image" },
+        ...(image?.startsWith("https://") ? [{ property: "og:image", content: image }, { name: "twitter:image", content: image }, { property: "og:image:width", content: "1200" }, { property: "og:image:height", content: "630" }] : []),
+      ],
+      links: i18nLinks(`/r/${loaderData?.c?.slug ?? ""}`),
+      ...(c?.ends_at ? { scripts: [{ type: "application/ld+json", children: JSON.stringify({
+        "@context": "https://schema.org",
+        "@type": "Event",
+        name: `${c.title} — 开奖结果`,
+        startDate: c.ends_at,
+        eventStatus: "https://schema.org/EventCompleted",
+        eventAttendanceMode: "https://schema.org/OnlineEventAttendanceMode",
+        location: { "@type": "VirtualLocation", url: `https://www.fairdraw.win/r/${c.slug}` },
+        organizer: { "@type": "Organization", name: "FairDraw", url: "https://www.fairdraw.win/" },
+        description,
+      }) }] } : {}),
+    };
+  },
   component: ResultPage,
 });
 
-function ResultPage() {
-  const { slug } = Route.useParams();
+export function ResultPage() {
+  const { slug } = useParams({ strict: false }) as { slug: string };
   const matchRoute = useMatchRoute();
   if (matchRoute({ to: "/r/$slug/claim", params: { slug } })) return <Outlet />;
   return <ResultPageContent slug={slug} />;
 }
 
 function ResultPageContent({ slug }: { slug: string }) {
-  const { t, lang } = useI18n();
+  const { t, lang, lp } = useI18n();
   const { user } = useAuth();
   const [steps, setSteps] = useState<[StepState, StepState, StepState]>(["", "", ""]);
   const [cmp, setCmp] = useState<{ ok1?: boolean; ok2?: boolean; ok3?: boolean | null }>({});
@@ -82,19 +131,7 @@ function ResultPageContent({ slug }: { slug: string }) {
   const [cq, setCq] = useState("");
   const confettiRef = useRef<HTMLCanvasElement>(null);
   const revealed = useRef(false);
-  const { data, isLoading, refetch } = useQuery({
-    queryKey: ["result", slug],
-    queryFn: async () => {
-      const { data: c } = await supabase.from("campaigns").select("*").eq("slug", slug).maybeSingle();
-      if (!c) return null;
-      const [{ data: d }, { data: payouts }, { data: lastSnap }] = await Promise.all([
-        supabase.from("draws").select("*").eq("campaign_id", c.id).maybeSingle(),
-        supabase.from("payouts").select("*").eq("campaign_id", c.id),
-        supabase.from("condition_snapshots").select("metrics").eq("campaign_id", c.id).order("fetched_at", { ascending: false }).limit(1).maybeSingle(),
-      ]);
-      return { c, d, payouts: payouts ?? [], lastM: (lastSnap?.metrics ?? null) as Metrics | null };
-    },
-  });
+  const { data, isLoading, refetch } = useQuery(resultPageQuery(slug));
   const { data: myHandles = [] } = useQuery({
     queryKey: ["my-entry-handles", data?.c?.id, user?.id],
     enabled: !!data?.c?.id && !!user,
@@ -153,7 +190,7 @@ function ResultPageContent({ slug }: { slug: string }) {
     return (
       <div className="p-16 text-center">
         <p className="text-muted-foreground">{t("r.notYet")}</p>
-        <Button asChild className="mt-4"><Link to="/c/$slug" params={{ slug }}>{c.title}</Link></Button>
+        <Button asChild className="mt-4"><Link to={lp(`/c/${slug}`) as never}>{c.title}</Link></Button>
       </div>
     );
 
@@ -177,12 +214,13 @@ function ResultPageContent({ slug }: { slug: string }) {
   const allInfo = payouts.length > 0 && payouts.every((p) => p.claim_info || p.stripe_account_id || p.wise_transfer_id || p.status === "paid");
   const myPayout = payouts.find((p) => p.status !== "paid" && myHandles.includes((p.winner_handle ?? "").trim().toLowerCase().replace(/^@/, "")));
   const paidProofs = payouts.filter((p) => p.status === "paid" && p.proof);
-  const origin = typeof window !== "undefined" ? window.location.origin : "";
+  const loc = dateLoc(lang);
+  const resultUrl = `https://www.fairdraw.win/r/${slug}`;
   const xText = translate(c.share_language === "en" ? "en" : "zh", "rs.xPost", {
-    winners: winners.map((w) => `@${w.handle}`).join(" "), amt, n: candidates.length, url: `${origin}/r/${slug}`,
+    winners: winners.map((w) => `@${w.handle}`).join(" "), amt, n: candidates.length, url: resultUrl,
   });
   const poSteps: { t: string; s: string; st: PoState }[] = [
-    { t: t("rs.stepDraw"), s: drawnAt.toLocaleDateString(), st: "done" },
+    { t: t("rs.stepDraw"), s: drawnAt.toLocaleDateString(loc), st: "done" },
     { t: t("rs.stepNotice"), s: `${winners.length} ${t("c.winners")}`, st: "done" },
     { t: t("rs.stepAddr"), s: allInfo ? t("rs.infoDone") : t("rs.waitInfo"), st: allInfo ? "done" : "now" },
     { t: t("rs.stepPaid"), s: allPaid ? t("r.paid") : t("rs.autoPay"), st: allPaid ? "done" : allInfo ? "now" : "" },
@@ -277,7 +315,7 @@ function ResultPageContent({ slug }: { slug: string }) {
           <div className="facts">
             <div className="fact"><div className="l">{t("rs.candidates")}</div><div className="v">{candidates.length}</div><div className="s">{t("rs.validReplies")}</div></div>
             <div className="fact"><div className="l">{t("rs.winnerCount")}</div><div className="v">{winners.length}</div><div className="s">{translate(lang, "rs.winRate", { p: winRate })}</div></div>
-            <div className="fact"><div className="l">{t("rs.drawTime")}</div><div className="v">{drawnAt.toLocaleDateString()}</div><div className="s">{drawnAt.toLocaleTimeString()}</div></div>
+            <div className="fact"><div className="l">{t("rs.drawTime")}</div><div className="v">{drawnAt.toLocaleDateString(loc)}</div><div className="s">{drawnAt.toLocaleTimeString(loc)}</div></div>
             <div className="fact">
               <div className="l">{author ? t("rs.organizer") : t("rs.poolLabel")}</div>
               <div className="v" style={{ fontSize: 16, paddingTop: 3 }}>{author ? `@${author}` : amt}</div>
@@ -310,7 +348,7 @@ function ResultPageContent({ slug }: { slug: string }) {
                   <><span className="mono">{p.proof}</span><a href={p.proof ?? "#"} target="_blank" rel="noopener noreferrer">{t("rs.viewProof")}</a></>
                 ) : (
                   <span className="mono">{p.proof}</span>
-                )}!c.is_simulated && 
+                )}
               </div>
             ))}
             {myPayout && (
@@ -324,7 +362,7 @@ function ResultPageContent({ slug }: { slug: string }) {
       </article>
 
       <div className="share">
-        <button type="button" className="ghost" onClick={() => copy(`${origin}/r/${slug}`)}><Link2 />{t("rs.copyLink")}</button>
+        <button type="button" className="ghost" onClick={() => copy(resultUrl)}><Link2 />{t("rs.copyLink")}</button>
         <a className="ghost xbtn" href={`https://x.com/intent/tweet?text=${encodeURIComponent(xText)}`} target="_blank" rel="noopener noreferrer">
           <svg viewBox="0 0 24 24" fill="currentColor" style={{ width: 14, height: 14 }} aria-hidden="true"><path d="M18.2 2.3h3.4l-7.4 8.4 8.7 11.5h-6.8l-5.3-7-6.1 7H1.3l7.9-9L.9 2.3h7l4.8 6.4 5.5-6.4Zm-1.2 17.9h1.9L7.1 4.2H5.1l11.9 16Z"/></svg>
           {t("rs.xShare")}

@@ -2,7 +2,7 @@ import { translate, type Lang } from "@/lib/i18n";
 import { parseConditions } from "@/lib/conditions";
 
 export type ShareCampaign = {
-  title: string; prize: string; slug: string; winners_count: number;
+  title: string; prize: string; slug: string; winners_count: number; tweet_url?: string | null;
   prize_amount?: number | null; currency?: string | null;
   share_language?: string; share_duration?: number; conditions?: unknown; requirement?: string;
   escrow_status?: string | null;

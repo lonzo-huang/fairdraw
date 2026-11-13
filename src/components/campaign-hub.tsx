@@ -1,8 +1,8 @@
 import { useEffect, useState, type ReactNode } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useSuspenseQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { ArrowUpRight, Clock3, Gift, Flame, Trophy, Zap, Users, RefreshCw, TrendingUp } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
+import { hubDrawsQuery, hubHostsQuery, hubProgressQuery } from "@/lib/hub-queries";
 import { useI18n, type DictKey } from "@/lib/i18n";
 import { filterHub, hostInitial, xHandleFromUrl, winnerHandles, type HubCampaign, type HubTab } from "@/lib/campaign-hub";
 import { SponsorBoard } from "@/components/sponsor-rankings";
@@ -18,22 +18,13 @@ export function CampaignHub() {
   const { t } = useI18n();
   const [active, setActive] = useState<HubTab>("drawn");
   const [currency, setCurrency] = useState("ALL");
-  const [now, setNow] = useState(0);
+  const [now, setNow] = useState(() => Date.now());
   const [expanded, setExpanded] = useState<Set<HubTab>>(new Set());
   useEffect(() => { setNow(Date.now()); const timer = setInterval(() => setNow(Date.now()), 1000); return () => clearInterval(timer); }, []);
   const query = usePublicHub();
-  const snapshots = useQuery({ queryKey: ["public-hub-progress"], queryFn: async () => {
-    const { data, error } = await supabase.from("condition_snapshots").select("campaign_id,progress,fetched_at,metrics").order("fetched_at", { ascending: false });
-    if (error) throw error; return data;
-  }, refetchInterval: 15 * 60 * 1000 });
-  const hosts = useQuery({ queryKey: ["public-hub-hosts"], queryFn: async () => {
-    const { data, error } = await supabase.from("profiles").select("id,display_name");
-    if (error) throw error; return data;
-  }, refetchInterval: 15 * 60 * 1000 });
-  const draws = useQuery({ queryKey: ["public-hub-draws"], queryFn: async () => {
-    const { data, error } = await supabase.from("draws").select("campaign_id,winners,drawn_at");
-    if (error) throw error; return data;
-  }, refetchInterval: 15 * 60 * 1000 });
+  const snapshots = useSuspenseQuery({ ...hubProgressQuery, refetchInterval: 15 * 60 * 1000 });
+  const hosts = useSuspenseQuery({ ...hubHostsQuery, refetchInterval: 15 * 60 * 1000 });
+  const draws = useSuspenseQuery({ ...hubDrawsQuery, refetchInterval: 15 * 60 * 1000 });
   const hostById = new Map((hosts.data ?? []).map((h) => [h.id, h.display_name]));
   const jump = (id: HubTab) => {
     setActive(id);
@@ -71,7 +62,7 @@ export function CampaignHub() {
   </section>;
 }
 function CampaignCard({ c, now, index, hostName, metrics, progress, winners }: { c: HubCampaign; now: number; index: number; hostName: string; metrics: Partial<Metrics> | undefined; progress: number | undefined; winners: string[] }) {
-  const { t } = useI18n();
+  const { t, lp } = useI18n();
   const seconds = Math.max(0, Math.floor((Date.parse(c.ends_at) - now) / 1000));
   const time = [Math.floor(seconds / 3600), Math.floor(seconds / 60) % 60, seconds % 60].map((v) => String(v).padStart(2, "0")).join(":");
   const ending = c.status === "open" && seconds > 0 && seconds < 7200;
@@ -102,7 +93,7 @@ function CampaignCard({ c, now, index, hostName, metrics, progress, winners }: {
       <div className="metric-duo mt-2 grid grid-cols-2 gap-1.5"><div className="exposure-box" title={t("cy.exposureNote")}><TrendingUp className="metric-signal" /><p className="text-[10px] text-muted-foreground">{t("cy.exposure")}</p><p className="font-mono text-xl font-bold text-prize">{typeof metrics?.views === "number" ? <AnimatedNumber value={metrics.views} compact /> : "—"}</p></div><div className="exposure-box" title={t("cy.popularityNote")}><span className="metric-signal live-dot" /><p className="text-[10px] text-muted-foreground">{t("cy.popularity")}</p><p className="font-mono text-xl font-bold text-success">{popularity === null ? "—" : <AnimatedNumber value={popularity} compact />}</p></div></div>
       <div className="mt-2 flex justify-between text-[10px] text-muted-foreground"><span>{t("cy.drawProgress")}</span><span className="font-mono">{progress === undefined ? "—" : `${progress}%`}</span></div><AnimatedProgress label={t("cy.drawProgress")} value={progress} tone="heat" />
       <div className="winner-slot mt-2 border-t border-border pt-2"><p className="sponsor-title">{t("cy.winnersTitle")}</p>{winners.length ? <ul className="mt-1 flex justify-center gap-1.5">{winners.slice(0, 3).map((h) => <li key={h}><SponsorLink handle={h} className="flex flex-col items-center gap-0.5"><Avatar handle={h} name={h} size="sm" /><span className="max-w-12 truncate text-[10px]">@{h}</span></SponsorLink></li>)}{winners.length > 3 && <li className="self-center text-[10px] text-muted-foreground">+{winners.length - 3}</li>}</ul> : <p className="mt-2 text-center text-[10px] text-muted-foreground">{t("cy.winnersPending")}</p>}</div>
-      <div className="tile-actions mt-auto grid grid-cols-2 gap-1.5 pt-2"><Button asChild variant="glass" size="sm" className="h-7 px-1 text-[10px]"><Link to="/c/$slug" params={{ slug: c.slug }}>{t("cy.details")}</Link></Button>{c.tweet_url ? <Button asChild variant="neon" size="sm" className="h-7 gap-0.5 px-1 text-[10px]"><a href={c.tweet_url} target="_blank" rel="noopener noreferrer">{t("cy.postPage")}<ArrowUpRight className="size-3" /></a></Button> : <Button variant="glass" size="sm" className="h-7 px-1 text-[10px]" disabled>{t("cy.postPage")}</Button>}</div>
+      <div className="tile-actions mt-auto grid grid-cols-2 gap-1.5 pt-2"><Button asChild variant="glass" size="sm" className="h-7 px-1 text-[10px]"><Link to={lp(`/c/${c.slug}`) as never}>{t("cy.details")}</Link></Button>{c.tweet_url ? <Button asChild variant="neon" size="sm" className="h-7 gap-0.5 px-1 text-[10px]"><a href={c.tweet_url} target="_blank" rel="noopener noreferrer">{t("cy.postPage")}<ArrowUpRight className="size-3" /></a></Button> : <Button variant="glass" size="sm" className="h-7 px-1 text-[10px]" disabled>{t("cy.postPage")}</Button>}</div>
       <div className={`mt-2 flex items-center justify-center gap-1 border-t border-border pt-2 font-mono text-[10px] ${ending ? "text-success" : "text-muted-foreground"}`}><Clock3 className="size-3" />{t("cy.countdown")} {seconds ? time : t("cy.ended")}</div>
     </div>
   </article></MotionSurface>;

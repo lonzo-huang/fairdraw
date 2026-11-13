@@ -1,4 +1,6 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
+import { useNavigate, useRouterState } from "@tanstack/react-router";
+import { enUrl, isDualPath, zhUrl } from "@/lib/seo";
 
 export type Lang = "zh" | "en";
 
@@ -11,6 +13,7 @@ const dict = {
     en: "FAIR GIVEAWAYS & HEALTHY FOLLOWER GROWTH FOR SOCIAL MEDIA",
   },
   "cy.headline": { zh: "让每一次抽奖，都带来增长。", en: "Every draw fuels growth." },
+  "cy.h1Suffix": { zh: " — 可验证的 X（Twitter）抽奖涨粉平台", en: " — Verifiable X (Twitter) giveaway platform" },
   "cy.sub": {
     zh: "透明抽奖机制 · 可验证参与记录 · 公开中奖结果 · 最快速健康涨粉",
     en: "Transparent draw mechanics · Verifiable entry records · Public winner results · The fastest healthy follower growth",
@@ -45,7 +48,7 @@ const dict = {
   "cy.retry": { zh: "重试", en: "Retry" },
   "cy.loading": { zh: "正在读取活动…", en: "Loading campaigns…" },
   "cy.poolNote": {
-    zh: "奖品由发起人发放 · 非平台托管",
+    zh: "奖品由发起人发放 · 不经平台担保",
     en: "Organiser-paid prizes · No platform custody",
   },
   "cy.sponsor": { zh: "发奖方", en: "SPONSOR" },
@@ -134,7 +137,7 @@ const dict = {
   "cy.recompute": { zh: "结果可在浏览器中复算", en: "Recompute results in your browser" },
   "cy.payout": { zh: "发起人派奖凭证留档", en: "Organiser payout receipts" },
   "cy.honest": {
-    zh: "支持 Stripe 与链上 USDT 充值托管；派奖以链上交易哈希或人工凭证公示。尚无智能合约或第三方合约审计。",
+    zh: "支持 Stripe 与链上 USDT 充值担保；派奖以链上交易哈希或人工凭证公示。尚无智能合约或第三方合约审计。",
     en: "Pools can be funded via Stripe or on-chain USDT. Payouts are published as on-chain tx hashes or manual receipts. No smart contract or third-party contract audit.",
   },
   "cy.unaffiliated": {
@@ -155,7 +158,6 @@ const dict = {
   "tick.drawn": { zh: "已开奖", en: "Drawn" },
   "tick.new": { zh: "新活动", en: "New campaign" },
   "tick.top": { zh: "奖池榜首", en: "Top pool" },
-  "tick.ad": { zh: "广告位招租 · 联系 FairDraw", en: "Ad slot available · Contact FairDraw" },
   "admin.title": { zh: "后台设置 · 阶梯手续费", en: "Admin · Tiered fees" },
   "admin.sub": {
     zh: "奖池金额超过该档位时使用对应费率，修改后离开输入框即保存。",
@@ -180,6 +182,33 @@ const dict = {
   "nav.dashboard": { zh: "我的活动", en: "My campaigns" },
   "nav.myEntries": { zh: "我的参与", en: "My entries" },
   "nav.archive": { zh: "活动档案", en: "Archive" },
+  "nav.about": { zh: "关于", en: "About" },
+  // about page
+  "about.title": { zh: "关于 FairDraw", en: "About FairDraw" },
+  "about.sub": {
+    zh: "为社交媒体打造的可验证抽奖与健康涨粉平台。",
+    en: "A verifiable giveaway and healthy-growth platform for social media.",
+  },
+  "about.whatT": { zh: "FairDraw 是什么", en: "What FairDraw is" },
+  "about.whatP": {
+    zh: "FairDraw 帮助创作者和项目方在 X（Twitter）上举办公平可验证的抽奖活动：设定奖池与参与条件，平台自动导入回复、核对条件、到期自动开奖并公示结果，任何人都能在浏览器中复算中奖名单。",
+    en: "FairDraw helps creators and projects run provably fair giveaways on X (Twitter): set a pool and entry conditions, and the platform imports replies, checks eligibility, draws winners automatically at the deadline, and publishes results anyone can recompute in the browser.",
+  },
+  "about.howT": { zh: "如何运作", en: "How it works" },
+  "about.howP": {
+    zh: "奖池由平台担保：发起人预先充值，未达标自动全额退回，达标开奖后锁定用于派奖。开奖采用 SHA-256 种子与确定性抽取，算法开源（src/lib/draw.ts），派奖以链上哈希或凭证公示。",
+    en: "Pools are escrowed: organisers fund upfront, unmet conditions trigger full refunds, and drawn pools lock for payouts. Draws use a SHA-256 seed with deterministic selection — open source at src/lib/draw.ts — and payouts are published as on-chain hashes or receipts.",
+  },
+  "about.whoT": { zh: "为谁服务", en: "Who it's for" },
+  "about.whoP": {
+    zh: "想在 X 上做有奖互动、涨粉引流的创作者、项目方和社区，以及想参与公平抽奖、公开领奖的普通用户。",
+    en: "Creators, projects and communities running rewarded engagement on X — and anyone entering fair giveaways and claiming prizes publicly.",
+  },
+  "about.contactT": { zh: "联系我们", en: "Contact" },
+  "about.contactP": {
+    zh: "X：@FairDraw（私信开放）；或使用网站联系表单。",
+    en: "X: @FairDraw (DMs open); or use the contact form on this site.",
+  },
   "archive.title": { zh: "活动档案", en: "Campaign Archive" },
   "archive.back": { zh: "返回活动大厅", en: "Back to campaign hub" },
   "archive.sub": {
@@ -361,8 +390,8 @@ const dict = {
   "cl.verify": { zh: "验证结果", en: "Verify result" },
   "cl.prizeVal": { zh: "奖品价值", en: "Prize value" },
   "cl.prize": { zh: "奖金", en: "Prize" },
-  "cl.chainSub": { zh: "已链上托管", en: "Escrowed on-chain" },
-  "cl.fundSub": { zh: "由主办方托管支付", en: "Funded by the organiser" },
+  "cl.chainSub": { zh: "已链上担保", en: "Escrowed on-chain" },
+  "cl.fundSub": { zh: "由主办方出资", en: "Funded by the organiser" },
   "cl.stepNotified": { zh: "已在推文下通知", en: "Notified under the post" },
   "cl.stepNow": { zh: "现在填写", en: "Fill in now" },
   "cl.b1": { zh: "确认身份", en: "Confirm identity" },
@@ -373,11 +402,11 @@ const dict = {
   "cl.b2": { zh: "领取方式", en: "Claim method" },
   "cl.b2p": { zh: "按奖池来源选择你的收款方式", en: "Pick how you want to be paid" },
   "cl.fundChain": {
-    zh: "链上托管 · BNB Smart Chain · 平台承担网络费",
+    zh: "链上担保 · BNB Smart Chain · 平台承担网络费",
     en: "On-chain escrow · BNB Smart Chain · network fee covered",
   },
   "cl.fundStripe": { zh: "发起者通过 Stripe 支付", en: "Funded via Stripe" },
-  "cl.fundManual": { zh: "主办方托管发放", en: "Held by the organiser" },
+  "cl.fundManual": { zh: "主办方自行发放", en: "Held by the organiser" },
   "cl.tagFast": { zh: "几分钟到账", en: "Minutes" },
   "cl.tagManual": { zh: "人工发放", en: "Manual" },
   "cl.mChain": { zh: "USDT 链上收款", en: "USDT on-chain" },
@@ -483,7 +512,7 @@ const dict = {
   },
   "cl.stripeGo": { zh: "前往 Stripe 验证收款账户", en: "Verify on Stripe" },
   "cl.stripeNeed": {
-    zh: "验证是 Stripe 托管流程，只需要一次",
+    zh: "验证走 Stripe 安全流程，只需要一次",
     en: "One-time hosted KYC by Stripe",
   },
   "cl.stripeCountryHint": { zh: "选择你银行账户所在国家", en: "Country of your bank account" },
@@ -568,7 +597,7 @@ const dict = {
   "dash.fromPost": { zh: "个活动", en: "campaigns" },
   "dash.searchPh": { zh: "搜索活动或账号", en: "Search campaign or account" },
   "dash.waitNote": {
-    zh: "奖池已托管，发布推文后开始统计数据",
+    zh: "奖池已担保，发布推文后开始统计数据",
     en: "Pool funded — stats start once the post is live",
   },
   "dash.replyProg": { zh: "回复进度", en: "Reply progress" },
@@ -608,7 +637,7 @@ const dict = {
   "f.step2": { zh: "开奖条件", en: "Entry conditions" },
   "f.step3": { zh: "活动内容", en: "Campaign content" },
   "f.step1D": {
-    zh: "奖池会托管在平台并平均分给每位中奖者。",
+    zh: "奖池由平台担保保管，并平均分给每位中奖者。",
     en: "The pool is escrowed and split evenly among winners.",
   },
   "f.step3D": {
@@ -836,7 +865,7 @@ const dict = {
   },
   "share.luck": { zh: "快来参与，祝你好运！🍀", en: "Join now — good luck! 🍀" },
   "share.payment": {
-    zh: "奖池托管与派奖凭证请查看活动页面：",
+    zh: "奖池担保与派奖凭证请查看活动页面：",
     en: "Pool funding and payout receipts are on the campaign page:",
   },
   "share.image": { zh: "活动专属分享图片", en: "Campaign share image" },
@@ -931,8 +960,8 @@ const dict = {
   },
   "escrow.none": { zh: "未设置奖池金额", en: "No prize pool amount" },
   "escrow.awaiting": { zh: "待充值奖池", en: "Awaiting pool funding" },
-  "escrow.funded": { zh: "奖池已托管（已收款）", en: "Pool funded (held)" },
-  "escrow.preauthorized": { zh: "奖池已托管（已收款）", en: "Pool funded (held)" },
+  "escrow.funded": { zh: "奖池已担保（已收款）", en: "Pool funded (held)" },
+  "escrow.preauthorized": { zh: "奖池已担保（已收款）", en: "Pool funded (held)" },
   "escrow.charged": { zh: "奖池已扣款派奖", en: "Pool captured for payouts" },
   "escrow.refunded": { zh: "奖池已退款", en: "Pool refunded" },
   "escrow.refund_pending": { zh: "退款处理中", en: "Refund pending" },
@@ -957,10 +986,10 @@ const dict = {
   },
   "m.cancel": { zh: "撤销活动", en: "Cancel campaign" },
   "m.cancelConfirm": {
-    zh: "确认撤销活动？已托管的奖池将自动退回，此操作不可撤销。",
+    zh: "确认撤销活动？已担保的奖池将自动退回，此操作不可撤销。",
     en: "Cancel this campaign? The held pool is refunded automatically. This cannot be undone.",
   },
-  "pay.manual": { zh: "人工派奖（不托管）", en: "Manual payout (no custody)" },
+  "pay.manual": { zh: "人工派奖（不担保）", en: "Manual payout (no custody)" },
   "pay.stripe": { zh: "Stripe 信用卡 / 快捷支付 / 支付宝", en: "Stripe — card, wallets, Alipay" },
   "pay.stripeTab": { zh: "线上支付", en: "Online payment" },
   "pay.chainTab": { zh: "USDT / USDC 加密支付", en: "USDT / USDC crypto" },
@@ -974,9 +1003,9 @@ const dict = {
   },
   "pay.chain": { zh: "⚡ Web3 链上钱包支付 (USDT)", en: "⚡ Web3 on-chain wallet payment (USDT)" },
   "pay.poolBase": { zh: "基础奖池金额", en: "Base prize pool" },
-  "pay.feeLine": { zh: "平台托管费用", en: "Platform custody fee" },
+  "pay.feeLine": { zh: "平台担保费用", en: "Platform custody fee" },
   "pay.total": { zh: "应付总额 (Total)", en: "Total due" },
-  "pay.escrowTitle": { zh: "托管保障：", en: "Escrow protection:" },
+  "pay.escrowTitle": { zh: "资金保障：", en: "Escrow protection:" },
   "pay.escrowCancel": {
     zh: "发布后 1 小时内可随时撤销活动",
     en: "Cancel the campaign anytime within 1 hour of publishing",
@@ -1066,7 +1095,7 @@ const dict = {
   "c.copyBtn": { zh: "复制链接", en: "Copy link" },
   "c.shareBtn": { zh: "分享给朋友", en: "Share with friends" },
   "c.shareText": {
-    zh: "回复就能参与抽奖，赢 {amt} 🎁\n奖金已托管，开奖可公开验证 👇\n{url}",
+    zh: "回复就能参与抽奖，赢 {amt} 🎁\n奖金已担保，开奖可公开验证 👇\n{url}",
     en: "Reply to enter the draw and win {amt} 🎁\nPool is escrowed, results publicly verifiable 👇\n{url}",
   },
   "c.promoBtn": { zh: "再发一条推文宣传", en: "Post another promo tweet" },
@@ -1125,7 +1154,7 @@ const dict = {
   "c.rule4t": { zh: "结果可公开验证", en: "Publicly verifiable" },
   "c.rule4s": { zh: "开奖后任何人都能在浏览器复算", en: "Anyone can recompute the draw" },
   "c.rulesNote": {
-    zh: "奖品由发起者 {host} 提供，FairDraw 负责托管与开奖。",
+    zh: "奖品由发起者 {host} 提供，FairDraw 负责担保与开奖。",
     en: "Prize supplied by {host}; FairDraw escrows the pool and runs the draw.",
   },
   "c.moreT": { zh: "更多正在进行的抽奖", en: "More live giveaways" },
@@ -1399,12 +1428,12 @@ const dict = {
     en: "Step 2: wait for on-chain confirmation (~1 min) and find the transaction hash (0x…) in your wallet/exchange history.",
   },
   "m.fundStep3": {
-    zh: "第 3 步：把交易哈希粘贴到下面，点「确认交易」——平台验证到账后自动锁进托管合约。",
+    zh: "第 3 步：把交易哈希粘贴到下面，点「确认交易」——平台验证到账后自动锁进担保合约。",
     en: "Step 3: paste the hash below and press Confirm — the platform verifies the deposit and locks it into escrow automatically.",
   },
   "m.fundChain": { zh: "用链上钱包支付", en: "Pay with a wallet" },
   "m.manualFund": {
-    zh: "人工派奖模式：无需平台托管，开奖后直接向中奖者发奖并上传凭证。",
+    zh: "人工派奖模式：无需平台担保，开奖后直接向中奖者发奖并上传凭证。",
     en: "Manual mode: no platform custody. Pay winners directly after the draw and attach proof.",
   },
   "m.txHash": {
@@ -1463,7 +1492,7 @@ const dict = {
   "m.handleMismatch": { zh: "帖子作者与填写账号不符", en: "post author ≠ declared handle" },
   "m.chainRefund": { zh: "链上退款（管理员）", en: "On-chain refund (admin)" },
   "m.escrowRefund": {
-    zh: "从托管合约退款（MetaMask）",
+    zh: "从担保合约退款（MetaMask）",
     en: "Refund from escrow contract (MetaMask)",
   },
   "m.delete": { zh: "删除活动", en: "Delete campaign" },
@@ -1473,12 +1502,12 @@ const dict = {
   "m.stepFund": { zh: "充值奖池", en: "Fund the pool" },
   "m.stepPost": { zh: "发布并关联推文", en: "Post & link the tweet" },
   "m.stepDraw": { zh: "自动统计并开奖", en: "Track & draw" },
-  "m.stepFundSub": { zh: "托管 {amt}", en: "Escrow {amt}" },
+  "m.stepFundSub": { zh: "担保 {amt}", en: "Escrow {amt}" },
   "m.stepPostSub": { zh: "在 X 上发布抽奖帖", en: "Publish the giveaway on X" },
   "m.stepDrawSub": { zh: "达标后公开抽取", en: "Public draw once goals are met" },
   "m.stepOf": { zh: "第 {n} 步，共 3 步", en: "Step {n} of 3" },
   "m.payDesc": {
-    zh: "奖金先托管在平台，未达标或撤销时全额退回。",
+    zh: "奖金先由平台担保保管，未达标或撤销时全额退回。",
     en: "The prize is held in custody — fully refunded if cancelled or goals aren't met.",
   },
   "m.tot": { zh: "合计", en: "Total" },
@@ -1530,7 +1559,7 @@ const dict = {
     en: "Once conditions are met, the “Lock & draw” button appears here",
   },
   "m.viewAllP": { zh: "查看全部 {n} 位参与者", en: "View all {n} participants" },
-  "m.donePoolT": { zh: "奖池已托管", en: "Pool in custody" },
+  "m.donePoolT": { zh: "奖池已担保", en: "Pool in custody" },
   "m.doneLinkT": { zh: "推文已关联", en: "Post linked" },
   "m.lockPost": {
     zh: "付款完成后解锁，平台会帮你生成推文",
@@ -1548,7 +1577,7 @@ const dict = {
   "m.hours": { zh: "{h} 小时", en: "{h} h" },
   "m.ovStart": { zh: "开始计时", en: "Timer starts" },
   "m.afterLink": { zh: "关联推文后", en: "Once the post is linked" },
-  "m.trustT": { zh: "资金托管保障", en: "Escrow protection" },
+  "m.trustT": { zh: "资金担保保障", en: "Escrow protection" },
   "m.trustB": {
     zh: "发布后 1 小时内可随时撤销；未达标或未开奖，奖金 100% 自动退回原账户。",
     en: "Cancel within 1 h of publishing; undrawn or unmet pools are 100% auto-refunded.",
@@ -1640,7 +1669,7 @@ const dict = {
   "rs.winRate": { zh: "中奖率 {p}%", en: "Win rate {p}%" },
   "rs.drawTime": { zh: "开奖时间", en: "Drawn at" },
   "rs.organizer": { zh: "发起者", en: "Organiser" },
-  "rs.escrowed": { zh: "奖金已托管", en: "Prize held in escrow" },
+  "rs.escrowed": { zh: "奖金已担保", en: "Prize held in escrow" },
   "rs.poolLabel": { zh: "奖池", en: "Pool" },
   "rs.payoutTitle": { zh: "派奖进度", en: "Payout progress" },
   "rs.stepDraw": { zh: "公开开奖", en: "Public draw" },
@@ -1755,7 +1784,7 @@ const dict = {
   },
   "faq.q1": { zh: "FairDraw 是干什么的？", en: "What is FairDraw?" },
   "faq.a1": {
-    zh: "FairDraw 是面向 X（Twitter）的透明抽奖涨粉平台。你发布一条活动帖并充值托管奖池，平台自动读取回复、验证参与者、可复核地开奖并协助派奖——把一次抽奖变成一场可验证的增长事件。",
+    zh: "FairDraw 是面向 X（Twitter）的透明抽奖涨粉平台。你发布一条活动帖并充值担保奖池，平台自动读取回复、验证参与者、可复核地开奖并协助派奖——把一次抽奖变成一场可验证的增长事件。",
     en: "FairDraw is a transparent giveaway platform for X (Twitter). You post a campaign tweet and fund a prize pool; we import the repliers, verify them, draw winners provably fairly, and help you pay out — turning a giveaway into a verifiable growth event.",
   },
   "faq.q2": { zh: "它为什么能涨粉？", en: "Why does it grow followers?" },
@@ -1775,19 +1804,19 @@ const dict = {
   },
   "faq.q5": { zh: "开奖真的公平吗？怎么验证？", en: "Is the draw provably fair?" },
   "faq.a5": {
-    zh: "公平且可复核：开奖时对锁定的候选名单计算 SHA-256 指纹，混合锁定时间生成种子，用确定性算法抽选。同样的名单和时间，任何人复算都会得到同样的中奖者。开奖后名单永久锁定，组织者无法再增删改，但组织者可以调整蓝V和非蓝V的中奖概率系数。",
-    en: "Yes — and verifiable. At draw time we SHA-256 the locked candidate list, mix in the lock timestamp as the seed, and select deterministically: the same list and timestamp always yield the same winners. After the draw the list is permanently locked — the organizer cannot add, remove, or edit entries, though they can adjust the win-probability coefficients for Blue-V vs non-Blue-V entries.",
+    zh: "公平且可复核：开奖时对锁定的候选名单计算 SHA-256 指纹，混合锁定时间生成种子，用确定性算法抽选。同样的名单和时间，任何人复算都会得到同样的中奖者。开奖模式（全部/仅蓝V/加权）与蓝V、普通用户的中奖系数在开奖时一并锁定并公示在结果页，此后组织者无法再改动名单或概率。",
+    en: "Yes — and verifiable. At draw time we SHA-256 the locked candidate list, mix in the lock timestamp as the seed, and select deterministically: the same list and timestamp always yield the same winners. The draw mode (all / Blue-V only / weighted) and the Blue-V vs normal coefficients are locked at draw time and published on the result page — afterwards the organiser cannot change the list or the odds.",
   },
   "faq.qAlgo": { zh: "抽奖算法长什么样？", en: "What does the draw algorithm look like?" },
   "faq.aAlgo": {
-    zh: "完整实现在 src/lib/draw.ts，服务器执行与结果页复核用的是同一份代码。流程：先对锁定名单算 SHA-256 指纹，再混合开奖时间派生种子，最后确定性抽选；加权模式里的 w 就是组织者设定的蓝V/普通中奖系数。",
+    zh: "完整实现在 GitHub 仓库的 src/lib/draw.ts（开源，链接在下方），服务器执行与结果页复核用的是同一份代码。流程：先对锁定名单算 SHA-256 指纹，再混合开奖时间派生种子，最后确定性抽选；加权模式里的 w 就是组织者设定的蓝V/普通中奖系数。",
     en: "The full implementation lives in src/lib/draw.ts — the same code runs the draw and recomputes it on result pages. The pipeline: SHA-256 the locked list, derive a seed from the draw timestamp, then pick deterministically; in weighted mode w is the organiser's Blue-V/normal coefficient.",
   },
   "faq.qAlgoK": { zh: "算法 抽奖 SHA-256 种子", en: "algorithm draw SHA-256 seed" },
   "faq.q6": { zh: "中奖后怎么领奖？", en: "How do winners claim prizes?" },
   "faq.a6": {
-    zh: "每个活动开奖后都有公开结果页。中奖者通过领取链接经 Stripe 收取对应币种奖金，或由组织者用链上钱包直发；结果页同时公示交易哈希或人工派奖凭证。",
-    en: "Every campaign gets a public result page. Winners claim through the link and receive the prize via Stripe, or directly on-chain from the organizer; the page also publishes the transaction hash or payout receipt.",
+    zh: "每个活动开奖后都有公开结果页。中奖者打开领取链接，按奖池来源领奖：链上充值的活动直接发 USDT（BNB Smart Chain，平台承担网络费）；Stripe 线上支付的活动发等值礼品卡到邮箱；人工派奖的活动可留言收款方式由主办方直付。结果页公示交易哈希或派奖凭证。",
+    en: "Every campaign gets a public result page. Winners open the claim link and are paid according to how the pool was funded: on-chain-funded pools pay USDT directly (BNB Smart Chain, network fee covered); card-funded pools send an equal-value gift card by email; manual campaigns let winners leave payout details for direct payment. The page publishes the tx hash or payout receipt.",
   },
   "faq.q7": { zh: "蓝V 有什么优势？", en: "What do Blue-V accounts get?" },
   "faq.a7": {
@@ -1814,8 +1843,8 @@ const dict = {
   },
   "faq.q11": { zh: "会不会被 X 判定违规？", en: "Will X flag my account?" },
   "faq.a11": {
-    zh: "FairDraw 只读取公开回复并核对互动，不代发内容、不刷量、不买卖账号。活动帖由你自己正常发布，抽奖互动属于正常社区行为。请遵守 X 平台规则，避免诱导性刷屏文案。",
-    en: "FairDraw only reads public replies and verifies engagement — we never post for you, inflate metrics, or trade accounts. The campaign tweet is your own content and giveaway participation is normal community behavior. Just follow X's rules and avoid spam-style wording.",
+    zh: "FairDraw 只读取公开回复并核对互动，不刷量、不买卖账号，也不会在你未明确授权的情况下代发内容。活动帖由你自己正常发布（或在你明确授权后由一键发布功能发出），抽奖互动属于正常社区行为。请遵守 X 平台规则，避免诱导性刷屏文案。",
+    en: "FairDraw only reads public replies and verifies engagement — we never inflate metrics, trade accounts, or post without your explicit authorisation. The campaign tweet is your own content (or sent via the opt-in one-click publish), and giveaway participation is normal community behavior. Just follow X's rules and avoid spam-style wording.",
   },
 
   // guide page
@@ -1841,9 +1870,9 @@ const dict = {
   "gd.path2s": { zh: "怎么参与、怎么领奖", en: "How to enter and claim" },
   "gd.stepEy": { zh: "HOW IT WORKS", en: "HOW IT WORKS" },
   "gd.stepH2": { zh: "三步看懂 FairDraw", en: "FairDraw in three steps" },
-  "gd.s1t": { zh: "托管奖池", en: "Fund the pool" },
+  "gd.s1t": { zh: "担保奖池", en: "Fund the pool" },
   "gd.s1d": {
-    zh: "用银行卡、支付宝或 USDT 付款，奖金存放在平台托管，未达标全额退回。",
+    zh: "用银行卡、支付宝或 USDT 付款，奖金存放在平台担保账户，未达标全额退回。",
     en: "Pay by card, Alipay, or USDT. The prize sits in escrow — refunded in full if conditions aren't met.",
   },
   "gd.s2t": { zh: "发布推文", en: "Post the tweet" },
@@ -1903,7 +1932,7 @@ const dict = {
   "gd.tplCopy": { zh: "复制", en: "Copy" },
   "gd.tplCopied": { zh: "模板已复制", en: "Template copied" },
   "gd.tpl0": {
-    zh: "🎁 回帖赢 50 USDT！\n抽 5 位朋友，每人 10 USDT\n\n💬 回复本帖即参与\n⏳ 24 小时后开奖\n💰 奖金已托管至 FairDraw，结果可公开验证",
+    zh: "🎁 回帖赢 50 USDT！\n抽 5 位朋友，每人 10 USDT\n\n💬 回复本帖即参与\n⏳ 24 小时后开奖\n💰 奖金由 FairDraw 担保，结果可公开验证",
     en: "🎁 Reply to win 50 USDT!\n5 winners, 10 USDT each\n\n💬 Reply to enter\n⏳ Draw in 24 hours\n💰 Prize escrowed on FairDraw — publicly verifiable",
   },
   "gd.tpl1": {
@@ -1911,7 +1940,7 @@ const dict = {
     en: "We prepared something 👀\nOver the next 24 hours, 5 people who reply to this tweet will each get 10 USDT.\n\nNo repost, no follow needed — just reply.\nFully public draw anyone can verify 👇",
   },
   "gd.tpl2": {
-    zh: "🔥 粉丝福利时间\n感谢一路支持，送出 50 USDT！\n\n✅ 回复你最想看我们做的内容\n✅ 24 小时后公开抽 5 位\n💰 奖金已托管，100% 真实发放",
+    zh: "🔥 粉丝福利时间\n感谢一路支持，送出 50 USDT！\n\n✅ 回复你最想看我们做的内容\n✅ 24 小时后公开抽 5 位\n💰 奖金已担保，100% 真实发放",
     en: "🔥 Fan perk time\nThanks for the support — giving away 50 USDT!\n\n✅ Reply with what you want us to make\n✅ 5 public winners in 24 hours\n💰 Prize escrowed, 100% real payout",
   },
   "gd.calcEy": { zh: "CALCULATOR", en: "CALCULATOR" },
@@ -1936,8 +1965,8 @@ const dict = {
   "gd.cost": { zh: "总投入", en: "Total cost" },
   "gd.cpf": { zh: "约合每个新粉", en: "≈ per new follower" },
   "gd.calcNote": {
-    zh: "估算基于平台已完成活动的真实均值拟合，实际效果取决于你的账号和内容。",
-    en: "Estimate fitted to averages from completed campaigns — actual results depend on your account and content.",
+    zh: "估算基于平台 {n} 场已完成开奖活动的真实均值拟合，样本量仍在积累，实际效果取决于你的账号和内容。",
+    en: "Estimate fitted to averages from {n} completed campaigns — the sample is still growing, and actual results depend on your account and content.",
   },
   "gd.calcGo": { zh: "按这个设置发起活动 →", en: "Launch with these settings →" },
   "gd.caseEy": { zh: "CASE STUDIES", en: "CASE STUDIES" },
@@ -1973,13 +2002,13 @@ const dict = {
   },
   "gd.qFee": { zh: "费用是多少？可以退款吗？", en: "What does it cost? Can I get a refund?" },
   "gd.aFee": {
-    zh: "托管费按奖池金额阶梯收取：500 以下 8%，500–2000 为 6%，2000 及以上 4%，没有其他隐藏费用。活动关联推文后 1 小时内可以撤销；若到期未达标或推文被删，奖池 100% 自动退回原付款方式。",
-    en: "The escrow fee is tiered by pool: 8% below 500, 6% for 500–2000, 4% above 2000 — no hidden charges. Cancel within 1 hour of linking the tweet; if targets aren't met or the tweet is deleted, the pool refunds 100% automatically.",
+    zh: "担保费按奖池金额阶梯收取，费率随档位下降（实时档位见下表，与发起页一致），没有其他隐藏费用。活动关联推文后 1 小时内可以撤销；若到期未达标或推文被删，奖池 100% 自动退回原付款方式。",
+    en: "The escrow fee is tiered by pool — the rate drops as the pool grows (live tiers below, same as the launch page). No hidden charges. Cancel within 1 hour of linking the tweet; if targets aren't met or the tweet is deleted, the pool refunds 100% automatically.",
   },
   "gd.qEscrow": { zh: "我的奖金安全吗？", en: "Is my prize money safe?" },
   "gd.aEscrow": {
-    zh: "充值后奖金进入平台托管，只会流向两个地方：发给中奖者，或者退回给你，平台不会挪作他用。USDT 走 BNB Smart Chain，链上转账记录可在区块浏览器公开查询。",
-    en: "Funded prizes sit in escrow and can only go two places: to the winners, or back to you — never elsewhere. USDT moves on BNB Smart Chain, publicly traceable on a block explorer.",
+    zh: "充值后奖金进入平台担保账户，只会流向两个地方：发给中奖者，或者退回给你，平台不会挪作他用。充值支持 USDT/USDC 多条网络（BNB Chain、Base、Polygon、Arbitrum、X Layer）；派奖统一走 BNB Smart Chain 上的 USDT，链上转账记录可在区块浏览器公开查询。",
+    en: "Funded prizes sit in escrow and can only go two places: to the winners, or back to you — never elsewhere. Deposits accept USDT/USDC on BNB Chain, Base, Polygon, Arbitrum and X Layer; payouts settle in USDT on BNB Smart Chain, publicly traceable on a block explorer.",
   },
   "gd.qFeeK": { zh: "退款 手续费 费用", en: "refund fee cost" },
   "gd.qClaimK": { zh: "领奖 收款", en: "claim payout" },
@@ -2163,7 +2192,7 @@ const dict = {
   "tt.title": { zh: "使用条款", en: "Terms of Service" },
   "tt.sc1t": { zh: "奖品由发起者负责", en: "Prizes are the organizer's job" },
   "tt.sc1p": {
-    zh: "平台负责托管、核对和开奖，奖品合法性由发起者负责。",
+    zh: "平台负责担保、核对和开奖，奖品合法性由发起者负责。",
     en: "We escrow, verify, and draw; the organizer is responsible for the prize's legality.",
   },
   "tt.sc2t": { zh: "每人只算一次", en: "One entry per account" },
@@ -2193,7 +2222,7 @@ const dict = {
   },
   "tt.f2t": { zh: "FairDraw 负责", en: "FairDraw" },
   "tt.f2d": {
-    zh: "托管奖池、核对参与条件、执行可验证的开奖流程",
+    zh: "担保奖池、核对参与条件、执行可验证的开奖流程",
     en: "Escrows the pool, checks conditions, runs the verifiable draw",
   },
   "tt.h2": { zh: "参与规则", en: "Entry rules" },
@@ -2215,7 +2244,7 @@ const dict = {
     en: "The fee rate locks at creation based on the pool amount and never changes after. Import starts once funding succeeds.",
   },
   "tt.th1": { zh: "奖池金额", en: "Pool amount" },
-  "tt.th2": { zh: "托管费率", en: "Escrow fee" },
+  "tt.th2": { zh: "担保费率", en: "Escrow fee" },
   "tt.fe1": { zh: "500 以下", en: "Below 500" },
   "tt.fe2": { zh: "500 – 2,000", en: "500 – 2,000" },
   "tt.fe3": { zh: "2,000 及以上", en: "2,000 and above" },
@@ -2749,32 +2778,61 @@ export function translate(
 const Ctx = createContext<{
   lang: Lang;
   setLang: (l: Lang) => void;
+  /** Localized path: adds the /en prefix on English pages for dual-language routes. */
+  lp: (path: string) => string;
   t: (k: DictKey, values?: Record<string, string | number>) => string;
 }>({
   lang: "zh",
   setLang: () => {},
+  lp: (p) => p,
   t: (k, v) => translate("zh", k, v),
 });
 
 export function I18nProvider({ children }: { children: ReactNode }) {
-  const [lang, setLangState] = useState<Lang>("zh");
+  const pathname = useRouterState({ select: (s) => s.location.pathname });
+  const navigate = useNavigate();
+  const isEnPath = pathname === "/en" || pathname.startsWith("/en/");
+  const [pref, setPref] = useState<Lang>("zh");
   useEffect(() => {
     const saved = localStorage.getItem("fd-lang");
-    if (saved === "en" || saved === "zh") setLangState(saved);
-    else if (!navigator.language.toLowerCase().startsWith("zh")) setLangState("en");
+    if (saved === "en" || saved === "zh") setPref(saved);
+    else if (!navigator.language.toLowerCase().startsWith("zh")) setPref("en");
   }, []);
+  // Dual-language public pages force their locale from the URL; single-language
+  // screens (dashboard, auth, claim) keep the stored preference.
+  const lang: Lang = isDualPath(pathname) ? (isEnPath ? "en" : "zh") : pref;
   useEffect(() => {
     document.documentElement.lang = lang === "zh" ? "zh-CN" : "en";
   }, [lang]);
   const setLang = (l: Lang) => {
-    setLangState(l);
+    setPref(l);
     localStorage.setItem("fd-lang", l);
+    if (isDualPath(pathname)) {
+      const target = l === "en" ? enUrl(pathname) : zhUrl(pathname);
+      if (target !== pathname) navigate({ to: target as never, replace: true });
+    }
   };
+  const lp = (path: string) => (lang === "en" && isDualPath(path) ? enUrl(path) : path);
   return (
-    <Ctx.Provider value={{ lang, setLang, t: (k, v) => translate(lang, k, v) }}>
+    <Ctx.Provider value={{ lang, setLang, lp, t: (k, v) => translate(lang, k, v) }}>
       {children}
     </Ctx.Provider>
   );
 }
 
 export const useI18n = () => useContext(Ctx);
+
+const LEGAL_PREFIX = { privacy: "pp.", terms: "tt." } as const;
+
+/** Legal-doc reading time estimated from dictionary text — SSR-safe, no DOM. */
+export function legalReadingTime(doc: "privacy" | "terms", lang: Lang) {
+  const prefix = LEGAL_PREFIX[doc];
+  const text = Object.entries(dict as Record<string, { zh: string; en: string }>)
+    .filter(([k]) => k.startsWith(prefix))
+    .map(([, v]) => v[lang])
+    .join(" ");
+  const est = lang === "zh"
+    ? Math.round(text.replace(/\s/g, "").length / 450)
+    : Math.round(text.trim().split(/\s+/).length / 200);
+  return Math.max(1, est);
+}

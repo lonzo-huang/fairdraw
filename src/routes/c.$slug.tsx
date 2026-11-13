@@ -1,4 +1,4 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, notFound, useLoaderData, useParams } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useState, type CSSProperties } from "react";
 import { toast } from "sonner";
@@ -8,12 +8,40 @@ import { computeProgress, parseConditions, type ConditionCheck, type Metrics } f
 import { useAuth } from "@/hooks/use-auth";
 import { getCampaignShare } from "@/lib/campaign-share.functions";
 import { getEscrowState } from "@/lib/payment.functions";
-import { conditionSummary, prizeSummary } from "@/lib/campaign-share";
+import { conditionSummary, prizeSummary, type ShareCampaign } from "@/lib/campaign-share";
+import { i18nLinks } from "@/lib/seo";
 import { fetchAllSnaps, isLive, poolFunded, xHandleFromUrl, type HubCampaign } from "@/lib/campaign-hub";
 import { Activity, ArrowUpRight, BadgeCheck, Ban, BarChart3, Clock, Eye, Heart, Info, Link2, ListOrdered, Lock, MessageCircle, MessageSquare, Percent, Repeat2, Search, Share2, ShieldCheck, UserPlus, Users } from "lucide-react";
 
+export const campaignPageQuery = (slug: string) => ({
+  queryKey: ["campaign", slug],
+  queryFn: async () => {
+    const { data: c } = await supabase.from("campaigns").select("*").eq("slug", slug).maybeSingle();
+    if (!c) return null;
+    const { data: count } = await supabase.rpc("entry_count", { _campaign_id: c.id });
+    const [snaps, { data: draw }, escrow, entries, { count: validCount }, { data: hubs }] = await Promise.all([
+      fetchAllSnaps((from, size) => supabase.from("condition_snapshots").select("metrics, progress, fetched_at").eq("campaign_id", c.id).order("fetched_at", { ascending: true }).range(from, from + size - 1)),
+      supabase.from("draws").select("drawn_at").eq("campaign_id", c.id).maybeSingle(),
+      c.payment_method === "chain" && c.prize_amount !== null ? getEscrowState({ data: { campaignId: c.id } }) : Promise.resolve(null),
+      // The organiser audits every imported reply — page through the full
+      // entry list instead of truncating at a display cap.
+      fetchAllSnaps((from, size) => supabase.from("entries").select("handle, eligibility_status, fetched_meta, created_at").eq("campaign_id", c.id).order("created_at", { ascending: false }).range(from, from + size - 1)),
+      // Head-count matches isValidEntry (verified or owner-eligible).
+      supabase.from("entries").select("id", { count: "exact", head: true }).eq("campaign_id", c.id).in("eligibility_status", ["verified", "eligible"]),
+      supabase.from("campaigns").select("id,slug,title,prize,prize_amount,currency,winners_count,ends_at,created_at,status,escrow_status,tweet_url,owner_id,clicks,conditions,is_simulated").eq("status", "open").not("tweet_url", "is", null).or("escrow_status.in.(funded,preauthorized),prize_amount.is.null,is_simulated.eq.true").neq("id", c.id).order("created_at", { ascending: false }).limit(40),
+    ]);
+    return { c, count: count ?? 0, validCount: validCount ?? 0, snaps, drawAt: draw?.drawn_at ?? null, escrow, entries: entries ?? [], hubs: hubs ?? [] };
+  },
+});
+
 export const Route = createFileRoute("/c/$slug")({
-  loader: ({ params }) => getCampaignShare({ data: { slug: params.slug } }),
+  loader: async ({ params, context }) => {
+    const share = await getCampaignShare({ data: { slug: params.slug } });
+    // A real 404 status — previously every missing slug served 200 + a text 404.
+    if (!share?.c) throw notFound();
+    await context.queryClient.ensureQueryData(campaignPageQuery(params.slug));
+    return share;
+  },
   head: ({ loaderData }) => {
     const c = loaderData?.c;
     const title = c ? `${c.title} — FairDraw` : "Giveaway — FairDraw";
@@ -23,12 +51,14 @@ export const Route = createFileRoute("/c/$slug")({
     meta: [
       { title },
       { name: "description", content: description },
+      ...(c?.is_simulated ? [{ name: "robots", content: "noindex" }] : []),
       { property: "og:title", content: title },
       { property: "og:description", content: description },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
       ...(image?.startsWith("https://") ? [{ property: "og:image", content: image }, { name: "twitter:image", content: image }, { property: "og:image:width", content: "1200" }, { property: "og:image:height", content: "630" }] : []),
     ],
+    links: i18nLinks(`/c/${loaderData?.c?.slug ?? ""}`),
   }; },
   component: CampaignPage,
 });
@@ -45,32 +75,15 @@ function useCountdown(end: string | undefined) {
   return { ms, h: Math.floor(ms / 36e5), m: Math.floor((ms / 6e4) % 60), s: Math.floor((ms / 1e3) % 60) };
 }
 
-function CampaignPage() {
-  const { slug } = Route.useParams();
-  const share = Route.useLoaderData();
-  const { t, lang } = useI18n();
+export function CampaignPage() {
+  const { slug } = useParams({ strict: false }) as { slug: string };
+  const share = useLoaderData({ strict: false }) as { c: ShareCampaign | null; imageUrl: string | null };
+  const { t, lang, lp } = useI18n();
   const { user } = useAuth();
   const { data, isLoading } = useQuery({
-    queryKey: ["campaign", slug],
+    ...campaignPageQuery(slug),
     // Pool progress is re-displayed every 15 minutes.
     refetchInterval: 15 * 60 * 1000,
-    queryFn: async () => {
-      const { data: c } = await supabase.from("campaigns").select("*").eq("slug", slug).maybeSingle();
-      if (!c) return null;
-      const { data: count } = await supabase.rpc("entry_count", { _campaign_id: c.id });
-      const [snaps, { data: draw }, escrow, entries, { count: validCount }, { data: hubs }] = await Promise.all([
-        fetchAllSnaps((from, size) => supabase.from("condition_snapshots").select("metrics, progress, fetched_at").eq("campaign_id", c.id).order("fetched_at", { ascending: true }).range(from, from + size - 1)),
-        supabase.from("draws").select("drawn_at").eq("campaign_id", c.id).maybeSingle(),
-        c.payment_method === "chain" && c.prize_amount !== null ? getEscrowState({ data: { campaignId: c.id } }) : Promise.resolve(null),
-        // The organiser audits every imported reply — page through the full
-        // entry list instead of truncating at a display cap.
-        fetchAllSnaps((from, size) => supabase.from("entries").select("handle, eligibility_status, fetched_meta, created_at").eq("campaign_id", c.id).order("created_at", { ascending: false }).range(from, from + size - 1)),
-        // Head-count matches isValidEntry (verified or owner-eligible).
-        supabase.from("entries").select("id", { count: "exact", head: true }).eq("campaign_id", c.id).in("eligibility_status", ["verified", "eligible"]),
-        supabase.from("campaigns").select("id,slug,title,prize,prize_amount,currency,winners_count,ends_at,created_at,status,escrow_status,tweet_url,owner_id,clicks,conditions,is_simulated").eq("status", "open").not("tweet_url", "is", null).or("escrow_status.in.(funded,preauthorized),prize_amount.is.null,is_simulated.eq.true").neq("id", c.id).order("created_at", { ascending: false }).limit(40),
-      ]);
-      return { c, count: count ?? 0, validCount: validCount ?? 0, snaps, drawAt: draw?.drawn_at ?? null, escrow, entries: entries ?? [], hubs: hubs ?? [] };
-    },
   });
   const cd = useCountdown(data?.c?.ends_at);
   const [tab, setTab] = useState("overview");
@@ -88,8 +101,8 @@ function CampaignPage() {
   const linked = !!c.tweet_url;
   const funded = poolFunded(c);
   const isOwner = !!user && user.id === c.owner_id;
-  const origin = typeof window !== "undefined" ? window.location.origin : "";
-  const shareUrl = `${origin}/c/${c.slug}`;
+  const loc = dateLoc(lang);
+  const shareUrl = `https://www.fairdraw.win/c/${c.slug}`;
   const conditions = parseConditions(c.conditions);
   const hasConds = Object.values(conditions).some((v) => v !== undefined);
   const prog = hasConds ? computeProgress(conditions, { ...(latestM ?? {}), participants: count } as Metrics) : null;
@@ -113,13 +126,13 @@ function CampaignPage() {
     return m ? computeProgress(conditions, { ...m, participants: count } as Metrics).checks.some((ch) => ch.state === "met") : false;
   }) : undefined;
   const tlItems: { st: "done" | "now" | ""; t: string; s: string }[] = [
-    { st: "done", t: t("ev.created"), s: new Date(c.created_at).toLocaleString() },
+    { st: "done", t: t("ev.created"), s: new Date(c.created_at).toLocaleString(loc) },
   ];
-  if (snaps.length) tlItems.push({ st: "done", t: t("ev.synced"), s: new Date(snaps[0]?.fetched_at ?? "").toLocaleString() });
-  if (firstMetSnap) tlItems.push({ st: "done", t: t("ev.firstMet"), s: new Date(firstMetSnap.fetched_at).toLocaleString() });
+  if (snaps.length) tlItems.push({ st: "done", t: t("ev.synced"), s: new Date(snaps[0]?.fetched_at ?? "").toLocaleString(loc) });
+  if (firstMetSnap) tlItems.push({ st: "done", t: t("ev.firstMet"), s: new Date(firstMetSnap.fetched_at).toLocaleString(loc) });
   if (open && funded && linked && !pastDeadline) tlItems.push({ st: "now", t: allMet ? t("ev.ready") : t("ev.wait"), s: t("ev.running") });
-  tlItems.push({ st: pastDeadline || drawn ? "done" : "", t: t("ev.deadline"), s: new Date(c.ends_at).toLocaleString() });
-  if (drawn && drawAt) tlItems.push({ st: "done", t: t("ev.drawn"), s: new Date(drawAt).toLocaleString() });
+  tlItems.push({ st: pastDeadline || drawn ? "done" : "", t: t("ev.deadline"), s: new Date(c.ends_at).toLocaleString(loc) });
+  if (drawn && drawAt) tlItems.push({ st: "done", t: t("ev.drawn"), s: new Date(drawAt).toLocaleString(loc) });
   else if (c.status === "cancelled") tlItems.push({ st: "", t: t("status.cancelled"), s: "" });
   else tlItems.push({ st: "", t: t("ev.drawSoon"), s: t("ev.drawWhen") });
   const copyShare = () => { navigator.clipboard.writeText(shareUrl).catch(() => {}); toast.success(t("c.copied")); };
@@ -184,7 +197,7 @@ function CampaignPage() {
       )}
 
       <div className="crumb">
-        {isOwner ? <Link to="/dashboard">{t("dash.title")}</Link> : <Link to="/">FairDraw</Link>}
+        {isOwner ? <Link to="/dashboard">{t("dash.title")}</Link> : <Link to={lp("/") as never}>FairDraw</Link>}
         <span>/</span><span>{t("cy.details")}</span>
       </div>
 
@@ -267,7 +280,7 @@ function CampaignPage() {
               ) : (
                 <div className="cd-wait">
                   <b>{!linked ? translate(lang, "m.hours", { h: durH }) : drawn ? t("status.drawn") : !funded ? t("m.badgeFund") : t("m.ended")}</b>
-                  {!linked ? t("ana.timerWait") : !funded ? t("escrow.awaiting") : new Date(c.ends_at).toLocaleDateString()}
+                  {!linked ? t("ana.timerWait") : !funded ? t("escrow.awaiting") : new Date(c.ends_at).toLocaleDateString(loc)}
                 </div>
               )}
               {running ? (
@@ -294,7 +307,7 @@ function CampaignPage() {
               ) : (
                 <>
                   <div className="t-row"><span>{t("c.participants")}</span><b>{linked ? count : "—"}</b></div>
-                  {drawn && <Link to="/r/$slug" params={{ slug }} className="abtn" style={{ justifyContent: "center" }}>{t("c.result")}</Link>}
+                  {drawn && <Link to={lp(`/r/${slug}`) as never} className="abtn" style={{ justifyContent: "center" }}>{t("c.result")}</Link>}
                   <button type="button" className="ghost" onClick={copyShare}><Link2 />{t("m.copyLink")}</button>
                 </>
               )}
@@ -306,7 +319,7 @@ function CampaignPage() {
       </div>
 
       <div className={`sync${linked ? "" : " off"}`}>
-        <span>{linked ? `${t("ana.syncNote")}${latestSnap ? ` · ${t("ana.lastUpdated")} ${new Date(latestSnap.fetched_at).toLocaleString()}` : ""}` : t("ana.noSync")}</span>
+        <span>{linked ? `${t("ana.syncNote")}${latestSnap ? ` · ${t("ana.lastUpdated")} ${new Date(latestSnap.fetched_at).toLocaleString(loc)}` : ""}` : t("ana.noSync")}</span>
       </div>
       <StatsRow snaps={snaps} latestM={latestM} firstM={firstM} linked={linked} open={open} count={count} isOwner={isOwner} />
 
@@ -422,7 +435,7 @@ function CampaignPage() {
         <section className="more">
           <div className="more-h">
             <div><h2>{t(endedNoDraw ? "c.moreTEnd" : "c.moreT")}</h2><p>{t(endedNoDraw ? "c.moreSEnd" : "c.moreS")}</p></div>
-            <Link to="/" className="more-a">{t("cy.viewAll")} →</Link>
+            <Link to={lp("/") as never} className="more-a">{t("cy.viewAll")} →</Link>
           </div>
           <div className="more-g">
             {recos.map((r) => <RecoCard key={r.id} r={r} curHost={xHandleFromUrl(c.tweet_url)} />)}
@@ -436,6 +449,7 @@ function CampaignPage() {
 }
 
 const fmtCompact = (v: number) => v.toLocaleString("en-US", { notation: "compact", maximumFractionDigits: 1 });
+const dateLoc = (l: string) => (l === "zh" ? "zh-CN" : "en-US");
 type Snap = { metrics: unknown; progress: number; fetched_at: string };
 const asMetrics = (m: unknown): Metrics | null => (m ?? null) as Metrics | null;
 const pad2 = (n: number) => String(n).padStart(2, "0");
@@ -758,7 +772,7 @@ function DeltaChart({ snaps }: { snaps: Snap[] }) {
         {hi !== null && (
           <>
             <b>{translate(lang, "ana.chartTip", { n: totals[hi] ?? 0 })}</b>
-            <span>{translate(lang, "ana.chartSync", { n: hi + 2 })} · {new Date(deltas[hi]?.at ?? "").toLocaleString()}</span>
+            <span>{translate(lang, "ana.chartSync", { n: hi + 2 })} · {new Date(deltas[hi]?.at ?? "").toLocaleString(dateLoc(lang))}</span>
           </>
         )}
       </div>
@@ -768,7 +782,7 @@ function DeltaChart({ snaps }: { snaps: Snap[] }) {
 
 /** Real cumulative snapshot series — no interpolation, no fabricated history. */
 function TrendChart({ snaps }: { snaps: Snap[] }) {
-  const { t } = useI18n();
+  const { t, lang } = useI18n();
   const W = 640, H = 220, PL = 32, PR = 12, PT = 16, PB = 30;
   const series = TREND_SERIES.map((s) => ({
     ...s,
@@ -801,9 +815,9 @@ function TrendChart({ snaps }: { snaps: Snap[] }) {
               return (
                 <>
                   {series.map((s) => <polyline key={s.key} fill="none" stroke={s.color} strokeWidth="2" strokeLinejoin="round" points={s.pts.map((p) => `${x(p.i)},${y(p.v)}`).join(" ")} />)}
-                  {series.map((s) => { const last = s.pts[s.pts.length - 1]; return last ? <circle key={`c${s.key}`} cx={x(last.i)} cy={y(last.v)} r="3.5" fill={s.color}><title>{`${t(s.label)} ${last.v.toLocaleString()} · ${new Date(last.at).toLocaleString()}`}</title></circle> : null; })}
-                  <text x={PL} y={H - 8} fontSize="10" fill="currentColor" opacity="0.5">{new Date(snaps[0]?.fetched_at ?? "").toLocaleDateString()}</text>
-                  <text x={W - PR} y={H - 8} fontSize="10" fill="currentColor" opacity="0.5" textAnchor="end">{new Date(snaps[n - 1]?.fetched_at ?? "").toLocaleDateString()}</text>
+                  {series.map((s) => { const last = s.pts[s.pts.length - 1]; return last ? <circle key={`c${s.key}`} cx={x(last.i)} cy={y(last.v)} r="3.5" fill={s.color}><title>{`${t(s.label)} ${last.v.toLocaleString()} · ${new Date(last.at).toLocaleString(dateLoc(lang))}`}</title></circle> : null; })}
+                  <text x={PL} y={H - 8} fontSize="10" fill="currentColor" opacity="0.5">{new Date(snaps[0]?.fetched_at ?? "").toLocaleDateString(dateLoc(lang))}</text>
+                  <text x={W - PR} y={H - 8} fontSize="10" fill="currentColor" opacity="0.5" textAnchor="end">{new Date(snaps[n - 1]?.fetched_at ?? "").toLocaleDateString(dateLoc(lang))}</text>
                   <text x={PL} y={PT - 6} fontSize="10" fill="currentColor" opacity="0.5">{fmtCompact(max)}</text>
                 </>
               );
@@ -912,7 +926,7 @@ function PeopleFeed({ entries, isOwner }: { entries: EntryRow[]; isOwner: boolea
 
 /** Recommendation card — real live campaigns only, same-host first. */
 function RecoCard({ r, curHost }: { r: HubCampaign; curHost: string | null }) {
-  const { t, lang } = useI18n();
+  const { t, lang, lp } = useI18n();
   const host = xHandleFromUrl(r.tweet_url) ?? "anon";
   const left = Math.max(0, Date.parse(r.ends_at) - Date.now());
   const tag = curHost && host === curHost ? (["same", t("c.tagSame")] as const) : left < 6 * 3600e3 ? (["hot", t("c.tagSoon")] as const) : null;
@@ -920,7 +934,7 @@ function RecoCard({ r, curHost }: { r: HubCampaign; curHost: string | null }) {
     : left < 86400e3 ? translate(lang, "c.leftH", { n: String(Math.round(left / 3600e3)) })
     : translate(lang, "c.leftD", { n: String(Math.round(left / 86400e3)) });
   return (
-    <Link to="/c/$slug" params={{ slug: r.slug }} className="panel mc">
+    <Link to={lp(`/c/${r.slug}`) as never} className="panel mc">
       <div className="mc-h"><span className="av" style={{ background: avBg(host) }}>{(host[0] ?? "?").toUpperCase()}</span><span>@{host}</span></div>
       <span className={`mc-tag${tag ? ` ${tag[0]}` : ""}`} style={tag ? undefined : { visibility: "hidden" }}>{tag ? tag[1] : "·"}</span>
       <div className="amt">{r.prize_amount ?? r.prize}{r.prize_amount !== null && <small>{r.currency}</small>}</div>

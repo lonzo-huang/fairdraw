@@ -323,7 +323,7 @@ function trustRow(c: Ctx, x: number, y: number, T: Theme, fs: number) {
   icon(c, "shield", x, y - fs * 0.95, fs * 1.25, T.trust);
   c.fillStyle = T.trust;
   c.font = `700 ${fs}px ${F_SANS}`;
-  c.fillText("奖金已托管 · 开奖可公开验证", x + fs * 1.7, y);
+  c.fillText("奖金已担保 · 开奖可公开验证", x + fs * 1.7, y);
 }
 function brand(c: Ctx, x: number, y: number, T: Theme, fs: number) {
   c.fillStyle = grad(c, x, y - fs, x + fs * 1.3, y + fs * 0.3, ["#ffd98a", "#ff8a3d"]);

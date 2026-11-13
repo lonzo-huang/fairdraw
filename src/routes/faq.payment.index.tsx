@@ -1,6 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useI18n } from "@/lib/i18n";
 import { Wallet, Building2, ArrowRight } from "lucide-react";
+import { i18nLinks } from "@/lib/seo";
 
 export const Route = createFileRoute("/faq/payment/")({
   head: () => ({
@@ -10,6 +11,7 @@ export const Route = createFileRoute("/faq/payment/")({
       { property: "og:title", content: "加密支付教程 — FairDraw" },
       { property: "og:type", content: "website" },
     ],
+    links: i18nLinks("/faq/payment"),
   }),
   component: FaqPaymentIndex,
 });
@@ -44,8 +46,8 @@ const PLATFORMS = [
   },
 ];
 
-function FaqPaymentIndex() {
-  const { t, lang } = useI18n();
+export function FaqPaymentIndex() {
+  const { t, lang, lp } = useI18n();
   return (
     <div className="mx-auto max-w-3xl px-5 py-16 sm:px-8">
       <h1 className="text-3xl font-semibold">{t("faq.pay.title")}</h1>
@@ -55,7 +57,7 @@ function FaqPaymentIndex() {
         {PLATFORMS.map((p) => (
           <Link
             key={p.slug}
-            to={`/faq/payment/${p.slug}` as never}
+            to={lp(`/faq/payment/${p.slug}`) as never}
             className="flex items-center gap-4 rounded-xl border border-border bg-card p-5 transition-colors hover:border-primary/50 hover:bg-card/80"
           >
             <span style={{ color: p.color }} className="flex-shrink-0">{p.icon}</span>
