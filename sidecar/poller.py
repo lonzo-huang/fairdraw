@@ -2,8 +2,9 @@
 """FairDraw reply-import poller.
 
 Every POLL_SECONDS it scans open campaigns that have a campaign tweet, fetches
-the tweet's stats + replies via Twikit (cookie-authenticated GraphQL), upserts
-tweet_stats, and enters each replier into `entries` (one row per X handle).
+each distinct tweet's stats + replies ONCE via Twikit (cookie-authenticated
+GraphQL) no matter how many campaigns bind it, upserts tweet_stats, and enters
+each replier into `entries` per campaign (one row per X handle per campaign).
 
 Env:
   SUPABASE_URL          project URL (https://xxxx.supabase.co)
@@ -34,7 +35,7 @@ KEY = os.environ["SUPABASE_SERVICE_KEY"]
 COOKIES_DIR = Path(os.environ.get("COOKIES_DIR", "cookies"))
 POLL_SECONDS = int(os.environ.get("POLL_SECONDS", "300"))
 MAX_PAGES = 10  # safety cap: ~200 replies per sweep per campaign
-FULL_SCAN_EVERY = 3600  # force a full reply scan hourly even when reply_count is flat
+FULL_SCAN_EVERY = 3600  # force a futweet scan hourly even when reply_count is flat
 LAST_FULL: dict[str, float] = {}  # campaign_id -> last full-scan timestamp
 MAX_REPLIERS = 10000  # raffle pool cap: first 10000 visible repliers in X's order
 
@@ -212,14 +213,14 @@ async def upsert_stats(tid: str, stats: dict) -> None:
         )
 
 
-async def poll_campaign(client, camp: dict) -> None:
-    """twikit is transport only (gql.tweet_detail signs requests with our
+async def poll_tweet(client, tid: str, camps: list[dict]) -> None:
+    """Fetch the tweet once for every campaign bound to it — the same reply
+    payload feeds each campaign's own entries, so binding the same post to
+    N campaigns costs one X fetch, not N.
+
+    twikit is transport only (gql.tweet_detail signs requests with our
     cookies); JSON is parsed by parse_detail — immune to twikit's model
     drift, which is what kept breaking."""
-    cid, url = camp["id"], camp["tweet_url"]
-    tid = tweet_id(url)
-    if not tid:
-        return
     response, _ = await client.gql.tweet_detail(tid, None)
     if not isinstance(response, dict) or response.get("errors"):
         return  # gone/protected — the worker's oEmbed probe handles cancellation
@@ -243,17 +244,19 @@ async def poll_campaign(client, camp: dict) -> None:
     # page 1 matches what we stored, pages 2+ cannot contain anyone new —
     # skip them (~70% fewer calls). A delete+reply swap keeps the count
     # flat, so force a full scan once an hour; count changes always scan.
-    known = await known_handles(cid)
+    known: dict[str, set[str]] = {}
+    for c in camps:
+        known[c["id"]] = await known_handles(c["id"])
     now = datetime.now(timezone.utc).timestamp()
     if (
-        len(known) < MAX_REPLIERS
+        any(len(known[c["id"]]) < MAX_REPLIERS for c in camps)
         and (
             stats is None
             or stats.get("replies") != prev
-            or now - LAST_FULL.get(cid, 0) > FULL_SCAN_EVERY
+            or now - LAST_FULL.get(tid, 0) > FULL_SCAN_EVERY
         )
     ):
-        LAST_FULL[cid] = now
+        LAST_FULL[tid] = now
         pages = 0
         while cursor and pages < MAX_PAGES:
             pages += 1
@@ -267,40 +270,42 @@ async def poll_campaign(client, camp: dict) -> None:
             if not more:
                 break
 
-    rows = []
-    for rid, r in replies.items():
-        if len(known) >= MAX_REPLIERS:
-            break  # raffle pool capped — later repliers in X's order don't enter
-        if r["handle"] in known:
-            continue
-        known.add(r["handle"])
-        rows.append({
-            "campaign_id": cid,
-            "user_id": None,
-            "handle": r["handle"],
-            "post_url": f"https://x.com/i/status/{rid}",
-            "platform": "x",
-            "eligibility_status": "verified",
-            "verification_source": "reply-import",
-            "fetched_meta": {
-                "reply_id": rid,
-                "x_verified": r["x_verified"],
-                "author_name": r["author_name"],
-                "text": r["text"],
-                "reply_time": r["reply_time"],
-            },
-            "fetched_at": datetime.now(timezone.utc).isoformat(),
-        })
-    if rows:
-        await rest(
-            "POST",
-            "entries?on_conflict=campaign_id,handle",
-            json=rows,
-            headers={**HDRS, "Prefer": "resolution=ignore-duplicates"},
-        )
-        log(f"campaign {cid}: +{len(rows)} repliers (total known {len(known)})")
-    else:
-        log(f"campaign {cid}: no new repliers")
+    for c in camps:
+        cid, k = c["id"], known[c["id"]]
+        rows = []
+        for rid, r in replies.items():
+            if len(k) >= MAX_REPLIERS:
+                break  # raffle pool capped — later repliers in X's order don't enter
+            if r["handle"] in k:
+                continue
+            k.add(r["handle"])
+            rows.append({
+                "campaign_id": cid,
+                "user_id": None,
+                "handle": r["handle"],
+                "post_url": f"https://x.com/i/status/{rid}",
+                "platform": "x",
+                "eligibility_status": "verified",
+                "verification_source": "reply-import",
+                "fetched_meta": {
+                    "reply_id": rid,
+                    "x_verified": r["x_verified"],
+                    "author_name": r["author_name"],
+                    "text": r["text"],
+                    "reply_time": r["reply_time"],
+                },
+                "fetched_at": datetime.now(timezone.utc).isoformat(),
+            })
+        if rows:
+            await rest(
+                "POST",
+                "entries?on_conflict=campaign_id,handle",
+                json=rows,
+                headers={**HDRS, "Prefer": "resolution=ignore-duplicates"},
+            )
+            log(f"campaign {cid}: +{len(rows)} repliers (total known {len(k)})")
+        else:
+            log(f"campaign {cid}: no new repliers")
 
 
 async def alive(c: dict) -> bool:
@@ -400,25 +405,31 @@ async def main() -> None:
         except Exception as e:
             log(f"campaign list failed: {e}")
             campaigns = []
-        # Deterministic sharding: campaign UUID hex mod live accounts picks
-        # its account — stable across sweeps/restarts, spreads X load per
-        # account, and a dead account's campaigns redistribute to survivors.
+        # One tweet may back several campaigns: group by tweet so its reply
+        # payload is fetched once per sweep. Deterministic sharding by tweet
+        # id keeps same-tweet groups on one account, is stable across
+        # sweeps/restarts, and a dead account's tweets redistribute to
+        # survivors.
+        posts: dict[str, list[dict]] = {}
+        for camp in campaigns:
+            t = tweet_id(camp["tweet_url"])
+            if t:
+                posts.setdefault(t, []).append(camp)
         ordered = sorted(live, key=lambda c: c["name"])
-        shards: dict[str, list[dict]] = {c["name"]: [] for c in ordered}
-        for camp in campaigns if ordered else []:
-            h = int(camp["id"].replace("-", ""), 16)
-            shards[ordered[h % len(ordered)]["name"]].append(camp)
-        if campaigns and ordered:
+        shards: dict[str, list[tuple[str, list[dict]]]] = {c["name"]: [] for c in ordered}
+        for tid, camps in sorted(posts.items()) if ordered else []:
+            shards[ordered[int(tid) % len(ordered)]["name"]].append((tid, camps))
+        if posts and ordered:
             log("shard: " + ", ".join(f"{n}<-{len(s)}" for n, s in shards.items()))
 
-        async def work(c: dict, mine: list[dict]) -> None:
-            for camp in mine:
+        async def work(c: dict, mine: list[tuple[str, list[dict]]]) -> None:
+            for tid, camps in mine:
                 try:
-                    await asyncio.wait_for(poll_campaign(c["client"], camp), timeout=180)
+                    await asyncio.wait_for(poll_tweet(c["client"], tid, camps), timeout=180)
                 except asyncio.TimeoutError:
-                    log(f"campaign {camp['id']} via {c['name']}: timed out, skipped")
+                    log(f"tweet {tid} via {c['name']}: timed out, skipped")
                 except Exception as e:
-                    log(f"campaign {camp['id']} via {c['name']}: {e}")
+                    log(f"tweet {tid} via {c['name']}: {e}")
                 await asyncio.sleep(random.uniform(2, 4))  # human-ish pacing
 
         # Shards run in parallel — each account still serialises its own
