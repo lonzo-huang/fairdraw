@@ -9,7 +9,10 @@ import { createFileRoute } from "@tanstack/react-router";
  * keyword, deleted-tweet cancel, snapshot, deadline auto-refund). Ordered by
  * ends_at so near-deadline campaigns refresh first.
  */
-const BATCH_LIMIT = 20;
+// Each check costs ~7-9 subrequests (stats, oEmbed, deleted probe, DB ops)
+// and a due auto-draw adds ~10 more — keep batches small enough to stay
+// under the free-plan 50-subrequest cap per invocation.
+const BATCH_LIMIT = 4;
 const COOLDOWN_MS = 50_000;
 /** Keep sweeping for a short grace after ends_at so the post-deadline
  *  auto-refund still fires; then the campaign drops out of the sweep. */

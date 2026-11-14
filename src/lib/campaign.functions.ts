@@ -163,37 +163,39 @@ const REFUNDABLE_ESCROW = new Set(["funded", "preauthorized"]);
  * Deletion probe for the drawn alternates. Free-plan Workers cap at 50
  * subrequests per invocation, so beyond one chunk the probe fans out to the
  * same-worker's /api/internal/deleted-probe route — each child invocation
- * gets its own budget. A child that fails is re-probed locally; unreadable
- * replies keep their place in the draw, matching single-probe semantics.
+ * gets its own budget. A local fallback of 40+ probes would just re-bust
+ * the caller's own cap, so failed chunks retry once and then stay unprobed:
+ * unreadable replies keep their place in the draw, matching the original
+ * fail-open semantics.
  */
 const DELETED_PROBE_CHUNK = 40;
 
 async function probeDeletedInDraw(urls: string[]): Promise<Map<string, boolean>> {
   const { postsDeleted } = await import("@/lib/x-stats.server");
+  if (urls.length <= DELETED_PROBE_CHUNK) return postsDeleted(urls);
   const secret = process.env["CRON_SECRET"];
-  if (urls.length <= DELETED_PROBE_CHUNK || !secret) return postsDeleted(urls);
+  if (!secret) {
+    console.warn("draw: CRON_SECRET unset — skipping deleted-reply probe for", urls.length, "urls");
+    return new Map();
+  }
   const { SITE } = await import("@/lib/seo");
   const gone = new Map<string, boolean>();
   const chunks: string[][] = [];
   for (let i = 0; i < urls.length; i += DELETED_PROBE_CHUNK) chunks.push(urls.slice(i, i + DELETED_PROBE_CHUNK));
-  const results = await Promise.all(
-    chunks.map((chunk) =>
-      fetch(`${SITE}/api/internal/deleted-probe`, {
-        method: "POST",
-        headers: { authorization: `Bearer ${secret}`, "content-type": "application/json" },
-        body: JSON.stringify({ urls: chunk }),
-      })
-        .then((r) => (r.ok ? (r.json() as Promise<{ gone: string[] }>) : null))
-        .catch(() => null),
-    ),
-  );
-  for (const [i, r] of results.entries()) {
-    if (r) {
-      for (const u of r.gone) gone.set(u, true);
-    } else {
-      for (const [u, g] of await postsDeleted(chunks[i])) if (g) gone.set(u, true);
-    }
+  const probe = (chunk: string[]) =>
+    fetch(`${SITE}/api/internal/deleted-probe`, {
+      method: "POST",
+      headers: { authorization: `Bearer ${secret}`, "content-type": "application/json" },
+      body: JSON.stringify({ urls: chunk }),
+    })
+      .then((r) => (r.ok ? (r.json() as Promise<{ gone: string[] }>) : null))
+      .catch(() => null);
+  const results = await Promise.all(chunks.map((chunk) => probe(chunk).then((r) => r ?? probe(chunk))));
+  for (const r of results) {
+    for (const u of r?.gone ?? []) gone.set(u, true);
   }
+  if (results.some((r) => r === null))
+    console.warn("draw: deleted-probe chunks unreachable:", results.filter((r) => r === null).length);
   return gone;
 }
 
