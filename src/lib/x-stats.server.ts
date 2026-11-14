@@ -136,3 +136,58 @@ export async function tweetDeleted(url: string): Promise<boolean | null> {
   if (res.ok) return false;
   return null;
 }
+
+/** Probes a small batch of URLs through oEmbed; only definitive 404s are marked gone. */
+async function probeOembed(urls: string[], gone: Map<string, boolean>, batch = 8) {
+  for (let i = 0; i < urls.length; i += batch) {
+    await Promise.all(
+      urls.slice(i, i + batch).map(async (u) => {
+        try {
+          if ((await tweetDeleted(u)) === true) gone.set(u, true);
+        } catch {
+          /* unreadable → treated as existing, same as single-probe callers */
+        }
+      }),
+    );
+  }
+}
+
+/**
+ * Deletion probe for many tweets — one Worker subrequest per 100 posts via
+ * the official API's multi-id lookup when X_BEARER_TOKEN is configured
+ * (absent ids in `data` are deleted/protected), otherwise parallel oEmbed
+ * probes in batches of 8. Returns post URL → true only when definitively
+ * gone; every unreadable post keeps its place in the draw.
+ */
+export async function postsDeleted(urls: string[]): Promise<Map<string, boolean>> {
+  const gone = new Map<string, boolean>();
+  const byId = new Map<string, string>();
+  for (const u of urls) {
+    const id = tweetId(u);
+    if (id) byId.set(id, u);
+  }
+  const token = process.env["X_BEARER_TOKEN"];
+  if (!token || byId.size === 0) {
+    await probeOembed([...byId.values()], gone);
+    return gone;
+  }
+  const ids = [...byId.keys()];
+  for (let i = 0; i < ids.length; i += 100) {
+    const chunk = ids.slice(i, i + 100);
+    try {
+      const res = await fetch(`https://api.x.com/2/tweets?ids=${chunk.join(",")}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) throw new Error(`x-api ${res.status}`);
+      const j = (await res.json()) as { data?: { id: string }[] };
+      const found = new Set((j.data ?? []).map((d) => d.id));
+      for (const id of chunk) {
+        if (!found.has(id)) gone.set(byId.get(id)!, true);
+      }
+    } catch {
+      // Lookup unavailable — fall back to oEmbed for this chunk only.
+      await probeOembed(chunk.map((id) => byId.get(id)!), gone);
+    }
+  }
+  return gone;
+}

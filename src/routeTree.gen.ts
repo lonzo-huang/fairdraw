@@ -44,6 +44,7 @@ import { Route as RSlugRouteImport } from './routes/r.$slug'
 import { Route as AuthenticatedAffiliateDashboardRouteImport } from './routes/_authenticated/affiliate.dashboard'
 import { Route as AuthenticatedManageIdRouteImport } from './routes/_authenticated/manage.$id'
 import { Route as ApiCronConditionsRouteImport } from './routes/api/cron/conditions'
+import { Route as ApiInternalDeletedProbeRouteImport } from './routes/api/internal/deleted-probe'
 import { Route as ApiStripeWebhookRouteImport } from './routes/api/stripe/webhook'
 import { Route as EnCSlugRouteImport } from './routes/en.c.$slug'
 import { Route as EnFaqPaymentRouteImport } from './routes/en.faq.payment'
@@ -234,6 +235,11 @@ const ApiCronConditionsRoute = ApiCronConditionsRouteImport.update({
   path: '/api/cron/conditions',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiInternalDeletedProbeRoute = ApiInternalDeletedProbeRouteImport.update({
+  id: '/api/internal/deleted-probe',
+  path: '/api/internal/deleted-probe',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiStripeWebhookRoute = ApiStripeWebhookRouteImport.update({
   id: '/api/stripe/webhook',
   path: '/api/stripe/webhook',
@@ -341,6 +347,7 @@ export interface FileRoutesByFullPath {
   '/affiliate/dashboard': typeof AuthenticatedAffiliateDashboardRoute
   '/manage/$id': typeof AuthenticatedManageIdRoute
   '/api/cron/conditions': typeof ApiCronConditionsRoute
+  '/api/internal/deleted-probe': typeof ApiInternalDeletedProbeRoute
   '/api/stripe/webhook': typeof ApiStripeWebhookRoute
   '/en/c/$slug': typeof EnCSlugRoute
   '/en/faq/payment': typeof EnFaqPaymentRouteWithChildren
@@ -389,6 +396,7 @@ export interface FileRoutesByTo {
   '/affiliate/dashboard': typeof AuthenticatedAffiliateDashboardRoute
   '/manage/$id': typeof AuthenticatedManageIdRoute
   '/api/cron/conditions': typeof ApiCronConditionsRoute
+  '/api/internal/deleted-probe': typeof ApiInternalDeletedProbeRoute
   '/api/stripe/webhook': typeof ApiStripeWebhookRoute
   '/en/c/$slug': typeof EnCSlugRoute
   '/en/r/$slug': typeof EnRSlugRoute
@@ -440,6 +448,7 @@ export interface FileRoutesById {
   '/_authenticated/affiliate/dashboard': typeof AuthenticatedAffiliateDashboardRoute
   '/_authenticated/manage/$id': typeof AuthenticatedManageIdRoute
   '/api/cron/conditions': typeof ApiCronConditionsRoute
+  '/api/internal/deleted-probe': typeof ApiInternalDeletedProbeRoute
   '/api/stripe/webhook': typeof ApiStripeWebhookRoute
   '/en/c/$slug': typeof EnCSlugRoute
   '/en/faq/payment': typeof EnFaqPaymentRouteWithChildren
@@ -492,6 +501,7 @@ export interface FileRouteTypes {
     | '/affiliate/dashboard'
     | '/manage/$id'
     | '/api/cron/conditions'
+    | '/api/internal/deleted-probe'
     | '/api/stripe/webhook'
     | '/en/c/$slug'
     | '/en/faq/payment'
@@ -540,6 +550,7 @@ export interface FileRouteTypes {
     | '/affiliate/dashboard'
     | '/manage/$id'
     | '/api/cron/conditions'
+    | '/api/internal/deleted-probe'
     | '/api/stripe/webhook'
     | '/en/c/$slug'
     | '/en/r/$slug'
@@ -590,6 +601,7 @@ export interface FileRouteTypes {
     | '/_authenticated/affiliate/dashboard'
     | '/_authenticated/manage/$id'
     | '/api/cron/conditions'
+    | '/api/internal/deleted-probe'
     | '/api/stripe/webhook'
     | '/en/c/$slug'
     | '/en/faq/payment'
@@ -626,6 +638,7 @@ export interface RootRouteChildren {
   GoSlugRoute: typeof GoSlugRoute
   RSlugRoute: typeof RSlugRouteWithChildren
   ApiCronConditionsRoute: typeof ApiCronConditionsRoute
+  ApiInternalDeletedProbeRoute: typeof ApiInternalDeletedProbeRoute
   ApiStripeWebhookRoute: typeof ApiStripeWebhookRoute
   ApiPublicCampaignImageSlugRoute: typeof ApiPublicCampaignImageSlugRoute
 }
@@ -877,6 +890,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiCronConditionsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/internal/deleted-probe': {
+      id: '/api/internal/deleted-probe'
+      path: '/api/internal/deleted-probe'
+      fullPath: '/api/internal/deleted-probe'
+      preLoaderRoute: typeof ApiInternalDeletedProbeRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/stripe/webhook': {
       id: '/api/stripe/webhook'
       path: '/api/stripe/webhook'
@@ -1099,6 +1119,7 @@ const rootRouteChildren: RootRouteChildren = {
   GoSlugRoute: GoSlugRoute,
   RSlugRoute: RSlugRouteWithChildren,
   ApiCronConditionsRoute: ApiCronConditionsRoute,
+  ApiInternalDeletedProbeRoute: ApiInternalDeletedProbeRoute,
   ApiStripeWebhookRoute: ApiStripeWebhookRoute,
   ApiPublicCampaignImageSlugRoute: ApiPublicCampaignImageSlugRoute,
 }

@@ -79,10 +79,10 @@ async function runDrawCore(
       e.eligibility_status === "eligible" ||
       (e.eligibility_status === "verified" &&
         (e.fetched_meta as { x_verified?: boolean | null } | null)?.x_verified === true);
-    const verById = new Map((entries ?? []).map((e) => [e.id, isVerified(e)]));
+    const verById = new Map((entries ?? []).map((e: any) => [e.id, isVerified(e)]));
     let pool = entries ?? [];
-    if (mode === "verified") pool = pool.filter((e) => verById.get(e.id));
-    const candidates = pool.map((e) => ({ id: e.id, handle: e.handle }));
+    if (mode === "verified") pool = pool.filter((e: any) => verById.get(e.id));
+    const candidates = pool.map((e: any) => ({ id: e.id, handle: e.handle }));
     if (candidates.length === 0)
       throw new Error(mode === "verified" ? "No verified (blue-V) entries" : "No eligible entries");
 
@@ -95,21 +95,16 @@ async function runDrawCore(
       camp.winners_count + 3,
       mode === "weighted" ? (w) => (verById.get(w.id) ? weights.blue : weights.normal) : undefined,
     );
-    const urlById = new Map((entries ?? []).map((e) => [e.id, e.post_url]));
-    const { tweetDeleted } = await import("@/lib/x-stats.server");
+    const urlById = new Map<string, string | null>((entries ?? []).map((e: any) => [e.id, e.post_url]));
+    const goneByUrl = await probeDeletedInDraw(
+      result.winners.map((w) => urlById.get(w.id)).filter((u): u is string => !!u),
+    );
     const winners: typeof result.winners = [];
     for (const w of result.winners) {
       if (winners.length >= camp.winners_count) break;
-      const u = urlById.get(w.id);
-      let gone = false;
-      if (u) {
-        try {
-          gone = (await tweetDeleted(u)) === true;
-        } catch {
-          gone = false;
-        }
-      }
-      if (!gone) winners.push(w);
+      const u = urlById.get(w.id) ?? undefined;
+      if (u && goneByUrl.get(u) === true) continue;
+      winners.push(w);
     }
     if (!winners.length) throw new Error("Every drawn reply has been deleted");
 
@@ -141,7 +136,7 @@ async function runDrawCore(
       await supabaseAdmin.from("draws").delete().eq("campaign_id", campaignId).eq("drawn_at", drawnAt);
       throw new Error("Draw already recorded");
     }
-    const payoutAddr = new Map((entries ?? []).map((e) => [e.handle, e.payout_address]));
+    const payoutAddr = new Map((entries ?? []).map((e: any) => [e.handle, e.payout_address]));
     await supabaseAdmin
       .from("payouts")
       .insert(winners.map((w) => ({ campaign_id: campaignId, winner_handle: w.handle, wallet_address: payoutAddr.get(w.handle) ?? null })));
@@ -163,6 +158,44 @@ async function runDrawCore(
 type EscrowState = "none" | "refunded" | "refund_pending";
 
 const REFUNDABLE_ESCROW = new Set(["funded", "preauthorized"]);
+
+/**
+ * Deletion probe for the drawn alternates. Free-plan Workers cap at 50
+ * subrequests per invocation, so beyond one chunk the probe fans out to the
+ * same-worker's /api/internal/deleted-probe route — each child invocation
+ * gets its own budget. A child that fails is re-probed locally; unreadable
+ * replies keep their place in the draw, matching single-probe semantics.
+ */
+const DELETED_PROBE_CHUNK = 40;
+
+async function probeDeletedInDraw(urls: string[]): Promise<Map<string, boolean>> {
+  const { postsDeleted } = await import("@/lib/x-stats.server");
+  const secret = process.env["CRON_SECRET"];
+  if (urls.length <= DELETED_PROBE_CHUNK || !secret) return postsDeleted(urls);
+  const { SITE } = await import("@/lib/seo");
+  const gone = new Map<string, boolean>();
+  const chunks: string[][] = [];
+  for (let i = 0; i < urls.length; i += DELETED_PROBE_CHUNK) chunks.push(urls.slice(i, i + DELETED_PROBE_CHUNK));
+  const results = await Promise.all(
+    chunks.map((chunk) =>
+      fetch(`${SITE}/api/internal/deleted-probe`, {
+        method: "POST",
+        headers: { authorization: `Bearer ${secret}`, "content-type": "application/json" },
+        body: JSON.stringify({ urls: chunk }),
+      })
+        .then((r) => (r.ok ? (r.json() as Promise<{ gone: string[] }>) : null))
+        .catch(() => null),
+    ),
+  );
+  for (const [i, r] of results.entries()) {
+    if (r) {
+      for (const u of r.gone) gone.set(u, true);
+    } else {
+      for (const [u, g] of await postsDeleted(chunks[i])) if (g) gone.set(u, true);
+    }
+  }
+  return gone;
+}
 
 /**
  * Refunds a funded/pre-authorized pool for a closing campaign.
