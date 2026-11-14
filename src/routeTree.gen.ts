@@ -22,6 +22,7 @@ import { Route as PrivacyRouteImport } from './routes/privacy'
 import { Route as RankingsRouteImport } from './routes/rankings'
 import { Route as SitemapDotxmlRouteImport } from './routes/sitemap[.]xml'
 import { Route as TermsRouteImport } from './routes/terms'
+import { Route as VerifyRouteImport } from './routes/verify'
 import { Route as AuthenticatedAdminRouteImport } from './routes/_authenticated/admin'
 import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated/dashboard'
 import { Route as AuthenticatedMyEntriesRouteImport } from './routes/_authenticated/my-entries'
@@ -36,6 +37,7 @@ import { Route as EnGuideRouteImport } from './routes/en.guide'
 import { Route as EnPrivacyRouteImport } from './routes/en.privacy'
 import { Route as EnRankingsRouteImport } from './routes/en.rankings'
 import { Route as EnTermsRouteImport } from './routes/en.terms'
+import { Route as EnVerifyRouteImport } from './routes/en.verify'
 import { Route as FaqPaymentRouteImport } from './routes/faq.payment'
 import { Route as GoSlugRouteImport } from './routes/go.$slug'
 import { Route as RSlugRouteImport } from './routes/r.$slug'
@@ -121,6 +123,11 @@ const TermsRoute = TermsRouteImport.update({
   path: '/terms',
   getParentRoute: () => rootRouteImport,
 } as any)
+const VerifyRoute = VerifyRouteImport.update({
+  id: '/verify',
+  path: '/verify',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AuthenticatedAdminRoute = AuthenticatedAdminRouteImport.update({
   id: '/admin',
   path: '/admin',
@@ -189,6 +196,11 @@ const EnRankingsRoute = EnRankingsRouteImport.update({
 const EnTermsRoute = EnTermsRouteImport.update({
   id: '/terms',
   path: '/terms',
+  getParentRoute: () => EnRoute,
+} as any)
+const EnVerifyRoute = EnVerifyRouteImport.update({
+  id: '/verify',
+  path: '/verify',
   getParentRoute: () => EnRoute,
 } as any)
 const FaqPaymentRoute = FaqPaymentRouteImport.update({
@@ -307,6 +319,7 @@ export interface FileRoutesByFullPath {
   '/rankings': typeof RankingsRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
   '/terms': typeof TermsRoute
+  '/verify': typeof VerifyRoute
   '/admin': typeof AuthenticatedAdminRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/my-entries': typeof AuthenticatedMyEntriesRoute
@@ -320,6 +333,7 @@ export interface FileRoutesByFullPath {
   '/en/privacy': typeof EnPrivacyRoute
   '/en/rankings': typeof EnRankingsRoute
   '/en/terms': typeof EnTermsRoute
+  '/en/verify': typeof EnVerifyRoute
   '/faq/payment': typeof FaqPaymentRouteWithChildren
   '/go/$slug': typeof GoSlugRoute
   '/r/$slug': typeof RSlugRouteWithChildren
@@ -354,6 +368,7 @@ export interface FileRoutesByTo {
   '/rankings': typeof RankingsRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
   '/terms': typeof TermsRoute
+  '/verify': typeof VerifyRoute
   '/admin': typeof AuthenticatedAdminRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/my-entries': typeof AuthenticatedMyEntriesRoute
@@ -367,6 +382,7 @@ export interface FileRoutesByTo {
   '/en/privacy': typeof EnPrivacyRoute
   '/en/rankings': typeof EnRankingsRoute
   '/en/terms': typeof EnTermsRoute
+  '/en/verify': typeof EnVerifyRoute
   '/go/$slug': typeof GoSlugRoute
   '/r/$slug': typeof RSlugRouteWithChildren
   '/en': typeof EnIndexRoute
@@ -402,6 +418,7 @@ export interface FileRoutesById {
   '/rankings': typeof RankingsRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
   '/terms': typeof TermsRoute
+  '/verify': typeof VerifyRoute
   '/_authenticated/admin': typeof AuthenticatedAdminRoute
   '/_authenticated/dashboard': typeof AuthenticatedDashboardRoute
   '/_authenticated/my-entries': typeof AuthenticatedMyEntriesRoute
@@ -415,6 +432,7 @@ export interface FileRoutesById {
   '/en/privacy': typeof EnPrivacyRoute
   '/en/rankings': typeof EnRankingsRoute
   '/en/terms': typeof EnTermsRoute
+  '/en/verify': typeof EnVerifyRoute
   '/faq/payment': typeof FaqPaymentRouteWithChildren
   '/go/$slug': typeof GoSlugRoute
   '/r/$slug': typeof RSlugRouteWithChildren
@@ -452,6 +470,7 @@ export interface FileRouteTypes {
     | '/rankings'
     | '/sitemap.xml'
     | '/terms'
+    | '/verify'
     | '/admin'
     | '/dashboard'
     | '/my-entries'
@@ -465,6 +484,7 @@ export interface FileRouteTypes {
     | '/en/privacy'
     | '/en/rankings'
     | '/en/terms'
+    | '/en/verify'
     | '/faq/payment'
     | '/go/$slug'
     | '/r/$slug'
@@ -499,6 +519,7 @@ export interface FileRouteTypes {
     | '/rankings'
     | '/sitemap.xml'
     | '/terms'
+    | '/verify'
     | '/admin'
     | '/dashboard'
     | '/my-entries'
@@ -512,6 +533,7 @@ export interface FileRouteTypes {
     | '/en/privacy'
     | '/en/rankings'
     | '/en/terms'
+    | '/en/verify'
     | '/go/$slug'
     | '/r/$slug'
     | '/en'
@@ -546,6 +568,7 @@ export interface FileRouteTypes {
     | '/rankings'
     | '/sitemap.xml'
     | '/terms'
+    | '/verify'
     | '/_authenticated/admin'
     | '/_authenticated/dashboard'
     | '/_authenticated/my-entries'
@@ -559,6 +582,7 @@ export interface FileRouteTypes {
     | '/en/privacy'
     | '/en/rankings'
     | '/en/terms'
+    | '/en/verify'
     | '/faq/payment'
     | '/go/$slug'
     | '/r/$slug'
@@ -596,6 +620,7 @@ export interface RootRouteChildren {
   RankingsRoute: typeof RankingsRoute
   SitemapDotxmlRoute: typeof SitemapDotxmlRoute
   TermsRoute: typeof TermsRoute
+  VerifyRoute: typeof VerifyRoute
   CSlugRoute: typeof CSlugRoute
   FaqPaymentRoute: typeof FaqPaymentRouteWithChildren
   GoSlugRoute: typeof GoSlugRoute
@@ -698,6 +723,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof TermsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/verify': {
+      id: '/verify'
+      path: '/verify'
+      fullPath: '/verify'
+      preLoaderRoute: typeof VerifyRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/_authenticated/admin': {
       id: '/_authenticated/admin'
       path: '/admin'
@@ -794,6 +826,13 @@ declare module '@tanstack/react-router' {
       path: '/terms'
       fullPath: '/en/terms'
       preLoaderRoute: typeof EnTermsRouteImport
+      parentRoute: typeof EnRoute
+    }
+    '/en/verify': {
+      id: '/en/verify'
+      path: '/verify'
+      fullPath: '/en/verify'
+      preLoaderRoute: typeof EnVerifyRouteImport
       parentRoute: typeof EnRoute
     }
     '/faq/payment': {
@@ -987,6 +1026,7 @@ interface EnRouteChildren {
   EnPrivacyRoute: typeof EnPrivacyRoute
   EnRankingsRoute: typeof EnRankingsRoute
   EnTermsRoute: typeof EnTermsRoute
+  EnVerifyRoute: typeof EnVerifyRoute
   EnIndexRoute: typeof EnIndexRoute
   EnCSlugRoute: typeof EnCSlugRoute
   EnFaqPaymentRoute: typeof EnFaqPaymentRouteWithChildren
@@ -1002,6 +1042,7 @@ const EnRouteChildren: EnRouteChildren = {
   EnPrivacyRoute: EnPrivacyRoute,
   EnRankingsRoute: EnRankingsRoute,
   EnTermsRoute: EnTermsRoute,
+  EnVerifyRoute: EnVerifyRoute,
   EnIndexRoute: EnIndexRoute,
   EnCSlugRoute: EnCSlugRoute,
   EnFaqPaymentRoute: EnFaqPaymentRouteWithChildren,
@@ -1052,6 +1093,7 @@ const rootRouteChildren: RootRouteChildren = {
   RankingsRoute: RankingsRoute,
   SitemapDotxmlRoute: SitemapDotxmlRoute,
   TermsRoute: TermsRoute,
+  VerifyRoute: VerifyRoute,
   CSlugRoute: CSlugRoute,
   FaqPaymentRoute: FaqPaymentRouteWithChildren,
   GoSlugRoute: GoSlugRoute,

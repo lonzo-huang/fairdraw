@@ -12,9 +12,9 @@ import { Check, Copy, Gift, Heart, MessageCircle, Plus, Repeat2, Search, Send, S
 export const Route = createFileRoute("/guide")({
   head: () => ({
     meta: [
-      { title: "涨粉攻略 — FairDraw" },
-      { name: "description", content: "FairDraw 涨粉攻略：平台用法、参与方式、公平开奖与派奖的全部说明。" },
-      { property: "og:title", content: "涨粉攻略 — FairDraw" },
+      { title: "X 抽奖使用指南：怎么发起、设条件、开奖和派奖 — FairDraw" },
+      { name: "description", content: "FairDraw 使用指南：怎么发起抽奖、设参与条件、开奖和派奖，以及怎么参与和领奖。" },
+      { property: "og:title", content: "X 抽奖使用指南 — FairDraw" },
       { property: "og:type", content: "website" },
     ],
     links: i18nLinks("/guide"),

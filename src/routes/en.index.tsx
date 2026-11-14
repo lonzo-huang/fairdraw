@@ -12,10 +12,10 @@ export const Route = createFileRoute("/en/")({
   ]),
   head: () => ({
     meta: [
-      { title: "FairDraw — Verifiable X (Twitter) Giveaway Platform" },
-      { name: "description", content: "Set engagement thresholds with a guaranteed prize pool and grow your audience with provably fair, re-computable draws." },
-      { property: "og:title", content: "FairDraw — Verifiable X (Twitter) Giveaway Platform" },
-      { property: "og:description", content: "Set engagement thresholds with a guaranteed prize pool and grow your audience with provably fair, re-computable draws." },
+      { title: "FairDraw — Giveaway Assistant for X (Twitter)" },
+      { name: "description", content: "Run X giveaways from one post link: FairDraw collects replies, filters bots and picks winners on time. Anyone can re-run the draw. Prizes held upfront." },
+      { property: "og:title", content: "FairDraw · Giveaway Assistant for X" },
+      { property: "og:description", content: "Paste one post link. Replies, winners and payouts — done." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
     ],

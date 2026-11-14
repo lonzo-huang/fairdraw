@@ -6,10 +6,10 @@ import { i18nLinks } from "@/lib/seo";
 export const Route = createFileRoute("/about")({
   head: () => ({
     meta: [
-      { title: "关于 FairDraw — 可验证的 X 抽奖涨粉平台" },
-      { name: "description", content: "FairDraw 是面向 X（Twitter）的可验证抽奖平台：奖池担保、确定性开奖算法开源、结果可复核、派奖凭证公示。" },
+      { title: "关于 FairDraw — X（推特）抽奖助手" },
+      { name: "description", content: "FairDraw 是 X（推特）抽奖助手：粘贴推文链接即可自动收集回复、剔除小号、到点抽出中奖者；名单公开，谁都能自己重算；奖金提前存入平台。" },
       { property: "og:title", content: "关于 FairDraw" },
-      { property: "og:description", content: "FairDraw 是面向 X（Twitter）的可验证抽奖平台：奖池担保、开奖算法开源、结果可复核、派奖凭证公示。" },
+      { property: "og:description", content: "FairDraw 是 X（推特）抽奖助手：自动收集回复、到点开奖、名单公开可重算、奖金提前存好。" },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
     ],

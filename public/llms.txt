@@ -1,6 +1,6 @@
 # FairDraw
 
-> FairDraw is a verifiable giveaway and growth platform for X (Twitter). Organisers set a prize pool and entry conditions; FairDraw imports replies, checks eligibility, draws winners with a deterministic SHA-256-seeded algorithm (open source at src/lib/draw.ts), and publishes results anyone can recompute in the browser. Payouts are published as on-chain tx hashes or receipts.
+> FairDraw is a giveaway assistant for X (Twitter): paste a post link and it collects replies, filters bots, and picks winners on schedule. The entry list and draw are public, so anyone can re-run the draw in their browser (open-source algorithm at src/lib/draw.ts), and prizes are held upfront and refunded if the giveaway doesn't go ahead. Payouts are published as on-chain tx hashes or receipts.
 
 ## Key facts
 - Prize pools are escrowed: organisers fund upfront, unmet conditions trigger 100% refunds, drawn pools lock for payouts.

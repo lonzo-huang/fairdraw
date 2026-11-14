@@ -9,7 +9,7 @@ import { enUrl, SITE } from "@/lib/seo";
  */
 const STATIC_PATHS = [
   "/", "/guide", "/archive", "/rankings", "/about", "/terms", "/privacy",
-  "/contact", "/affiliate", "/faq/payment", "/faq/payment/metamask",
+  "/contact", "/affiliate", "/verify", "/faq/payment", "/faq/payment/metamask",
   "/faq/payment/binance", "/faq/payment/okx",
 ] as const;
 

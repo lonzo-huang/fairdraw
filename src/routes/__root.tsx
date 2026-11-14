@@ -81,8 +81,8 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "FairDraw — Run fair giveaways. Prove every win." },
-      { name: "description", content: "Verifiable giveaways and rewarded community campaigns for creators and AI projects." },
+      { title: "FairDraw — X（推特）抽奖助手｜自动统计回复，公开抽中奖者" },
+      { name: "description", content: "在 X 上办抽奖，粘贴推文链接即可：自动收集回复、剔除小号、到点抽出中奖者。名单公开，谁都能自己重算结果；奖金提前存好，不开奖全额退。" },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
       { property: "og:image", content: "https://www.fairdraw.win/fairdraw-og.png" },
@@ -115,7 +115,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
             name: "FairDraw",
             url: "https://www.fairdraw.win/",
             logo: "https://www.fairdraw.win/fairdraw-mark-512.png",
-            description: "Verifiable giveaway platform for X (Twitter): escrowed prize pools, provably fair draws, public payout receipts.",
+            description: "Giveaway assistant for X (Twitter): collects replies, filters out bots, draws winners on time — entry list public for anyone to re-run. Prizes held upfront and refunded if the giveaway doesn't go ahead.",
             sameAs: ["https://x.com/FairDraw", "https://github.com/lonzo-huang/fairdraw"],
           },
           {
@@ -127,11 +127,12 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
           {
             "@type": "SoftwareApplication",
             name: "FairDraw",
-            applicationCategory: "BusinessApplication",
+            alternateName: ["FairDraw X 抽奖助手", "FairDraw Giveaway Assistant for X"],
+            applicationCategory: "UtilitiesApplication",
             operatingSystem: "Web",
             url: "https://www.fairdraw.win/",
             inLanguage: ["zh-CN", "en"],
-            description: "面向 X（Twitter）的可验证抽奖平台：奖池担保、开源开奖算法、结果可在浏览器复算、派奖凭证公示。",
+            description: "FairDraw 是 X（推特）抽奖助手：粘贴推文链接即可自动收集回复、剔除小号、到点抽出中奖者。中奖名单和抽奖过程公开，任何人都能重算；奖金提前存入平台，不开奖全额退回。",
             offers: {
               "@type": "Offer",
               price: "0",

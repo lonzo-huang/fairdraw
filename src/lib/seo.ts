@@ -14,7 +14,7 @@ export const zhUrl = (path: string) =>
  * prefixes (/c/, /r/, /faq/payment/). Everything else (dashboard, auth,
  * claim) is single-language and keeps the stored preference.
  */
-const DUAL_STATICS = ["/guide", "/archive", "/rankings", "/about", "/terms", "/privacy", "/contact", "/affiliate"];
+const DUAL_STATICS = ["/guide", "/archive", "/rankings", "/about", "/terms", "/privacy", "/contact", "/affiliate", "/verify"];
 export const isDualPath = (path: string) => {
   const z = zhUrl(path);
   return z === "/" || DUAL_STATICS.includes(z) || z.startsWith("/c/") || z.startsWith("/r/") || z === "/faq/payment" || z.startsWith("/faq/payment/");

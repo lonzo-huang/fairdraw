@@ -5,10 +5,10 @@ import { i18nLinks } from "@/lib/seo";
 export const Route = createFileRoute("/en/about")({
   head: () => ({
     meta: [
-      { title: "About FairDraw — Verifiable X Giveaway Platform" },
-      { name: "description", content: "FairDraw is a verifiable giveaway platform for X (Twitter): guaranteed prize pools, open-source deterministic draws, re-checkable results, published payout receipts." },
+      { title: "About FairDraw — Giveaway Assistant for X" },
+      { name: "description", content: "FairDraw is a giveaway assistant for X (Twitter): it collects replies, filters out bots and draws winners on time. The entry list is public — anyone can re-run it. Prizes are held upfront." },
       { property: "og:title", content: "About FairDraw" },
-      { property: "og:description", content: "FairDraw is a verifiable giveaway platform for X (Twitter): guaranteed prize pools, open-source draws, re-checkable results, published payout receipts." },
+      { property: "og:description", content: "FairDraw is a giveaway assistant for X (Twitter): replies collected, winners drawn on time, entry list public and re-runnable, prizes held upfront." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
     ],

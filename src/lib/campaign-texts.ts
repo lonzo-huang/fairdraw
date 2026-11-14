@@ -100,13 +100,13 @@ export function tweetBody(d: CardData, tone: number, tags: string): string {
 🎯 满 ${d.goalsZh}开奖
 ⏳ ${d.dur}后截止
 
-奖金由 FairDraw 担保，开奖过程公开可验证`,
+奖金由 FairDraw 担保，中奖名单公开、谁都能自己重算`,
     `感谢大家一直以来的支持！🙌
 
 这次送出 ${d.prize}，抽 ${d.win} 位朋友${per}。
 在下面回复一句话就算参与${kwZh}，满 ${d.goalsZh}就开奖，${d.dur}内有效。
 
-奖金已提前担保，结果谁都能验证，放心冲 🍀`,
+奖金已提前担保，中奖名单谁都能自己重算，放心冲 🍀`,
     `有 ${d.win} 个人会在 ${d.dur}后收到 ${d.prize} 👀
 
 条件很简单：回复这条推文${kwZh}。
@@ -120,20 +120,20 @@ ${d.win} winner${d.win > 1 ? "s" : ""}${perEn}
 🎯 Draw at ${d.goalsEn}
 ⏳ Ends in ${d.durEn}
 
-Prize held in escrow on FairDraw · verifiable draw`,
+Prize held in escrow on FairDraw · anyone can re-run the draw`,
   ];
   const body = T[Math.min(3, Math.max(0, tone))];
   return body + (tags.trim() ? `\n\n${tags.trim()}` : "");
 }
 
 export function replyText(d: CardData, tone: number): string {
-  return tone === 3 ? `Full rules & verifiable draw 👉 ${d.url}` : `完整规则和开奖验证 👉 ${d.url}`;
+  return tone === 3 ? `Full rules & re-runnable draw 👉 ${d.url}` : `完整规则，开奖结果可重算 👉 ${d.url}`;
 }
 
 export function altText(d: CardData, tone: number): string {
   return tone === 3
     ? `Giveaway card by @${d.host}: reply to win ${d.prizeEn}, ${d.win} winner(s). Draw at ${d.goalsEn}, ends in ${d.durEn}. Prize held in escrow on FairDraw. QR code links to ${d.short}.`
-    : `@${d.host} 的抽奖卡片：回帖赢 ${d.prize}，抽 ${d.win} 位。满 ${d.goalsZh}开奖，${d.dur}后截止。奖金由 FairDraw 担保，开奖可公开验证。二维码指向 ${d.short}。`;
+    : `@${d.host} 的抽奖卡片：回帖赢 ${d.prize}，抽 ${d.win} 位。满 ${d.goalsZh}开奖，${d.dur}后截止。奖金由 FairDraw 担保，中奖名单公开、谁都能重算。二维码指向 ${d.short}。`;
 }
 
 /** X-style weighted length: CJK and wide chars count as 2. */
