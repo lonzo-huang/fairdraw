@@ -11,7 +11,7 @@ export async function renderShareImage(c: ShareCampaign): Promise<Blob> {
   if (!ctx) throw new Error("Canvas unavailable");
   const css = getComputedStyle(document.documentElement);
   const color = (token: string) => css.getPropertyValue(`--${token}`).trim();
-  const font = '"Noto Sans SC", "IBM Plex Sans", sans-serif';
+  const font = '"Noto Sans SC", "Inter", sans-serif';
   const m = shareModel(c);
   ctx.fillStyle = color("card"); ctx.fillRect(0, 0, 1200, 630);
   const image = new Image();

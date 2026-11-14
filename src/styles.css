@@ -64,9 +64,9 @@
   --color-prize: var(--prize);
   --color-paper: var(--paper);
   --color-paper-foreground: var(--paper-foreground);
-  --font-display: "IBM Plex Sans", "Noto Sans SC", system-ui, sans-serif;
-  --font-sans: "IBM Plex Sans", "Noto Sans SC", system-ui, sans-serif;
-  --font-mono: "IBM Plex Mono", ui-monospace, monospace;
+  --font-display: "Bricolage Grotesque", "Noto Sans SC", system-ui, sans-serif;
+  --font-sans: "Inter", "Noto Sans SC", system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, monospace;
   --shadow-glow: var(--shadow-glow);
   --shadow-neon: var(--shadow-neon);
 }
@@ -149,7 +149,7 @@
 .cyber-hero {
   position: relative;
   isolation: isolate;
-  min-height: 630px;
+  min-height: 560px;
   overflow: hidden;
   background: linear-gradient(110deg, var(--background) 8%, transparent 70%);
 }
@@ -193,39 +193,22 @@
 .hero-copy a {
   pointer-events: auto;
 }
-.hero-type {
-  background: linear-gradient(
-    100deg,
-    var(--foreground) 15%,
-    var(--success) 40%,
-    var(--primary) 65%,
-    var(--foreground) 85%
-  );
-  background-size: 250% 100%;
-  background-clip: text;
-  color: transparent;
-  animation: text-flow 9s linear infinite;
-  text-shadow: 0 0 45px color-mix(in oklab, var(--success) 8%, transparent);
-}
-@keyframes text-flow {
-  to {
-    background-position: 250% 0;
-  }
-}
-.hero-brand {
-  font-size: 88px;
-  line-height: 1.05;
-  font-weight: 600;
-}
 .hero-copy {
   max-width: 1180px;
 }
-.hero-copy > p:first-child {
-  font-size: 11px;
+.hero-h1 {
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: clamp(38px, 5.2vw, 64px);
+  line-height: 1.12;
+  letter-spacing: -0.01em;
+  max-width: 620px;
 }
-.hero-copy > .hero-type {
-  font-size: 42px;
-  line-height: 1.35;
+.hero-h1-gold {
+  background: linear-gradient(100deg, #fff1c9, var(--prize) 55%, #ff7a2f);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
 }
 .hero-annotation {
   position: absolute;
@@ -618,6 +601,9 @@
   background: linear-gradient(90deg, transparent, var(--success), var(--primary), transparent);
   height: 1px;
 }
+.cta-band {
+  background: radial-gradient(600px 200px at 50% 0, color-mix(in oklab, var(--success) 10%, transparent), transparent);
+}
 .terminal-grid {
   background-image:
     linear-gradient(color-mix(in oklab, var(--primary) 5%, transparent) 1px, transparent 1px),
@@ -626,20 +612,14 @@
 }
 @media (max-width: 700px) {
   .cyber-hero {
-    min-height: 725px;
+    min-height: 640px;
   }
   .draw-scene {
-    top: 395px;
+    top: 300px;
     bottom: 0;
   }
   .hero-copy {
     padding-top: 35px;
-  }
-  .hero-brand {
-    font-size: 62px;
-  }
-  .hero-copy > .hero-type {
-    font-size: 30px;
   }
   .hero-annotation,
   .hero-coordinate {
