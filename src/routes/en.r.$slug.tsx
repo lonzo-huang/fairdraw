@@ -17,7 +17,7 @@ export const Route = createFileRoute("/en/r/$slug")({
     const org = c?.tweet_url ? xHandleFromUrl(c.tweet_url) : null;
     const amt = c ? (c.prize_amount !== null && c.prize_amount !== undefined ? `${c.prize_amount} ${c.currency ?? ""}`.trim() : c.prize) : "";
     const description = c
-      ? `${org ? `Giveaway by @${org} — ` : ""}${c.winners_count} winners publicly drawn, ${amt} total. The draw is re-computable in your browser; payout proof is published.`
+      ? `${org ? `Giveaway by @${org} — ` : ""}${c.winners_count} ${c.winners_count === 1 ? "winner" : "winners"} publicly drawn, ${amt} total. Anyone can re-run the draw in the browser; payout proof is published.`
       : "Public, re-computable giveaway result with payout proof.";
     const image = loaderData?.imageUrl;
     return {

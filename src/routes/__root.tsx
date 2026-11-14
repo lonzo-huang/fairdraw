@@ -85,10 +85,10 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { name: "description", content: "在 X 上办抽奖，粘贴推文链接即可：自动收集回复、剔除小号、到点抽出中奖者。名单公开，谁都能自己重算结果；奖金提前存好，不开奖全额退。" },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
-      { property: "og:image", content: "https://www.fairdraw.win/fairdraw-og.png" },
+      { property: "og:image", content: "https://www.fairdraw.win/fairdraw-og-v2.png" },
       { property: "og:image:width", content: "1200" },
       { property: "og:image:height", content: "630" },
-      { name: "twitter:image", content: "https://www.fairdraw.win/fairdraw-og.png" },
+      { name: "twitter:image", content: "https://www.fairdraw.win/fairdraw-og-v2.png" },
     ],
     links: [
       {

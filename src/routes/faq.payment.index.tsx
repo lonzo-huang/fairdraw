@@ -6,9 +6,9 @@ import { i18nLinks } from "@/lib/seo";
 export const Route = createFileRoute("/faq/payment/")({
   head: () => ({
     meta: [
-      { title: "抽奖奖金怎么付款：USDT 与刷卡教程 — FairDraw" },
+      { title: "USDT 付款教程：MetaMask、币安、欧易 — FairDraw" },
       { name: "description", content: "FairDraw 支付教程：MetaMask 钱包支付、币安提币、欧易提币完整步骤说明。" },
-      { property: "og:title", content: "抽奖奖金怎么付款 — FairDraw" },
+      { property: "og:title", content: "USDT 付款教程 — FairDraw" },
       { property: "og:type", content: "website" },
     ],
     links: i18nLinks("/faq/payment"),

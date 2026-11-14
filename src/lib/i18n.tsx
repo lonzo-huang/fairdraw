@@ -300,8 +300,8 @@ const dict = {
     en: "Open algorithm, re-computed in your browser in one click",
   },
   "trust.3": {
-    zh: "明确标注哪些资格已验证、哪些未验证",
-    en: "Clear labels for what was and wasn't verified",
+    zh: "小号、广告号自动剔除",
+    en: "Bots and spam accounts filtered out",
   },
   "trust.4": { zh: "派奖状态与交易凭证可追踪", en: "Payout status and transaction proof, tracked" },
   "pricing.title": { zh: "简单透明的价格", en: "Simple, honest pricing" },
@@ -568,7 +568,7 @@ const dict = {
     en: "Sign in with the winning X account to see claim options.",
   },
   "cl.signinBtn": { zh: "去登录", en: "Sign in" },
-  "cl.verifyT": { zh: "这次开奖可以公开复核", en: "This draw is publicly verifiable" },
+  "cl.verifyT": { zh: "这次开奖谁都能重算", en: "Anyone can re-run this draw" },
   "cl.verifyP": {
     zh: "候选名单、随机种子和算法全部公开",
     en: "Candidates, seed and algorithm are all public",
@@ -1110,8 +1110,8 @@ const dict = {
   "c.copyBtn": { zh: "复制链接", en: "Copy link" },
   "c.shareBtn": { zh: "分享给朋友", en: "Share with friends" },
   "c.shareText": {
-    zh: "回复就能参与抽奖，赢 {amt} 🎁\n奖金已担保，开奖可公开验证 👇\n{url}",
-    en: "Reply to enter the draw and win {amt} 🎁\nPool is escrowed, results publicly verifiable 👇\n{url}",
+    zh: "回复就能参与抽奖，赢 {amt} 🎁\n奖金已担保，中奖名单谁都能重算 👇\n{url}",
+    en: "Reply to enter the draw and win {amt} 🎁\nPool is escrowed, anyone can re-run the draw 👇\n{url}",
   },
   "c.promoBtn": { zh: "再发一条推文宣传", en: "Post another promo tweet" },
   "c.promoNote": {
@@ -1166,8 +1166,8 @@ const dict = {
   "c.rule2s": { zh: "推广、引流内容不进入名单", en: "Promo replies never make the list" },
   "c.rule3t": { zh: "最多前 1000 名", en: "First 1,000 max" },
   "c.rule3s": { zh: "按回复时间计入候选名单", en: "Entries count in reply order" },
-  "c.rule4t": { zh: "结果可公开验证", en: "Publicly verifiable" },
-  "c.rule4s": { zh: "开奖后任何人都能在浏览器复算", en: "Anyone can recompute the draw" },
+  "c.rule4t": { zh: "结果谁都能重算", en: "Anyone can re-run the draw" },
+  "c.rule4s": { zh: "开奖后在浏览器里自己算一遍", en: "Re-run it in your browser after the draw" },
   "c.rulesNote": {
     zh: "奖品由发起者 {host} 提供，FairDraw 负责担保与开奖。",
     en: "Prize supplied by {host}; FairDraw escrows the pool and runs the draw.",
@@ -1829,10 +1829,10 @@ const dict = {
     zh: "直接在本平台点击正在进行的活动，跳转到 X 上回复那条活动帖即可——采集程序会自动把你加进候选名单。必须是对活动帖的直接回复（但引用、转发或点赞可能被设为派奖条件），每个账号多次回复只计一次。",
     en: "Click a live campaign here to jump to X and reply to the campaign tweet — our importer adds you to the candidate list automatically. It must be a direct reply to the campaign tweet (though quotes, reposts, or likes may be set as payout conditions); multiple replies from one account count once.",
   },
-  "faq.q5": { zh: "开奖真的公平吗？怎么验证？", en: "Is the draw provably fair?" },
+  "faq.q5": { zh: "开奖真的公平吗？怎么自己查？", en: "Is the draw really fair? How can I check?" },
   "faq.a5": {
-    zh: "公平且可复核：开奖时对锁定的候选名单计算 SHA-256 指纹，混合锁定时间生成种子，用确定性算法抽选。同样的名单和时间，任何人复算都会得到同样的中奖者。开奖模式（全部/仅蓝V/加权）与蓝V、普通用户的中奖系数在开奖时一并锁定并公示在结果页，此后组织者无法再改动名单或概率。",
-    en: "Yes — and verifiable. At draw time we SHA-256 the locked candidate list, mix in the lock timestamp as the seed, and select deterministically: the same list and timestamp always yield the same winners. The draw mode (all / Blue-V only / weighted) and the Blue-V vs normal coefficients are locked at draw time and published on the result page — afterwards the organiser cannot change the list or the odds.",
+    zh: "名单在开奖前就锁死，发起人也改不了：开奖时对锁定名单计算 SHA-256 指纹，混合锁定时间生成种子，用固定算法抽选。同样的名单和时间，任何人重算都会得到同样的中奖者——点进任意结果页就能自己试。开奖模式（全部/仅蓝V/加权）与蓝V、普通用户的中奖系数在开奖时一并锁定并公示在结果页，此后组织者无法再改动名单或概率。",
+    en: "The entry list locks before the draw — even the organiser can't touch it. At draw time we SHA-256 the locked list, mix in the lock timestamp as the seed, and pick deterministically: the same list and timestamp always give the same winners, and you can re-run it yourself on any result page. The draw mode (all / Blue-V only / weighted) and the Blue-V vs normal coefficients lock at draw time and are published on the result page.",
   },
   "faq.qAlgo": { zh: "抽奖算法长什么样？", en: "What does the draw algorithm look like?" },
   "faq.aAlgo": {
@@ -1875,9 +1875,9 @@ const dict = {
   },
 
   // guide page
-  "gd.pill": { zh: "✦ FairDraw 涨粉攻略", en: "✦ FairDraw growth playbook" },
-  "gd.h1a": { zh: "用一场抽奖，换来", en: "Turn one giveaway into" },
-  "gd.h1b": { zh: "真实的曝光和粉丝", en: "real reach and followers" },
+  "gd.pill": { zh: "✦ FairDraw 使用指南", en: "✦ FairDraw guide" },
+  "gd.h1a": { zh: "在 X 上办一场抽奖，", en: "Everything about running" },
+  "gd.h1b": { zh: "看这一篇就够了", en: "a giveaway on X" },
   "gd.hsub": {
     zh: "从奖池怎么设、条件怎么选，到开奖怎么验证，这里有你需要的一切。",
     en: "From setting the pool and conditions to verifying the draw — everything you need.",
@@ -1959,8 +1959,8 @@ const dict = {
   "gd.tplCopy": { zh: "复制", en: "Copy" },
   "gd.tplCopied": { zh: "模板已复制", en: "Template copied" },
   "gd.tpl0": {
-    zh: "🎁 回帖赢 50 USDT！\n抽 5 位朋友，每人 10 USDT\n\n💬 回复本帖即参与\n⏳ 24 小时后开奖\n💰 奖金由 FairDraw 担保，结果可公开验证",
-    en: "🎁 Reply to win 50 USDT!\n5 winners, 10 USDT each\n\n💬 Reply to enter\n⏳ Draw in 24 hours\n💰 Prize escrowed on FairDraw — publicly verifiable",
+    zh: "🎁 回帖赢 50 USDT！\n抽 5 位朋友，每人 10 USDT\n\n💬 回复本帖即参与\n⏳ 24 小时后开奖\n💰 奖金由 FairDraw 担保，中奖名单谁都能重算",
+    en: "🎁 Reply to win 50 USDT!\n5 winners, 10 USDT each\n\n💬 Reply to enter\n⏳ Draw in 24 hours\n💰 Prize escrowed on FairDraw — anyone can re-run the draw",
   },
   "gd.tpl1": {
     zh: "我们准备了一点东西 👀\n接下来 24 小时，回复这条推文的朋友里会有 5 位每人收到 10 USDT。\n\n不用转发，不用关注，回复就行。\n开奖过程全公开，任何人都能验证 👇",
@@ -2173,8 +2173,8 @@ const dict = {
   "pp.f1d": { zh: "注册邮箱、登录会话、账号设置", en: "Signup email, sessions, account settings" },
   "pp.f2t": { zh: "长期保留", en: "Kept long-term" },
   "pp.f2d": {
-    zh: "活动候选名单和开奖记录，用于公开复核",
-    en: "Candidate lists and draw records, for public re-verification",
+    zh: "活动候选名单和开奖记录，任何人都能重算核对",
+    en: "Candidate lists and draw records, so anyone can re-check them",
   },
   "pp.f3t": { zh: "按法规保留", en: "Kept per law" },
   "pp.f3d": {
@@ -2239,8 +2239,8 @@ const dict = {
   },
   "tt.h1": { zh: "服务说明", en: "The service" },
   "tt.p1": {
-    zh: "FairDraw 提供活动创建、回复导入、条件核对、可验证开奖与派奖记录的工具。双方职责如下：",
-    en: "FairDraw provides tooling for campaign creation, reply import, condition checks, verifiable draws, and payout records. Responsibilities:",
+    zh: "FairDraw 提供活动创建、回复导入、条件核对、公开开奖与派奖记录的工具。双方职责如下：",
+    en: "FairDraw provides tooling for campaign creation, reply import, condition checks, open draws, and payout records. Responsibilities:",
   },
   "tt.f1t": { zh: "发起者负责", en: "Organizer" },
   "tt.f1d": {
@@ -2249,8 +2249,8 @@ const dict = {
   },
   "tt.f2t": { zh: "FairDraw 负责", en: "FairDraw" },
   "tt.f2d": {
-    zh: "担保奖池、核对参与条件、执行可验证的开奖流程",
-    en: "Escrows the pool, checks conditions, runs the verifiable draw",
+    zh: "担保奖池、核对参与条件、执行公开开奖流程",
+    en: "Escrows the pool, checks conditions, runs the public draw",
   },
   "tt.h2": { zh: "参与规则", en: "Entry rules" },
   "tt.u1a": { zh: "参与者须遵守", en: "Entrants must follow" },
@@ -2280,8 +2280,8 @@ const dict = {
     en: "Once drawn, the candidate list and result are permanently locked.",
   },
   "tt.co3b": {
-    zh: "这是保证结果可以被公开复核的前提。",
-    en: "That is what makes results publicly re-verifiable.",
+    zh: "这是保证任何人都能重算结果的前提。",
+    en: "That is what lets anyone re-run the result.",
   },
   "tt.h4": { zh: "退款", en: "Refunds" },
   "tt.p4": {
@@ -2344,7 +2344,7 @@ const dict = {
     en: "For bulk campaigns, community partnerships, or API access, email us with a short description of your use case.",
   },
 
-  "faq.pay.title": { zh: "加密支付教程", en: "Crypto Payment Guides" },
+  "faq.pay.title": { zh: "USDT 付款教程", en: "USDT Payment Tutorials" },
   "faq.pay.sub": {
     zh: "选择你使用的平台，查看完整的一步步操作教程",
     en: "Choose your platform for a full step-by-step walkthrough",

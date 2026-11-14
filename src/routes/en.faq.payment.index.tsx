@@ -5,9 +5,9 @@ import { i18nLinks } from "@/lib/seo";
 export const Route = createFileRoute("/en/faq/payment/")({
   head: () => ({
     meta: [
-      { title: "Giveaway Prize Payments: USDT & Card Tutorials — FairDraw" },
+      { title: "USDT Payment Tutorials: MetaMask, Binance, OKX — FairDraw" },
       { name: "description", content: "FairDraw payment tutorials: MetaMask wallet payments, Binance withdrawals and OKX withdrawals, step by step." },
-      { property: "og:title", content: "Giveaway prize payments — FairDraw" },
+      { property: "og:title", content: "USDT Payment Tutorials — FairDraw" },
       { property: "og:type", content: "website" },
     ],
     links: i18nLinks("/faq/payment", "en"),

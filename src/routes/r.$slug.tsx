@@ -81,7 +81,7 @@ export const Route = createFileRoute("/r/$slug")({
     const org = c?.tweet_url ? xHandleFromUrl(c.tweet_url) : null;
     const amt = c ? (c.prize_amount !== null && c.prize_amount !== undefined ? `${c.prize_amount} ${c.currency ?? ""}`.trim() : c.prize) : "";
     const description = c
-      ? `${org ? `@${org} 发起的` : ""}回帖抽奖，公开抽出 ${c.winners_count} 位中奖者，共 ${amt}。开奖过程可在浏览器复算验证，派奖凭证已公示。`
+      ? `${org ? `@${org} 发起的` : ""}回帖抽奖，公开抽出 ${c.winners_count} 位中奖者，共 ${amt}。名单公开，谁都能自己重算结果，派奖凭证已公示。`
       : "Public, re-computable giveaway result with payout proof.";
     const image = loaderData?.imageUrl;
     return {

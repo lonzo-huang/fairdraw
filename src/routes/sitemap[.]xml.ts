@@ -8,7 +8,7 @@ import { enUrl, SITE } from "@/lib/seo";
  * is used so only rows visitors can actually read are listed.
  */
 const STATIC_PATHS = [
-  "/", "/guide", "/archive", "/rankings", "/about", "/terms", "/privacy",
+  "/", "/guide", "/rankings", "/about", "/terms", "/privacy",
   "/contact", "/affiliate", "/verify", "/faq/payment", "/faq/payment/metamask",
   "/faq/payment/binance", "/faq/payment/okx",
 ] as const;
@@ -31,7 +31,7 @@ export const Route = createFileRoute("/sitemap.xml")({
   server: {
     handlers: {
       GET: async () => {
-        const paths = [...STATIC_PATHS];
+        const paths: string[] = [...STATIC_PATHS];
         try {
           const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
           const { data: campaigns, error } = await supabaseAdmin
@@ -40,6 +40,12 @@ export const Route = createFileRoute("/sitemap.xml")({
             .order("ends_at", { ascending: false })
             .limit(5000);
           if (error) throw error;
+          // /archive is noindexed until a real campaign finishes — listing it
+          // earlier would hand crawlers an empty demo-only page.
+          const realFinished = (campaigns ?? []).some(
+            (c) => !c.is_simulated && (c.status === "drawn" || c.status === "cancelled" || Date.parse(c.ends_at) <= Date.now()),
+          );
+          if (realFinished) paths.push("/archive");
           for (const c of campaigns ?? []) {
             if (c.is_simulated || !c.slug) continue;
             paths.push(`/c/${c.slug}`);
